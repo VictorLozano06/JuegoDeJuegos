@@ -1,3 +1,6 @@
+import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
+import { createEmployeeFace } from './characters/face.js';
+import { createEmployeeModel } from './characters/model.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
 import { game } from './simulation.js';
@@ -241,7 +244,7 @@ export class WorldEngine {
         this.selectedDagNode = null;
 
         // Cinematic Camera Interpolation Targets
-        this.cameraOfficePos = new THREE.Vector3(12.5, 11.5, 12.5);
+        this.cameraOfficePos = new THREE.Vector3(16, 9, -7);
         this.cameraOfficeTarget = new THREE.Vector3(0, 1.0, 0);
         this.cameraDagPos = new THREE.Vector3(0.0, 13.5, 14.5);
         this.cameraDagTarget = new THREE.Vector3(0, 3.2, 0);
@@ -285,7 +288,7 @@ export class WorldEngine {
         // Intimate Diorama Isometric Camera Setup (FOV 32° for tilt-shift model feel)
         const aspect = this.container.clientWidth / this.container.clientHeight;
         this.camera = new THREE.PerspectiveCamera(32, aspect, 0.5, 100);
-        this.camera.position.set(12.5, 11.5, 12.5);
+        this.camera.position.copy(this.cameraOfficePos);
         this.camera.lookAt(0, 1.0, 0);
 
         // Renderer with High DPI, Soft Shadows & ACES Tone Mapping
@@ -1033,14 +1036,6 @@ export class WorldEngine {
             this.scene.add(crtLight);
             this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.85, z + 0.2), pointLight: crtLight });
 
-            // Keyboard with beige body and dark keys
-            const kb = new THREE.Mesh(
-                new THREE.BoxGeometry(0.85, 0.04, 0.32),
-                new THREE.MeshStandardMaterial({ color: 0xd1c7a7, roughness: 0.5 })
-            );
-            kb.position.set(-0.1, 1.42, 0.22);
-            deskGroup.add(kb);
-
             // Joystick retro on side
             const joyBase = new THREE.Mesh(
                 new THREE.BoxGeometry(0.18, 0.06, 0.18),
@@ -1088,6 +1083,15 @@ export class WorldEngine {
                 }
             });
         }
+
+        // Keep the keyboard under the seated rig's wrist targets in every office.
+        const keyboard = new THREE.Mesh(
+            new THREE.BoxGeometry(0.76, 0.04, 0.30),
+            new THREE.MeshStandardMaterial({ color: isRetro ? 0xd1c7a7 : 0x293448, roughness: 0.7 })
+        );
+        keyboard.position.set(0, 1.42, 0.42);
+        keyboard.receiveShadow = true;
+        deskGroup.add(keyboard);
 
         // Office Chair
         const chair = this.createChair(isRetro ? 0x8d6e63 : 0x0284c7);
@@ -1387,12 +1391,14 @@ export class WorldEngine {
         // Thick seat cushion
         const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.6), seatMat);
         seat.position.y = 0.72;
+        seat.receiveShadow = true;
         chair.add(seat);
 
         // Backrest with curve
         const back = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.75, 0.08), seatMat);
         back.position.set(0, 1.15, 0.28);
         back.rotation.x = 0.08;
+        back.receiveShadow = true;
         chair.add(back);
 
         return chair;
@@ -1441,199 +1447,76 @@ export class WorldEngine {
     // --- ANIMATED 3D STYLIZED CHARACTERS ---
 
     syncEmployees(employeeList) {
-        while (this.characters.length < employeeList.length) {
-            const idx = this.characters.length;
-            const empData = employeeList[idx];
-            const charObj = this.buildCharacterMesh(empData, idx);
-            this.charactersGroup.add(charObj.group);
-            this.characters.push(charObj);
-        }
-
         while (this.characters.length > employeeList.length) {
-            const charObj = this.characters.pop();
-            this.charactersGroup.remove(charObj.group);
+            this.removeCharacter(this.characters.pop());
         }
-
+        employeeList.forEach((employee, index) => {
+            const previous = this.characters[index];
+            if (previous?.employee === employee) return;
+            if (previous) this.removeCharacter(previous);
+            const character = this.buildCharacterMesh(employee, index);
+            this.charactersGroup.add(character.group);
+            this.characters[index] = character;
+        });
         this.updateCharacterPositions();
     }
 
-    buildCharacterMesh(empData, index) {
-        const group = new THREE.Group();
+    buildCharacterMesh(employee, index) {
+        const model = createEmployeeModel(THREE, employee, index);
+        const face = createEmployeeFace(THREE, model.faceAnchor, model.faceSize, model.skinColor, model.seed);
 
-        // Customization profile or default
-        const cust = (empData && empData.customization) ? empData.customization : {};
-        const skinColor = cust.skin || 0xffdfc4;
-        const hairColor = cust.hairColor || [0x271910, 0x9a3412, 0x18181b, 0x78350f][index % 4];
-        const shirtColor = cust.shirtColor || [0x2563eb, 0xdc2626, 0x16a34a, 0x7c3aed, 0xd97706, 0xdb2777][index % 6];
-        const pantsColor = cust.pantsColor || 0x1e293b;
-        const hairStyle = cust.hairStyle || 'mop';
-        const shirtStyle = cust.shirtStyle || 'flannel';
-        const accessory = cust.accessory !== undefined ? cust.accessory : (index === 0 ? 'glasses_retro' : (index % 2 === 1 ? 'glasses_retro' : 'none'));
-
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7 });
-        const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.7 });
-        const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.8 });
-        const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.9 });
-
-        // Torso
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.48, 0.28), shirtMat);
-        torso.position.y = 0.98;
-        torso.castShadow = true;
-        group.add(torso);
-
-        // Hoodie collar if hoodie style
-        if (shirtStyle === 'hoodie') {
-            const hood = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.16), shirtMat);
-            hood.position.set(0, 1.22, -0.14);
-            group.add(hood);
-        }
-
-        // Head
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), skinMat);
-        head.position.y = 1.44;
-        head.castShadow = true;
-        group.add(head);
-
-        // Hair Styles
-        if (hairStyle === 'mop') {
-            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.38), hairMat);
-            hair.position.y = 1.62;
-            group.add(hair);
-            // Front bangs
-            const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.08), hairMat);
-            bangs.position.set(0, 1.56, 0.18);
-            group.add(bangs);
-        } else if (hairStyle === 'short') {
-            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.11, 0.36), hairMat);
-            hair.position.y = 1.61;
-            group.add(hair);
-        } else if (hairStyle === 'curly') {
-            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.42), hairMat);
-            hair.position.y = 1.65;
-            group.add(hair);
-        } else if (hairStyle === 'cap') {
-            // Retro baseball cap
-            const capMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.5 });
-            const cap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.36), capMat);
-            cap.position.y = 1.62;
-            group.add(cap);
-            const bill = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.03, 0.20), capMat);
-            bill.position.set(0, 1.58, 0.24);
-            bill.rotation.x = -0.1;
-            group.add(bill);
-        }
-
-        // Accessories (Glasses, Headphones, Beard)
-        if (accessory === 'glasses_retro') {
-            const glasses = new THREE.Mesh(
-                new THREE.BoxGeometry(0.32, 0.10, 0.04),
-                new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.2 })
-            );
-            glasses.position.set(0, 1.44, 0.18);
-            group.add(glasses);
-        } else if (accessory === 'glasses_modern') {
-            const glasses = new THREE.Mesh(
-                new THREE.BoxGeometry(0.32, 0.08, 0.03),
-                new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.8, roughness: 0.2 })
-            );
-            glasses.position.set(0, 1.44, 0.18);
-            group.add(glasses);
-        } else if (accessory === 'headphones') {
-            // 80s Orange Foam Over-Ear Studio Headphones
-            const orangeFoam = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.8 });
-            const metalBand = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.9, roughness: 0.2 });
-            [-0.20, 0.20].forEach(xOff => {
-                const earPad = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 12), orangeFoam);
-                earPad.rotation.z = Math.PI / 2;
-                earPad.position.set(xOff, 1.46, 0);
-                group.add(earPad);
-            });
-            const band = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.015, 6, 16, Math.PI), metalBand);
-            band.rotation.z = Math.PI;
-            band.position.set(0, 1.46, 0);
-            group.add(band);
-        } else if (accessory === 'beard') {
-            // 80s Dev Mustache & Stubble
-            const stache = new THREE.Mesh(
-                new THREE.BoxGeometry(0.20, 0.06, 0.04),
-                hairMat
-            );
-            stache.position.set(0, 1.34, 0.18);
-            group.add(stache);
-        }
-
-        // Arms & Hands
-        const armGeo = new THREE.BoxGeometry(0.12, 0.36, 0.12);
-        const leftArm = new THREE.Mesh(armGeo, shirtMat);
-        leftArm.position.set(-0.28, 0.96, 0.1);
-        leftArm.rotation.x = -Math.PI / 3.5;
-        group.add(leftArm);
-
-        const rightArm = new THREE.Mesh(armGeo, shirtMat);
-        rightArm.position.set(0.28, 0.96, 0.1);
-        rightArm.rotation.x = -Math.PI / 3.5;
-        group.add(rightArm);
-
-        // Legs
-        const legGeo = new THREE.BoxGeometry(0.14, 0.4, 0.14);
-        const leftLeg = new THREE.Mesh(legGeo, pantsMat);
-        leftLeg.position.set(-0.13, 0.55, 0.15);
-        leftLeg.rotation.x = Math.PI / 2.2;
-        group.add(leftLeg);
-
-        const rightLeg = new THREE.Mesh(legGeo, pantsMat);
-        rightLeg.position.set(0.13, 0.55, 0.15);
-        rightLeg.rotation.x = Math.PI / 2.2;
-        group.add(rightLeg);
-
-        // Idea Bulb
         const bulbGroup = new THREE.Group();
+        bulbGroup.position.set(0, 2.18, 0);
+        bulbGroup.visible = false;
         const bulb = new THREE.Mesh(
-            new THREE.SphereGeometry(0.14, 12, 12),
+            new THREE.SphereGeometry(0.12, 12, 8),
             new THREE.MeshBasicMaterial({ color: 0xfacc15 })
         );
         bulbGroup.add(bulb);
-        const bulbGlow = new THREE.PointLight(0xfacc15, 0, 2);
-        bulbGroup.add(bulbGlow);
-        bulbGroup.position.set(0, 1.95, 0);
-        bulbGroup.visible = false;
-        group.add(bulbGroup);
+        model.group.add(bulbGroup);
 
-        return {
-            group, torso, head, leftArm, rightArm, bulbGroup, bulbGlow,
-            state: 'typing', animTimer: Math.random() * 10, index
+        const character = {
+            ...model, employee, index, face, bulbGroup, state: 'typing', stateUntil: 0,
+            dispose() {
+                face.dispose();
+                model.dispose();
+                bulb.geometry.dispose();
+                bulb.material.dispose();
+            },
         };
+        initializeEmployeeAnimation(character);
+        return character;
+    }
+
+    removeCharacter(character) {
+        this.charactersGroup.remove(character.group);
+        character.dispose();
     }
 
     updateCharacterMesh(index, customConfig) {
-        if (!this.characters[index]) return;
-        const oldChar = this.characters[index];
-        this.charactersGroup.remove(oldChar.group);
+        const previous = this.characters[index];
+        if (!previous) return;
 
-        const empData = (game && game.employees && game.employees[index]) ? game.employees[index] : {};
+        const employee = game.employees[index];
         if (customConfig) {
-            empData.customization = { ...empData.customization, ...customConfig };
+            employee.customization = { ...employee.customization, ...customConfig };
         }
-        const newChar = this.buildCharacterMesh(empData, index);
-        newChar.state = oldChar.state;
-        newChar.animTimer = oldChar.animTimer;
-        this.charactersGroup.add(newChar.group);
-        this.characters[index] = newChar;
-
-        if (this.desks[index]) {
-            const deskPos = this.desks[index].worldPos;
-            newChar.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.85);
-            newChar.group.rotation.y = 0;
-        }
+        const character = this.buildCharacterMesh(employee, index);
+        character.state = previous.state;
+        character.stateUntil = previous.stateUntil;
+        this.removeCharacter(previous);
+        this.charactersGroup.add(character.group);
+        this.characters[index] = character;
+        this.updateCharacterPositions();
     }
 
     updateCharacterPositions() {
-        this.characters.forEach((charObj, i) => {
-            if (this.desks[i]) {
-                const deskPos = this.desks[i].worldPos;
-                charObj.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.85);
-                charObj.group.rotation.y = 0;
-            }
+        this.characters.forEach((character, index) => {
+            const desk = this.desks[index];
+            character.group.visible = Boolean(desk);
+            if (!desk) return;
+            const { x, y, z } = desk.worldPos;
+            character.group.position.set(x, y, z + 0.85);
         });
     }
 
@@ -1690,7 +1573,7 @@ export class WorldEngine {
 
         this.characters.forEach(char => {
             char.state = 'celebrating';
-            setTimeout(() => { char.state = 'typing'; }, 6000);
+            char.stateUntil = this.clock.elapsedTime + 6;
         });
     }
 
@@ -1761,22 +1644,13 @@ export class WorldEngine {
             }
         }
 
-        // Animate Characters
-        this.characters.forEach(char => {
-            char.animTimer += delta;
-            if (char.state === 'typing') {
-                const tapL = Math.sin(time * 16 + char.index) * 0.09;
-                const tapR = Math.cos(time * 16 + char.index) * 0.09;
-                char.leftArm.rotation.x = -Math.PI / 3.4 + tapL;
-                char.rightArm.rotation.x = -Math.PI / 3.4 + tapR;
-                char.head.rotation.x = 0.12 + Math.sin(time * 3) * 0.04;
-                char.torso.position.y = 0.98 + Math.sin(time * 2.5) * 0.012;
-            } else if (char.state === 'celebrating') {
-                char.leftArm.rotation.x = Math.PI * 0.8;
-                char.rightArm.rotation.x = Math.PI * 0.8;
-                char.group.position.y = Math.abs(Math.sin(time * 9)) * 0.45;
-            }
-        });
+        for (const character of this.characters) {
+            if (!character.group.visible) continue;
+            if (time >= character.stateUntil) character.state = 'typing';
+            character.bulbGroup.visible = character.state === 'thinking';
+            animateEmployee(character, time);
+            character.face.update(time, character.state);
+        }
 
         // Animate Development Particles
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
@@ -2774,22 +2648,15 @@ export class WorldEngine {
             }
 
             // 2. Raycast Characters in Office
-            const charHits = raycaster.intersectObjects(this.charactersGroup.children, true);
+            const visibleCharacters = this.characters.filter(character => character.group.visible);
+            const charHits = raycaster.intersectObjects(visibleCharacters.map(character => character.group), true);
             if (charHits.length > 0) {
-                if (soundEngine) soundEngine.playKeyboardTap();
                 const clickedMesh = charHits[0].object;
-                this.characters.forEach(char => {
-                    if (char.group.getObjectById(clickedMesh.id)) {
-                        char.state = 'thinking';
-                        char.bulbGroup.visible = true;
-                        char.bulbGlow.intensity = 1.4;
-                        setTimeout(() => {
-                            char.state = 'typing';
-                            char.bulbGroup.visible = false;
-                            char.bulbGlow.intensity = 0;
-                        }, 2500);
-                    }
-                });
+                const character = visibleCharacters.find(({ group }) => group.getObjectById(clickedMesh.id));
+                if (!character) return;
+                soundEngine.playKeyboardTap();
+                character.state = 'thinking';
+                character.stateUntil = this.clock.elapsedTime + 2.5;
             }
         });
     }
