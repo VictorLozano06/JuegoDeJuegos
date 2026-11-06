@@ -176,8 +176,8 @@
                 <button type="button" class="gdt-menu-btn" id="gdt-btn-engine">
                     <span class="gdt-btn-icon">🛠️</span>
                     <div class="gdt-btn-text">
-                        <strong>Motor Propio</strong>
-                        <small>Desarrollar / Mantener Tecnología</small>
+                        <strong>Proyecto: I+D de Motor</strong>
+                        <small>Crear, actualizar o licenciar tecnología</small>
                     </div>
                 </button>
                 <button type="button" class="gdt-menu-btn btn-action-rest" id="gdt-btn-rest">
@@ -945,6 +945,7 @@
 
             <!-- Active Research Countdown Card -->
             <div id="active-research-container" style="margin-bottom: 20px;"></div>
+            <div id="engine-management-container" style="margin-bottom:20px"></div>
 
             <!-- Competitor Hardware Reverse Engineering Section -->
             <div class="reverse-engineering-section" style="margin-bottom: 24px;">
@@ -988,18 +989,21 @@
             <!-- Branches Content Container -->
             <div id="tech-tree-branches-container" style="margin-bottom: 28px;"></div>
 
-            <!-- Legacy Engine Compilation Form (Optional In-House Engine Build) -->
+            <!-- In-house engine R&D -->
             <div class="inhouse-engine-builder-box" style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
-                <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">🔨 Compilar Motor Propietario In-House ($22,000 + módulos)</h3>
+                <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">🛠️ Proyecto: I+D de Motor Propio</h3>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Coste de creación: $18.000 + $2.000 por módulo y 10 RP + 3 RP por módulo. El motor nuevo queda disponible al completar el proyecto.</p>
                 <form id="form-custom-engine" style="background: rgba(0,0,0,0.25); padding: 16px; border-radius: 12px;">
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label">Nombre del Motor In-House</label>
                         <input type="text" id="input-engine-name" class="form-input" placeholder="Ej: Titan Forge Engine v1.0" required>
                     </div>
+                    <label class="form-label">Especialidades de género</label>
+                    <div id="engine-specialty-genres" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px"></div>
                     <label class="form-label">Módulos Desbloqueados a Integrar:</label>
                     <div id="engine-features-checkboxes" style="margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
                     <button type="submit" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center;">
-                        🔨 Compilar y Registrar Motor en la Empresa
+                        🛠️ Financiar I+D y Registrar Motor
                     </button>
                 </form>
             </div>

@@ -1320,7 +1320,7 @@ class TechnicalDebtManager {
     constructor(config = {}) {
         // 1. Core Data Structure Properties (Punto 1)
         this.rawDebt = config.initialDebt !== undefined ? config.initialDebt : (config.rawDebt || 0); // Valor numérico acumulado
-        this.baseBloatwareDebt = config.baseBloatwareDebt || 0; // Tasa mínima no eliminable para motores comerciales
+        this.baseBloatwareDebt = config.baseBloatwareDebt || 0; // Deuda mínima no eliminable del motor
         this.hiddenDebt = config.hiddenDebt || 0; // Deuda oculta que no se detecta sin testers de QA
         this.accumulatedFriction = 1.0; // Multiplicador que encarece el coste de los siguientes días
         this.regressionRisk = 0.0; // Probabilidad (0.0 a 1.0) de romper nodos conectados
@@ -1656,9 +1656,10 @@ const CommercialEngineCatalog = [
         name: 'Unreal Engine Pro',
         vendor: 'Epic Commercial Systems',
         tier: 3,
+        minYear: 1990,
         royaltyRate: 0.08, // 8% gross sales royalty
         baseDevTimeReduction: 0.25, // 25% faster base time
-        bloatwareDebtFloor: 25, // Unremovable base tech debt
+        bloatwareDebtFloor: 15, // Unremovable base tech debt
         licenseCost: 35000,
         unlockedNodes: [
             'render_raytracing',
@@ -1667,13 +1668,14 @@ const CommercialEngineCatalog = [
             'sys_weather',
             'audio_spatial'
         ],
-        desc: 'Motor comercial AAA de máxima gama. Desbloquea de inmediato nodos de élite y reduce el tiempo base un 25%, pero impone 8% de royalties de por vida y 25 puntos de deuda técnica fija (bloatware).'
+        desc: 'Motor comercial AAA de máxima gama. Desbloquea de inmediato nodos de élite y reduce el tiempo base un 25%, con 8% de royalties de por vida y 15 puntos de deuda técnica fija (bloatware).'
     },
     {
         id: 'commercial_unity_apex',
         name: 'Unity Apex',
         vendor: 'Unity Technologies',
         tier: 2,
+        minYear: 1990,
         royaltyRate: 0.05, // 5% gross sales royalty
         baseDevTimeReduction: 0.20, // 20% faster base time
         bloatwareDebtFloor: 15, // Unremovable base tech debt
@@ -1692,9 +1694,10 @@ const CommercialEngineCatalog = [
         name: 'CyberForge Open (Godot Core)',
         vendor: 'Open Community Collective',
         tier: 1,
-        royaltyRate: 0.0, // 0% royalty
+        minYear: 1990,
+        royaltyRate: 0.05, // 5% gross sales royalty
         baseDevTimeReduction: 0.10, // 10% faster
-        bloatwareDebtFloor: 8, // Light bloatware
+        bloatwareDebtFloor: 15, // Commercial license floor
         licenseCost: 0,
         unlockedNodes: [
             'render_raster',
@@ -1703,7 +1706,7 @@ const CommercialEngineCatalog = [
             'audio_stereo',
             'content_linear'
         ],
-        desc: 'Motor de código abierto sin royalties. Otorga un modesto 10% de reducción de tiempo de desarrollo y conserva sólo 8 puntos de bloatware básico.'
+        desc: 'Motor de licencia comunitaria. Cobra 5% de royalties, reduce el tiempo base un 10% y mantiene 15 puntos de deuda técnica mínima.'
     }
 ];
 
@@ -1711,6 +1714,7 @@ class InHouseEngine {
     constructor(config = {}) {
         this.id = config.id || 'inhouse_' + Date.now();
         this.name = config.name || 'Proprietary Core v1';
+        this.version = config.version || 1;
         this.tier = config.tier || 2;
         this.isProprietary = true;
         this.royaltyRate = 0.0; // 0% royalties! Keep 100% of revenue.
@@ -1721,6 +1725,7 @@ class InHouseEngine {
         // Obsolescence & Maintenance Tracking
         this.createdYear = config.createdYear || 1;
         this.createdWeek = config.createdWeek || 1;
+        this.releaseYear = config.releaseYear || (1981 + this.createdYear);
         this.lastUpdatedYear = config.lastUpdatedYear || this.createdYear;
         this.lastUpdatedWeek = config.lastUpdatedWeek || this.createdWeek;
 
@@ -1739,14 +1744,8 @@ class InHouseEngine {
      * efficiency = max(0.35, 1.0 - 0.15 * yearsElapsedWithoutUpdate)
      */
     getEfficiency(currentYear, currentWeek) {
-        const totalWeeksCreated = (this.lastUpdatedYear - 1) * 48 + this.lastUpdatedWeek;
-        const totalWeeksCurrent = (currentYear - 1) * 48 + currentWeek;
-        const elapsedWeeks = Math.max(0, totalWeeksCurrent - totalWeeksCreated);
-        const elapsedYears = elapsedWeeks / 48.0;
-
-        const decayRate = 0.15; // 15% annual loss
-        const efficiency = Math.max(0.35, 1.0 - (decayRate * elapsedYears));
-        return Math.round(efficiency * 100) / 100;
+        const elapsedYears = Math.max(0, currentYear - this.lastUpdatedYear);
+        return Math.max(0, (100 - Math.max(0, (elapsedYears - 2) * 1.5)) / 100);
     }
 
     /**
@@ -1764,8 +1763,7 @@ class InHouseEngine {
 
         // Obsolescence increases friction if engine is neglected:
         // When efficiency is 1.0 -> no penalty. If efficiency drops to 0.70 -> friction increases (1 / 0.70)
-        const obsolescencePenalty = 1.0 / efficiency;
-        return Math.round(multiplier * obsolescencePenalty * 100) / 100;
+        return Math.round(multiplier * (1.0 + (1.0 - efficiency)) * 100) / 100;
     }
 
     /**
@@ -1773,16 +1771,19 @@ class InHouseEngine {
      * Resets obsolescence clock to 100% efficiency and integrates newly researched nodes.
      */
     upgradeEngine(newBakedNodes, currentYear, currentWeek) {
-        this.lastUpdatedYear = (currentYear !== undefined ? currentYear : this.createdYear) + 1;
+        this.lastUpdatedYear = currentYear !== undefined ? currentYear : this.createdYear;
         this.lastUpdatedWeek = currentWeek || 1;
+        this.releaseYear = 1981 + this.lastUpdatedYear;
         const nodeSet = new Set(this.bakedNodes);
         newBakedNodes.forEach(n => nodeSet.add(n));
         this.bakedNodes = Array.from(nodeSet);
+        this.version++;
         return {
             success: true,
             newEfficiency: 1.0,
             bakedNodesCount: this.bakedNodes.length,
-            message: `🚀 Motor in-house "${this.name}" actualizado a la versión de vanguardia. Obsolescencia reseteada al 100% de eficiencia.`
+            version: this.version,
+            message: `🚀 Motor in-house "${this.name}" actualizado a v${this.version}.0. Obsolescencia reseteada al 100% de eficiencia.`
         };
     }
 
@@ -1791,6 +1792,12 @@ class InHouseEngine {
      * License proprietary engine technology to external rival studios for passive monthly royalties.
      */
     licenseToStudio(studioName, monthlyFee) {
+        if (typeof studioName !== 'string' || !studioName.trim()) {
+            return { success: false, message: 'Indica un nombre válido para el estudio licenciatario.' };
+        }
+        if (!Number.isFinite(monthlyFee) || monthlyFee <= 0) {
+            return { success: false, message: 'La regalía mensual debe ser un importe positivo y válido.' };
+        }
         if (this.licensees.some(l => l.studioName === studioName)) {
             return { success: false, message: `El estudio ${studioName} ya posee una licencia activa de este motor.` };
         }
@@ -1829,7 +1836,7 @@ class EnginePipelineManager {
                 name: 'Motor Comercial AAA (Unreal / Unity)',
                 desc: '7% de regalías sobre ventas brutas. +20 pts de deuda técnica fija inamovible (bloatware base). Desbloquea Ray Tracing, PBR y Físicas avanzadas desde el Día 1.',
                 royaltyPercent: 7,
-                baseDebtFloor: 20,
+                baseDebtFloor: 15,
                 frictionMultiplier: 0.85,
                 unlockedNodes: ['render_raytracing', 'physics_destructible', 'net_client_pred']
             },

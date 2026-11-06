@@ -24,6 +24,11 @@ game.onResearchCompleted = (name) => {
     renderDAGNodes();
     renderTechTree();
 };
+game.onEngineRDCompleted = (engine) => {
+    renderPipelineSelector();
+    renderTechTree();
+    showToast(`🚀 Motor "${engine.name}" compilado y añadido al selector de proyectos.`, 'success');
+};
 
 // Legacy HTML onclick attributes call these UI actions by name.
 window.closeAllModals = closeAllModals;
@@ -526,6 +531,7 @@ function setupDeveloperContextMenu() {
             }
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'none';
+            renderPipelineSelector();
             renderDAGNodes();
             updateDAGMetricsUI();
             openModal('modal-new-game');
@@ -549,8 +555,8 @@ function setupDeveloperContextMenu() {
         btnEngine.addEventListener('click', (e) => {
             e.stopPropagation();
             contextMenu.style.display = 'none';
-            renderPipelineSelector();
-            openModal('modal-tech-pipeline');
+            renderTechTree();
+            openModal('modal-research');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
@@ -706,9 +712,18 @@ function initDAGArchitectureUI() {
 }
 
 window.selectPipelineFromModal = function(pipeId) {
+    const picked = pipelineManager.availablePipelines.find(p => p.id === pipeId);
+    if (picked && picked.type === 'commercial' && game.getHistoricalYear() < (picked.minYear || 1990)) {
+        showToast(`Los motores comerciales estarán disponibles a partir de ${picked.minYear || 1990}.`, 'warn');
+        return;
+    }
     pipelineManager.selectPipeline(pipeId);
     const activePipe = pipelineManager.getActivePipeline();
+    if (!activePipe) return;
     debtManager.setBaseDebt(activePipe.baseDebtFloor);
+    if (activePipe.type === 'commercial') {
+        (activePipe.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
+    }
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
@@ -723,10 +738,41 @@ window.selectPipelineFromModal = function(pipeId) {
 
 function renderPipelineSelector() {
     const container = document.getElementById('pipeline-selector-container');
+    const historicalYear = game && game.getHistoricalYear ? game.getHistoricalYear() : 1982;
+    const owned = (game && game.inHouseEngines) || [];
+    const commercial = (game && game.commercialEngines) || [];
+    pipelineManager.availablePipelines = [
+        ...owned.map(engine => ({
+            ...engine,
+            type: 'inhouse',
+            desc: `Motor propio v${engine.version || 1}.0. 0% royalties; especialidades: ${(engine.affineGenres || []).join(', ') || 'generalista'}; modernidad ${Math.round(engine.getEfficiency ? engine.getEfficiency(game.year, game.week) * 100 : 100)}%.`,
+            royaltyPercent: 0,
+            royaltyRate: 0,
+            baseDebtFloor: 0,
+            frictionMultiplier: engine.getFrictionMultiplier
+                ? engine.getFrictionMultiplier(document.getElementById('select-genre')?.value || 'Action', game.year, game.week)
+                : 0.5,
+            unlockedNodes: engine.bakedNodes || []
+        })),
+        ...commercial.filter(engine => historicalYear >= (engine.minYear || 1990)).map(engine => ({
+            ...engine,
+            type: 'commercial',
+            royaltyPercent: Math.round((engine.royaltyRate || 0) * 100),
+            baseDebtFloor: engine.bloatwareDebtFloor || 15,
+            frictionMultiplier: 1 - (engine.baseDevTimeReduction || 0.2),
+            unlockedNodes: engine.unlockedNodes || []
+        }))
+    ];
+    if (!pipelineManager.availablePipelines.some(p => p.id === pipelineManager.selectedPipelineId)) {
+        pipelineManager.selectedPipelineId = pipelineManager.availablePipelines[0]?.id || null;
+    }
     const selectedId = pipelineManager.selectedPipelineId;
 
     if (container) {
         container.innerHTML = '';
+        if (pipelineManager.availablePipelines.length === 0) {
+            container.innerHTML = `<div class="pipeline-card"><strong>🧪 Aún no tienes un motor propio</strong><p style="font-size:12px;color:var(--text-secondary)">En esta época no hay motores comerciales. Abre I+D y completa un proyecto de motor propio antes de iniciar un juego.</p></div>`;
+        }
         pipelineManager.availablePipelines.forEach(pipe => {
             const card = document.createElement('div');
             const isCommercial = pipe.type === 'commercial';
@@ -751,6 +797,15 @@ function renderPipelineSelector() {
         });
     }
 
+    const modalContainer = document.querySelector('#modal-tech-pipeline .pipeline-modal-grid');
+    if (modalContainer && container) {
+        modalContainer.innerHTML = container.innerHTML;
+        modalContainer.querySelectorAll('.pipeline-card').forEach((card, index) => {
+            const pipe = pipelineManager.availablePipelines[index];
+            if (pipe) card.addEventListener('click', () => window.selectPipelineFromModal(pipe.id));
+        });
+    }
+
     // Also synchronize cards in #modal-tech-pipeline
     const commCard = document.getElementById('pipe-card-commercial');
     const inhouseCard = document.getElementById('pipe-card-inhouse');
@@ -758,7 +813,7 @@ function renderPipelineSelector() {
     const btnInhouse = document.getElementById('btn-select-inhouse');
 
     if (commCard && inhouseCard) {
-        const isComm = selectedId === 'commercial_unreal';
+        const isComm = pipelineManager.availablePipelines.find(p => p.id === selectedId)?.type === 'commercial';
         commCard.classList.toggle('active', isComm);
         inhouseCard.classList.toggle('active', !isComm);
 
@@ -1034,7 +1089,7 @@ function updateRadarChart(polyId, dotsPrefix, workload) {
 }
 
 function updateDAGMetricsUI() {
-    const pipe = pipelineManager.getActivePipeline();
+    const pipe = pipelineManager.getActivePipeline() || { type: 'none', frictionMultiplier: 1, baseDebtFloor: 0, royaltyPercent: 0 };
     const friction = scopeDAG.calculateFriction(pipe.frictionMultiplier);
     const workload = scopeDAG.calculateWorkload(pipe.frictionMultiplier);
 
@@ -1208,7 +1263,15 @@ function startProjectFromWizard() {
     const platformId = document.getElementById('select-platform').value;
     const targetAudience = document.getElementById('select-audience').value;
 
+    renderPipelineSelector();
     const activePipeline = pipelineManager.getActivePipeline();
+    if (!activePipeline) {
+        showToast('No hay motores disponibles. Inicia un proyecto de I+D desde el menú del estudio.', 'warn');
+        return;
+    }
+    if (activePipeline.type === 'commercial') {
+        (activePipeline.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
+    }
     const friction = scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
     const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
@@ -1732,6 +1795,16 @@ function renderTechTree() {
         }
     }
 
+    const enginePanel = document.getElementById('engine-management-container');
+    if (enginePanel) {
+        const rd = game.activeEngineRD;
+        const engineCards = game.inHouseEngines.map(engine => {
+            const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
+            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados ($20.000 + $4.000/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
+        }).join('');
+        enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>🛠️ I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
+    }
+
     // 3. Competitor Hardware Reverse Engineering Grid
     const revGrid = document.getElementById('reverse-engineering-grid');
     if (revGrid && typeof REVERSE_ENGINEERING_CATALOG !== 'undefined') {
@@ -1915,7 +1988,7 @@ function renderTechTree() {
     const checkContainer = document.getElementById('engine-features-checkboxes');
     if (checkContainer) {
         checkContainer.innerHTML = '';
-        SCOPE_NODES_CATALOG.filter(node => mgr.isUnlocked(node.id)).forEach(node => {
+        SCOPE_NODES_CATALOG.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
             const lbl = document.createElement('label');
             lbl.style.display = 'flex';
             lbl.style.alignItems = 'center';
@@ -1923,11 +1996,37 @@ function renderTechTree() {
             lbl.style.fontSize = '12px';
             lbl.style.margin = '4px 0';
             lbl.style.color = '#fff';
-            lbl.innerHTML = `<input type="checkbox" name="engine-feat" value="${node.id}" checked> ${node.icon} ${node.name} (+${node.bonusTech}T/+${node.bonusDesign}D)`;
+            lbl.innerHTML = `<input type="checkbox" name="engine-feat" value="${node.id}" ${index < 3 ? 'checked' : ''}> ${node.icon} ${node.name}`;
             checkContainer.appendChild(lbl);
         });
     }
+    const genreContainer = document.getElementById('engine-specialty-genres');
+    if (genreContainer && !genreContainer.dataset.rendered) {
+        const genres = [['Action', 'Acción'], ['RPG', 'RPG'], ['Strategy', 'Estrategia'], ['Simulation', 'Simulación'], ['Adventure', 'Aventura'], ['Casual', 'Casual']];
+        genreContainer.innerHTML = genres.map(([id, label], i) => `<label style="font-size:12px;color:#fff"><input type="checkbox" name="engine-genre" value="${id}" ${i < 2 ? 'checked' : ''}> ${label}</label>`).join('');
+        genreContainer.dataset.rendered = 'true';
+    }
 }
+
+window.upgradeStudioEngine = function(engineId) {
+    const selectedNodes = Array.from(document.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value);
+    const result = game.upgradeInHouseEngine(engineId, selectedNodes);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    if (result.success) renderTechTree();
+};
+
+window.licenseStudioEngine = function(engineId) {
+    const studio = window.prompt('Nombre del estudio que recibirá la licencia:');
+    if (!studio) return;
+    const fee = Number(window.prompt('Regalía mensual ($):', '4500'));
+    if (!Number.isFinite(fee) || fee <= 0) {
+        showToast('Introduce una regalía mensual mayor que cero.', 'warn');
+        return;
+    }
+    const result = game.licenseInHouseEngineToStudio(engineId, studio.trim(), fee);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    if (result.success) renderTechTree();
+};
 
 window.startTechResearch = function(techId) {
     if (!game) return;
@@ -1969,11 +2068,13 @@ document.getElementById('form-custom-engine').addEventListener('submit', (e) => 
         return;
     }
 
-    const res = game.createCustomEngine(name, checked);
+    const affineGenres = Array.from(document.querySelectorAll('input[name="engine-genre"]:checked')).map(el => el.value);
+    const res = game.startInHouseEngineRD({ name, bakedNodes: checked, affineGenres });
     if (res.success) {
         updateEngineOptions();
         renderTechTree();
-        showToast(`⚙️ ¡Nuevo motor "${name}" compilado con éxito!`, 'success');
+        renderPipelineSelector();
+        showToast(res.message || `⚙️ ¡Nuevo motor "${name}" compilado con éxito!`, 'success');
         document.getElementById('input-engine-name').value = '';
     } else {
         showToast(res.message, 'warn');

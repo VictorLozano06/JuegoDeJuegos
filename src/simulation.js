@@ -517,6 +517,7 @@ class TycoonGame {
         // Research & Development (I+D) Tech Tree System
         this.techTreeManager = new TechTreeManager();
         this.activeResearch = null; // { techId, nodeName, icon, costRP, totalWeeks, weeksRemaining, progress }
+        this.activeEngineRD = null;
 
         this.customEngines = [
             {
@@ -531,17 +532,8 @@ class TycoonGame {
 
         // Technology Pipelines (Commercial Engines vs Proprietary In-House Engines)
         this.commercialEngines = (typeof CommercialEngineCatalog !== 'undefined') ? CommercialEngineCatalog : [];
-        this.inHouseEngines = (typeof InHouseEngine !== 'undefined') ? [
-            new InHouseEngine({
-                id: 'inhouse_v1',
-                name: 'Forge Core In-House v1',
-                tier: 1,
-                affineGenres: ['Action', 'RPG'],
-                bakedNodes: ['render_raster', 'physics_basic', 'net_singleplayer', 'audio_stereo', 'content_linear'],
-                createdYear: 1,
-                createdWeek: 1
-            })
-        ] : [];
+        // The studio starts without a proprietary engine. One must be funded through R&D.
+        this.inHouseEngines = [];
         this.lastPassiveRoyaltiesEarned = 0;
 
         this.availableCandidates = [...BASE_CANDIDATE_POOL];
@@ -786,6 +778,10 @@ class TycoonGame {
                      (this.customEngines && this.customEngines[0]);
         }
 
+        if (pipelineType === 'commercial' && engine && this.getHistoricalYear() < (engine.minYear || 1990)) {
+            return { success: false, message: `Los motores comerciales generalistas estarán disponibles a partir de ${engine.minYear || 1990}. Desarrolla un motor propio para esta época.` };
+        }
+
         const engineUpfrontCost = (engine && engine.licenseCost) ? engine.licenseCost : 0;
         const totalDevCost = platform.devCost + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
         if (this.funds < totalDevCost) {
@@ -929,7 +925,10 @@ class TycoonGame {
             }
 
             const activeNodesList = proj.scopeDAG ? proj.scopeDAG.getActiveNodes() : [];
-            const engineModifier = (proj.pipelineType === 'inhouse') ? 0.6 : 1.0;
+            const inHouseEngine = proj.engineObj;
+            const engineModifier = proj.pipelineType === 'inhouse'
+                ? ((inHouseEngine && typeof inHouseEngine.isAffineGenre === 'function' && inHouseEngine.isAffineGenre(proj.genre.id)) ? 0.5 : 1.0)
+                : 1.0;
             const qaPower = this.employees.reduce((acc, emp) => {
                 let p = 0;
                 if (emp.trait === 'Bug Hunter' || emp.trait === 'Cazador de Bugs') p += 25;
@@ -1180,7 +1179,13 @@ class TycoonGame {
         // Critic 1: GameByte Tech (⚡) - Focuses on tech, engine, physics, bugs, tech debt & servers
         const techWeight = proj.techPoints >= proj.designPoints ? 0.35 : -0.20;
         const techBugPenalty = proj.bugs > 0 ? proj.bugs * 0.25 : 0.20;
-        const scoreTech = Math.min(10, Math.max(2, Math.round((rawScore + techWeight - techBugPenalty - (debtPenalties.reviewScorePenalty * 0.5) + (debtPenalties.reviewScoreBonus * 0.5) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
+        const engineReleaseYear = proj.engineObj && proj.engineObj.releaseYear
+            ? proj.engineObj.releaseYear
+            : (proj.engineObj && proj.engineObj.createdYear ? 1981 + proj.engineObj.createdYear : this.getHistoricalYear());
+        const engineObsolescencePenalty = proj.pipelineType === 'inhouse'
+            ? Math.max(0, (this.getHistoricalYear() - engineReleaseYear - 2) * 1.5)
+            : 0;
+        const scoreTech = Math.min(10, Math.max(2, Math.round((rawScore + techWeight - techBugPenalty - (debtPenalties.reviewScorePenalty * 0.5) - engineObsolescencePenalty + (debtPenalties.reviewScoreBonus * 0.5) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
 
         // Critic 2: Polygon Star (⭐) - Focuses on story, world, dialogues, mature themes
         const storyWeight = (proj.genre.id === 'RPG' || proj.genre.id === 'Adventure') ? 0.40 : 0.05;
@@ -1308,6 +1313,7 @@ class TycoonGame {
             // Pipeline & Tech Debt Record
             pipelineType: proj.pipelineType || 'inhouse',
             royaltyRate: (proj.engineObj && proj.engineObj.royaltyRate) || 0,
+            engineObsolescencePenalty,
             royaltiesPaidTotal: 0,
             techDebtAtRelease: proj.techDebtModel ? Math.round(proj.techDebtModel.accumulatedDebt * 10) / 10 : 0,
             regressionsSuffered: proj.regressionsCount || 0,
@@ -1370,12 +1376,13 @@ class TycoonGame {
                     : (game.weeksOnMarket === 2 ? 1.0 : Math.pow(game.decayRate, game.weeksOnMarket - 2));
 
                 const unitsThisWeek = Math.floor((game.salesPotential / 4.1) * peakCurve);
-                let revenueThisWeek = unitsThisWeek * game.basePrice;
+                const grossRevenueThisWeek = unitsThisWeek * game.basePrice;
+                let revenueThisWeek = grossRevenueThisWeek;
 
                 // Commercial Engine Royalties Deduction (5% - 10%)
                 let royaltiesDeductedThisWeek = 0;
                 if (game.royaltyRate && game.royaltyRate > 0) {
-                    royaltiesDeductedThisWeek = Math.floor(revenueThisWeek * game.royaltyRate);
+                    royaltiesDeductedThisWeek = Math.floor(grossRevenueThisWeek * game.royaltyRate);
                     game.royaltiesPaidTotal = (game.royaltiesPaidTotal || 0) + royaltiesDeductedThisWeek;
                     revenueThisWeek -= royaltiesDeductedThisWeek;
                 }
@@ -1383,6 +1390,7 @@ class TycoonGame {
                 game.unitsSoldLastWeek = unitsThisWeek;
                 game.unitsSoldTotal += unitsThisWeek;
                 game.revenueTotal += revenueThisWeek;
+                game.grossRevenueTotal = (game.grossRevenueTotal || 0) + grossRevenueThisWeek;
                 game.profit = game.revenueTotal - game.devCost;
                 this.funds += revenueThisWeek;
                 weeklyIncomeTotal += revenueThisWeek;
@@ -1475,6 +1483,29 @@ class TycoonGame {
                     soundEngine.playLevelUp();
                 }
                 this.onResearchCompleted?.(finishedTechName);
+            }
+        }
+
+        if (this.activeEngineRD) {
+            this.activeEngineRD.weeksRemaining--;
+            const completed = this.activeEngineRD.totalWeeks - this.activeEngineRD.weeksRemaining;
+            this.activeEngineRD.progress = Math.min(100, Math.floor(completed / this.activeEngineRD.totalWeeks * 100));
+            if (this.activeEngineRD.weeksRemaining <= 0) {
+                const cfg = this.activeEngineRD;
+                const engine = new InHouseEngine({
+                    name: cfg.name,
+                    tier: this.era,
+                    affineGenres: cfg.affineGenres,
+                    bakedNodes: cfg.bakedNodes,
+                    createdYear: this.year,
+                    createdWeek: this.week,
+                    releaseYear: this.getHistoricalYear()
+                });
+                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId));
+                this.inHouseEngines.push(engine);
+                this.activeEngineRD = null;
+                if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+                this.onEngineRDCompleted?.(engine);
             }
         }
 
@@ -1894,8 +1925,9 @@ class TycoonGame {
         // config: { name, affineGenres, bakedNodes }
         const bakedNodes = config.bakedNodes || ['render_raster', 'physics_basic', 'net_singleplayer', 'content_linear'];
         const affineGenres = config.affineGenres || ['Action', 'RPG'];
-        const costMoney = 35000 + (bakedNodes.length * 6000);
-        const costRP = 40 + (bakedNodes.length * 10);
+        if (this.activeEngineRD) return { success: false, message: 'Ya hay un proyecto de I+D de motor en curso.' };
+        const costMoney = 18000 + (bakedNodes.length * 2000);
+        const costRP = 10 + (bakedNodes.length * 3);
 
         if (this.funds < costMoney) {
             return { success: false, message: `Fondos insuficientes ($${costMoney.toLocaleString()}) para financiar el I+D del motor propio.` };
@@ -1906,35 +1938,22 @@ class TycoonGame {
 
         this.funds -= costMoney;
         this.researchPoints -= costRP;
-
-        const newEngine = (typeof InHouseEngine !== 'undefined') ? new InHouseEngine({
+        const seniorProgrammers = this.employees.filter(e => (e.tech || 0) >= 30 && (!e.role || /program|desarroll|ingenier|líder/i.test(e.role)));
+        if (seniorProgrammers.length === 0) {
+            this.funds += costMoney;
+            this.researchPoints += costRP;
+            return { success: false, message: 'Necesitas al menos un programador con 30+ de habilidad técnica para liderar el motor.' };
+        }
+        this.activeEngineRD = {
             name: config.name || 'Proprietary Core v' + (this.inHouseEngines.length + 1),
-            tier: this.era === 1 ? 1 : (this.era === 2 ? 2 : 3),
-            affineGenres: affineGenres,
-            bakedNodes: bakedNodes,
-            createdYear: this.year,
-            createdWeek: this.week
-        }) : {
-            id: 'inhouse_' + Date.now(),
-            name: config.name || 'In-House Engine',
-            tier: this.era,
-            affineGenres: affineGenres,
-            bakedNodes: bakedNodes,
-            isProprietary: true,
-            royaltyRate: 0,
-            bloatwareDebtFloor: 0,
-            licensees: [],
-            createdYear: this.year,
-            createdWeek: this.week,
-            getEfficiency: () => 1.0,
-            getFrictionMultiplier: () => 0.5,
-            collectWeeklyPassiveRoyalties: () => 0
+            affineGenres,
+            bakedNodes,
+            totalWeeks: 8,
+            weeksRemaining: 8,
+            progress: 0
         };
-
-        this.inHouseEngines.push(newEngine);
-        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
-        return { success: true, engine: newEngine, message: `🚀 ¡Proyecto de I+D concluido! Motor propio "${newEngine.name}" listo para producción con 0% royalties.` };
+        return { success: true, project: this.activeEngineRD, message: `🧪 Proyecto de I+D iniciado: "${this.activeEngineRD.name}". El equipo sénior necesita 8 semanas para compilarlo.` };
     }
 
     upgradeInHouseEngine(engineId, newNodes = []) {
