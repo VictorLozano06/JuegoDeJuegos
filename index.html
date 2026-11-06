@@ -1,0 +1,1050 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEV EMPIRE 3D - Tycoon Evolution</title>
+    <script>
+        window.errors = [];
+        window.addEventListener('error', (e) => {
+            const detail = (e.error && e.error.stack) ? e.error.stack : (e.message + ' in ' + e.filename + ':' + e.lineno);
+            window.errors.push(detail);
+            const d = document.getElementById('debug-errors');
+            if (d) d.innerText = window.errors.join(' | ');
+        });
+        window.addEventListener('unhandledrejection', (e) => {
+            const detail = (e.reason && e.reason.stack) ? e.reason.stack : ('Rejection: ' + e.reason);
+            window.errors.push(detail);
+            const d = document.getElementById('debug-errors');
+            if (d) d.innerText = window.errors.join(' | ');
+        });
+    </script>
+    <div id="debug-errors" style="position:fixed;top:60px;left:20px;z-index:9999;color:#ff3333;font-size:16px;background:rgba(0,0,0,0.8);max-width:90%;"></div>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <!-- WebGL Three.js Container -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay Layer -->
+    <div id="ui-overlay">
+        <!-- Top Status Bar -->
+        <header class="top-bar">
+            <div id="studio-info-btn" class="studio-info" title="Haz clic para personalizar el nombre de tu estudio y el aspecto 3D de tu personaje">
+                <div id="studio-logo" class="studio-logo">🎮</div>
+                <div>
+                    <h1 id="studio-title" class="studio-title">DEV EMPIRE 3D <span class="studio-edit-hint">✏️</span></h1>
+                    <span id="badge-era" class="era-badge">Garaje Retro (Años 80)</span>
+                </div>
+            </div>
+
+            <!-- Market Trend Badge -->
+            <div id="badge-trend" class="hud-trend-pill" title="Tendencia de Mercado Activa (+35% Ventas al acertar)">
+                <span>🔥</span> <span id="trend-text">Tendencia: Cyberpunk + RPG</span>
+            </div>
+
+            <div class="stats-group">
+                <div class="stat-item stat-funds">
+                    <span class="stat-icon">💵</span>
+                    <span id="stat-funds" class="stat-val">$75,000</span>
+                </div>
+                <div class="stat-item stat-fans">
+                    <span class="stat-icon">⭐</span>
+                    <span id="stat-fans" class="stat-val">25</span>
+                </div>
+                <div class="stat-item stat-rp">
+                    <span class="stat-icon">🔬</span>
+                    <span id="stat-rp" class="stat-val">30</span>
+                </div>
+            </div>
+
+            <div class="time-controls">
+                <div id="stat-calendar" class="calendar-display">Año <strong>1</strong>, M<strong>1</strong> S<strong>1</strong></div>
+                <div class="speed-buttons">
+                    <button class="speed-btn" data-speed="0" title="Pausar simulación (Espacio)">⏸</button>
+                    <button class="speed-btn active" data-speed="1" title="Velocidad normal (1)">1x</button>
+                    <button class="speed-btn" data-speed="2" title="Velocidad rápida (2)">2x</button>
+                    <button class="speed-btn" data-speed="4" title="Velocidad ultra (4)">4x</button>
+                </div>
+                <button id="audio-toggle" class="audio-toggle-btn" title="Activar/Silenciar Música y Sonido (M)">🔊</button>
+            </div>
+        </header>
+
+        <!-- Active Project HUD -->
+        <section id="active-project-bar">
+            <!-- Regression Alert Banner -->
+            <div id="regression-alert-banner" class="regression-alert-banner">
+                <span>⚠️ <span id="regression-alert-text">¡Regresión detectada en código!</span></span>
+                <button type="button" id="btn-fix-regression-now" class="btn-refactor" style="padding: 4px 10px; font-size: 11px;">
+                    🧹 Refactorizar Ya
+                </button>
+            </div>
+
+            <div class="proj-header">
+                <div class="proj-title">
+                    <span>🔨</span>
+                    <span id="proj-title">Proyecto Alfa</span>
+                </div>
+                <div class="proj-tags">
+                    <span id="proj-tag-topic" class="tag-badge">Cyberpunk</span>
+                    <span id="proj-tag-genre" class="tag-badge">RPG</span>
+                    <span id="proj-tag-platform" class="tag-badge">PC</span>
+                    <span id="proj-tag-pipeline" class="tag-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Titan Engine</span>
+                </div>
+            </div>
+
+            <!-- Dynamic Workload & Technical Debt Counters -->
+            <div class="proj-points-row">
+                <div class="point-pill pill-tech">💻 Motor: <span id="pts-tech">0</span></div>
+                <div class="point-pill pill-design">🎨 Gameplay/Arte: <span id="pts-design">0</span></div>
+                <div class="point-pill" style="color: #a855f7;">🌐 Red: <span id="pts-net">0</span></div>
+                <div class="point-pill" style="color: #10b981;">🛡️ QA: <span id="pts-qa">0</span></div>
+                <div class="point-pill" style="color: #f59e0b;">⚡ Fricción: <span id="pts-friction">+18%</span></div>
+                <div class="point-pill pill-bugs">⚠️ Deuda Técnica: <span id="pts-debt">0</span></div>
+            </div>
+
+            <div class="proj-progress-track">
+                <div id="proj-progress-fill" class="proj-progress-fill"></div>
+            </div>
+
+            <div class="proj-actions">
+                <span id="stage-label" class="stage-label">Fase 1: Implementación de Nodos DAG</span>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="btn-hud-open-dag" class="dock-btn" type="button" style="padding: 6px 12px; font-size: 12px;" title="Ver Arquitectura y Grafo DAG">
+                        <span>🌐</span> Ver Grafo DAG
+                    </button>
+                    <button id="btn-toggle-refactor" class="btn-refactor" type="button" title="Pagar deuda técnica, desacoplar módulos y evitar regresiones">
+                        🧹 Refactorizar Deuda
+                    </button>
+                    <button id="btn-release-game" class="release-btn" style="display: none;">🚀 Lanzar Videojuego</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom Action Dock -->
+        <footer class="bottom-dock">
+            <button id="btn-new-game" class="dock-btn btn-primary-action" title="Nuevo Proyecto (N)">
+                <span>➕</span> Nuevo Videojuego
+            </button>
+            <button id="btn-open-dag" class="dock-btn" title="Árbol de Nodos & Deuda Técnica (G)">
+                <span>🌐</span> Grafo DAG
+            </button>
+            <button id="btn-research" class="dock-btn" title="I+D & Motores (R)">
+                <span>🔬</span> I+D & Motores
+            </button>
+            <button id="btn-hire" class="dock-btn" title="Personal & Energía (H)">
+                <span>👥</span> Equipo & Personal
+            </button>
+            <button id="btn-history" class="dock-btn" title="Top 10 & Historial (C)">
+                <span>📈</span> Top 10 & Ventas
+            </button>
+            <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
+                <span>🎨</span> Tu Estudio
+            </button>
+            <button id="btn-toggle-hologram" class="dock-btn" title="Alternar Vista de Mesa Holográfica 3D (G)">
+                <span>🌐</span> Grafo 3D
+            </button>
+            <button id="btn-upgrade-office" class="dock-btn" style="display: none;">
+                <span>🏢</span> Mejorar Oficina
+            </button>
+        </footer>
+
+        <!-- Floating 3D Holographic Viewport Overlay HUD -->
+        <div id="hologram-overlay-bar" class="hologram-hud-bar" style="display: none;">
+            <div class="hologram-hud-left">
+                <div class="hologram-live-beacon">
+                    <span class="beacon-dot"></span>
+                    <span class="beacon-pulse"></span>
+                </div>
+                <div>
+                    <div class="holo-hud-title">🌐 MESA HOLOGRÁFICA 3D ACTIVA</div>
+                    <div class="holo-hud-subtitle">Haz clic en los nodos para configurarlos • Tuberías y partículas muestran dependencias</div>
+                </div>
+            </div>
+            <div class="hologram-hud-right">
+                <button type="button" id="btn-holo-return-editor" class="btn-holo-action btn-holo-primary">
+                    <span>⬅️</span> Volver al Editor 2D
+                </button>
+                <button type="button" id="btn-holo-close" class="btn-holo-action btn-holo-secondary" title="Cerrar proyección y volver a la oficina">
+                    <span>✕</span> Cerrar Holograma
+                </button>
+            </div>
+        </div>
+
+        <!-- Keyboard Shortcuts Hint Bar -->
+        <div class="shortcut-bar">
+            <kbd>Espacio</kbd> Pausa | <kbd>1-4</kbd> Vel | <kbd>N</kbd> Nuevo Juego | <kbd>G</kbd> Grafo DAG | <kbd>P</kbd> Perfil | <kbd>R</kbd> I+D | <kbd>H</kbd> Personal | <kbd>C</kbd> Top 10 | <kbd>M</kbd> Audio | <kbd>Esc</kbd> Cerrar
+        </div>
+    </div>
+
+    <!-- MODAL: CREADOR DE EMPRESA Y PERSONAJE -->
+    <div id="modal-company-creator" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 780px;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🏢</span> Creador de Estudio & Personaje</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <form id="form-company-creator">
+                <!-- SECCIÓN 1: IDENTIDAD DE LA EMPRESA -->
+                <div class="creator-section">
+                    <h3 class="creator-subtitle"><span>🕹️</span> Identidad del Estudio</h3>
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 14px;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Nombre del Estudio de Videojuegos</label>
+                            <input type="text" id="input-company-name" class="form-input" placeholder="Ej: PixelForge Games" required>
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button type="button" id="btn-random-company-name" class="dock-btn" style="width: 100%; justify-content: center; padding: 12px;">
+                                🎲 Aleatorio
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Emblema / Logotipo del Estudio</label>
+                        <div id="company-logo-picker" class="logo-picker"></div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 2: PERFIL DEL FUNDADOR -->
+                <div class="creator-section">
+                    <h3 class="creator-subtitle"><span>👤</span> Perfil del Fundador</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Nombre del Fundador</label>
+                            <input type="text" id="input-founder-name" class="form-input" placeholder="Ej: Raúl Vance" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Especialidad / Rasgo Inicial</label>
+                            <select id="select-founder-trait" class="form-select">
+                                <option value="Visionario">🌟 Visionario (Desarrollo equilibrado)</option>
+                                <option value="Mago del Código">💻 Mago del Código (+8 Tech)</option>
+                                <option value="Diseñador Maestro">🎨 Diseñador Maestro (+8 Design)</option>
+                                <option value="Cazador de Bugs">🐛 Cazador de Bugs (+35% velocidad depurando)</option>
+                                <option value="Finanzas Ágiles">💰 Finanzas Ágiles (+$15,000 iniciales)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECCIÓN 3: PERSONALIZADOR 3D EN TIEMPO REAL -->
+                <div class="creator-section">
+                    <h3 class="creator-subtitle"><span>🎨</span> Personalización 3D del Personaje (Tiempo Real)</h3>
+                    
+                    <!-- Tono de Piel -->
+                    <div class="form-group">
+                        <label class="form-label">Tono de Piel</label>
+                        <div id="picker-skin" class="swatch-group">
+                            <div class="color-swatch" data-skin="#ffe4d0" style="background: #ffe4d0;" title="Pálido"></div>
+                            <div class="color-swatch active" data-skin="#ffdfc4" style="background: #ffdfc4;" title="Claro"></div>
+                            <div class="color-swatch" data-skin="#f0b884" style="background: #f0b884;" title="Trigueño"></div>
+                            <div class="color-swatch" data-skin="#8d5524" style="background: #8d5524;" title="Moreno"></div>
+                            <div class="color-swatch" data-skin="#543118" style="background: #543118;" title="Oscuro"></div>
+                        </div>
+                    </div>
+
+                    <!-- Peinado y Color -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Estilo de Cabello</label>
+                            <div id="picker-hair-style" class="pill-group">
+                                <button type="button" class="pill-option active" data-style="mop">Melena 80s</button>
+                                <button type="button" class="pill-option" data-style="short">Corto</button>
+                                <button type="button" class="pill-option" data-style="curly">Rizado / Afro</button>
+                                <button type="button" class="pill-option" data-style="cap">Gorra</button>
+                                <button type="button" class="pill-option" data-style="bald">Rapado</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Color de Cabello</label>
+                            <div id="picker-hair-color" class="swatch-group">
+                                <div class="color-swatch active" data-color="#3d2314" style="background: #3d2314;" title="Castaño"></div>
+                                <div class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro"></div>
+                                <div class="color-swatch" data-color="#eab308" style="background: #eab308;" title="Rubio"></div>
+                                <div class="color-swatch" data-color="#b91c1c" style="background: #b91c1c;" title="Pelirrojo"></div>
+                                <div class="color-swatch" data-color="#00f0ff" style="background: #00f0ff;" title="Azul Neón"></div>
+                                <div class="color-swatch" data-color="#ec4899" style="background: #ec4899;" title="Rosa Neón"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Atuendo y Color -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                        <div class="form-group">
+                            <label class="form-label">Prenda / Ropa</label>
+                            <div id="picker-shirt-style" class="pill-group">
+                                <button type="button" class="pill-option active" data-shirt="flannel">Franela 80s</button>
+                                <button type="button" class="pill-option" data-shirt="hoodie">Sudadera</button>
+                                <button type="button" class="pill-option" data-shirt="tshirt">Camiseta</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Color de Ropa</label>
+                            <div id="picker-shirt-color" class="swatch-group">
+                                <div class="color-swatch active" data-color="#2563eb" style="background: #2563eb;" title="Azul Eléctrico"></div>
+                                <div class="color-swatch" data-color="#dc2626" style="background: #dc2626;" title="Rojo Crimson"></div>
+                                <div class="color-swatch" data-color="#16a34a" style="background: #16a34a;" title="Verde Esmeralda"></div>
+                                <div class="color-swatch" data-color="#7c3aed" style="background: #7c3aed;" title="Púrpura Synth"></div>
+                                <div class="color-swatch" data-color="#d97706" style="background: #d97706;" title="Ámbar Retro"></div>
+                                <div class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Accesorios -->
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Accesorios Especiales</label>
+                        <div id="picker-accessory" class="pill-group">
+                            <button type="button" class="pill-option active" data-acc="glasses_retro">👓 Gafas 80s</button>
+                            <button type="button" class="pill-option" data-acc="glasses_modern">🕶️ Gafas Modernas</button>
+                            <button type="button" class="pill-option" data-acc="headphones">🎧 Auriculares Naranjas</button>
+                            <button type="button" class="pill-option" data-acc="beard">👨‍🦰 Bigote 80s</button>
+                            <button type="button" class="pill-option" data-acc="none">❌ Ninguno</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 24px; text-align: right;">
+                    <button type="submit" class="dock-btn btn-primary-action" style="padding: 12px 32px; width: 100%; justify-content: center; font-size: 15px;">
+                        💾 Guardar Perfil de Estudio y Personaje
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: NUEVO VIDEOJUEGO (CON ARQUITECTURA POR NODOS DAG) -->
+    <div id="modal-new-game" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 960px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🚀</span> Iniciar Desarrollo de Videojuego</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <form id="form-new-game">
+                <div class="form-group">
+                    <label class="form-label">Nombre del Juego</label>
+                    <input type="text" id="input-game-name" class="form-input" placeholder="Ej: CyberOdyssey 2088" required>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Temática (24 Disponibles)</label>
+                        <select id="select-topic" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Género</label>
+                        <select id="select-genre" class="form-select"></select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="form-group">
+                        <label class="form-label">Plataforma de Lanzamiento</label>
+                        <select id="select-platform" class="form-select"></select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Público Objetivo</label>
+                        <select id="select-audience" class="form-select">
+                            <option value="Everyone">Para Todos (E - Familiar / Universal)</option>
+                            <option value="Young">Juvenil (Y - Adolescentes / Acción)</option>
+                            <option value="Mature">Adulto (M - Maduro / Narrativa Oscura)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- PIPELINE SELECTION: MOTOR COMERCIAL VS PROPIO -->
+                <div class="creator-section" style="margin-top: 18px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 class="creator-subtitle" style="margin-bottom: 0;"><span>⚙️</span> Pipeline Tecnológico: Motor Comercial vs In-House</h3>
+                        <button type="button" id="btn-open-pipeline-modal" class="dock-btn" style="padding: 4px 12px; font-size: 11px;">
+                            🔍 Comparar a Fondo
+                        </button>
+                    </div>
+                    <div id="pipeline-selector-container" class="pipeline-selector"></div>
+                </div>
+
+                <!-- SCOPE NODE TREE (DAG) & REAL-TIME METRICS -->
+                <div class="creator-section">
+                    <!-- Prominent 3D Holographic Projection Launcher -->
+                    <div class="holo-3d-launch-banner">
+                        <div class="holo-3d-launch-info">
+                            <span class="holo-3d-icon">🌌</span>
+                            <div>
+                                <strong style="color: #fff; font-size: 14px; display: block;">Visualización Tridimensional (Opcional)</strong>
+                                <p style="color: var(--text-secondary); font-size: 11px; margin: 3px 0 0 0; line-height: 1.35;">
+                                    Por defecto la oficina se mantiene despejada. Pulsa para proyectar la mesa holográfica 3D y manipular el grafo flotante.
+                                </p>
+                            </div>
+                        </div>
+                        <button type="button" id="btn-dag-preview-3d" class="btn-highlight-holo">
+                            <span>👁️</span> Ver Arquitectura en 3D
+                        </button>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 12px 0;">
+                        <h3 class="creator-subtitle" style="margin-bottom: 0;"><span>🌐</span> Árbol de Alcance y Arquitectura por Nodos (DAG)</h3>
+                    </div>
+
+                    <!-- Presets Bar -->
+                    <div class="dag-presets-bar">
+                        <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Presets Rápidos:</span>
+                        <button type="button" class="preset-btn" data-preset="indie" title="Scope ligero, código limpio, desarrollo rápido">⚡ Indie Ágil</button>
+                        <button type="button" class="preset-btn" data-preset="aa" title="Scope equilibrado, físicas y shaders">🎮 AA Equilibrado</button>
+                        <button type="button" class="preset-btn" data-preset="aaa" title="Ray Tracing, físicas destructibles y red avanzada">🚀 AAA Ambicioso</button>
+                        <button type="button" class="preset-btn" data-preset="qa" title="Prioridad en estabilidad y deuda técnica mínima">🛡️ QA / Clean Code</button>
+                    </div>
+
+                    <!-- Live Architecture Metrics Dashboard -->
+                    <div class="dag-metrics-panel">
+                        <div class="workload-bars">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Desglose de Carga (Workload Breakdown)</span>
+                                <span id="workload-total-pts" style="font-size: 12px; font-weight: 800; color: var(--accent-cyan);">Total: 0 pts</span>
+                            </div>
+                            <div class="discipline-row">
+                                <span class="disc-name">💻 Engine:</span>
+                                <div class="disc-bar-track"><div id="bar-eng" class="disc-bar-fill fill-eng" style="width: 40%;"></div></div>
+                                <span id="num-eng" class="disc-num">45 pts</span>
+                            </div>
+                            <div class="discipline-row">
+                                <span class="disc-name">🎮 Gameplay:</span>
+                                <div class="disc-bar-track"><div id="bar-game" class="disc-bar-fill fill-game" style="width: 50%;"></div></div>
+                                <span id="num-game" class="disc-num">60 pts</span>
+                            </div>
+                            <div class="discipline-row">
+                                <span class="disc-name">🌐 Red:</span>
+                                <div class="disc-bar-track"><div id="bar-net" class="disc-bar-fill fill-net" style="width: 20%;"></div></div>
+                                <span id="num-net" class="disc-num">25 pts</span>
+                            </div>
+                            <div class="discipline-row">
+                                <span class="disc-name">🎨 Arte:</span>
+                                <div class="disc-bar-track"><div id="bar-art" class="disc-bar-fill fill-art" style="width: 45%;"></div></div>
+                                <span id="num-art" class="disc-num">50 pts</span>
+                            </div>
+                            <div class="discipline-row">
+                                <span class="disc-name">🛡️ QA:</span>
+                                <div class="disc-bar-track"><div id="bar-qa" class="disc-bar-fill fill-qa" style="width: 30%;"></div></div>
+                                <span id="num-qa" class="disc-num">35 pts</span>
+                            </div>
+                        </div>
+
+                        <!-- Radar Chart: Balance en 5 Disciplinas -->
+                        <div class="radar-chart-container" title="Balance de Arquitectura en 5 Disciplinas">
+                            <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Balance Disciplinas</div>
+                            <svg viewBox="0 0 160 160" class="radar-svg" id="dag-radar-svg">
+                                <polygon points="80,20 137,61 115,129 45,129 23,61" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                                <polygon points="80,35 123,66 106,116 54,116 37,66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                                <polygon points="80,50 109,71 98,104 62,104 51,71" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                                <polygon points="80,65 94,75 89,92 71,92 66,75" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                                <line x1="80" y1="80" x2="80" y2="20" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                                <line x1="80" y1="80" x2="137" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                                <line x1="80" y1="80" x2="115" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                                <line x1="80" y1="80" x2="45" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                                <line x1="80" y1="80" x2="23" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                                <polygon id="dag-radar-poly" points="80,45 115,70 100,115 60,115 45,70" fill="rgba(0, 210, 255, 0.28)" stroke="#00d2ff" stroke-width="2" stroke-linejoin="round" />
+                                <circle id="radar-dot-eng-1" cx="80" cy="45" r="3" fill="#38bdf8" />
+                                <circle id="radar-dot-game-1" cx="115" cy="70" r="3" fill="#facc15" />
+                                <circle id="radar-dot-net-1" cx="100" cy="115" r="3" fill="#c084fc" />
+                                <circle id="radar-dot-art-1" cx="60" cy="115" r="3" fill="#f472b6" />
+                                <circle id="radar-dot-qa-1" cx="45" cy="70" r="3" fill="#34d399" />
+                                <text x="80" y="13" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">ENG</text>
+                                <text x="142" y="63" fill="#facc15" font-size="8" font-weight="700" text-anchor="start">GAME</text>
+                                <text x="120" y="141" fill="#c084fc" font-size="8" font-weight="700" text-anchor="start">NET</text>
+                                <text x="40" y="141" fill="#f472b6" font-size="8" font-weight="700" text-anchor="end">ART</text>
+                                <text x="18" y="63" fill="#34d399" font-size="8" font-weight="700" text-anchor="end">QA</text>
+                            </svg>
+                        </div>
+
+                        <div class="friction-gauge">
+                            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Indicador de Fricción</div>
+                            <div id="metric-friction" class="friction-val low">+12%</div>
+                            <div id="metric-coupling" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Acoplamiento: 1.1x</div>
+                            <div id="metric-friction-badge" class="friction-badge-pill pill-optimo">Acoplamiento Óptimo</div>
+                        </div>
+
+                        <div class="tech-debt-gauge">
+                            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Medidor de Deuda Técnica</div>
+                            <div class="tacometer-wrapper" style="width: 100px; margin: 0 auto;">
+                                <svg viewBox="0 0 100 55" class="tacometer-svg">
+                                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
+                                    <path d="M 10 50 A 40 40 0 0 1 26 21" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+                                    <path d="M 28 19 A 40 40 0 0 1 72 19" fill="none" stroke="#f59e0b" stroke-width="8" opacity="0.9" />
+                                    <path d="M 74 21 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+                                    <line id="tech-debt-needle" x1="50" y1="50" x2="50" y2="16" stroke="#00d2ff" stroke-width="2.5" stroke-linecap="round" style="transform-origin: 50px 50px; transform: rotate(-90deg); transition: transform 0.4s ease;" />
+                                    <circle cx="50" cy="50" r="4.5" fill="#00d2ff" />
+                                </svg>
+                            </div>
+                            <div id="metric-base-debt" class="debt-val" style="color: #10b981; font-size: 20px;">0 pts</div>
+                            <div id="metric-debt-status" class="debt-status-tag tag-clean">🟢 Código Limpio</div>
+                            <div id="metric-royalties" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">0% Royalties</div>
+                        </div>
+                    </div>
+
+                    <!-- Clean Categorized 2D Architecture Nodes -->
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>🖥️</span> Motor Gráfico & Renderizado</div>
+                        <div id="dag-nodes-render" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>⚛️</span> Físicas & Dinámica de Colisiones</div>
+                        <div id="dag-nodes-physics" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>🌐</span> Netcode & Sincronización de Red</div>
+                        <div id="dag-nodes-net" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>🧠</span> Inteligencia Artificial & Lógica</div>
+                        <div id="dag-nodes-ai" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>🎧</span> Pipeline de Audio & Acústica</div>
+                        <div id="dag-nodes-audio" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>🗺️</span> Contenido & Estructura de Mundo</div>
+                        <div id="dag-nodes-content" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <div class="dag-category-block">
+                        <div class="dag-category-title"><span>⚙️</span> Sistemas & Jugabilidad Avanzada</div>
+                        <div id="dag-nodes-systems" class="dag-nodes-grid"></div>
+                    </div>
+
+                    <!-- Backwards-compatibility hidden container -->
+                    <div id="dag-nodes-base" style="display: none;"></div>
+                </div>
+
+                <div style="margin-top: 24px; text-align: right;">
+                    <button type="submit" class="dock-btn btn-primary-action" style="padding: 12px 28px; width: 100%; justify-content: center; font-size: 15px;">
+                        🚀 Compilar Arquitectura y Comenzar Proyecto
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL: PANEL INTERACTIVO DEDICADO DEL GRAFO DE NODOS Y DEUDA TÉCNICA (#modal-scope-dag) -->
+    <div id="modal-scope-dag" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 980px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🌐</span> Árbol de Nodos (DAG) & Deuda Técnica</h2>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button type="button" id="btn-dag-modal-view-3d" class="btn-highlight-holo" style="padding: 6px 14px; font-size: 12px;">
+                        <span>👁️</span> Proyección Holográfica 3D
+                    </button>
+                    <button class="modal-close">&times;</button>
+                </div>
+            </div>
+
+            <!-- Presets Bar -->
+            <div class="dag-presets-bar">
+                <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Presets de Alcance:</span>
+                <button type="button" class="preset-btn" data-preset="indie" title="Scope ligero, código limpio, desarrollo rápido">⚡ Indie Ágil</button>
+                <button type="button" class="preset-btn" data-preset="aa" title="Scope equilibrado, físicas y shaders">🎮 AA Equilibrado</button>
+                <button type="button" class="preset-btn" data-preset="aaa" title="Ray Tracing, físicas destructibles y red avanzada">🚀 AAA Ambicioso</button>
+                <button type="button" class="preset-btn" data-preset="qa" title="Prioridad en estabilidad y deuda técnica mínima">🛡️ QA / Clean Code</button>
+            </div>
+
+            <!-- Live Architecture Metrics Dashboard -->
+            <div class="dag-metrics-panel">
+                <div class="workload-bars">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Desglose de Carga (Workload Breakdown)</span>
+                        <span id="dag-modal-total-pts" style="font-size: 12px; font-weight: 800; color: var(--accent-cyan);">Total: 0 pts</span>
+                    </div>
+                    <div class="discipline-row">
+                        <span class="disc-name">💻 Engine:</span>
+                        <div class="disc-bar-track"><div id="dag-modal-bar-eng" class="disc-bar-fill fill-eng" style="width: 20%;"></div></div>
+                        <span id="dag-modal-num-eng" class="disc-num">0 pts</span>
+                    </div>
+                    <div class="discipline-row">
+                        <span class="disc-name">🎮 Gameplay:</span>
+                        <div class="disc-bar-track"><div id="dag-modal-bar-game" class="disc-bar-fill fill-game" style="width: 20%;"></div></div>
+                        <span id="dag-modal-num-game" class="disc-num">0 pts</span>
+                    </div>
+                    <div class="discipline-row">
+                        <span class="disc-name">🌐 Red:</span>
+                        <div class="disc-bar-track"><div id="dag-modal-bar-net" class="disc-bar-fill fill-net" style="width: 20%;"></div></div>
+                        <span id="dag-modal-num-net" class="disc-num">0 pts</span>
+                    </div>
+                    <div class="discipline-row">
+                        <span class="disc-name">🎨 Arte:</span>
+                        <div class="disc-bar-track"><div id="dag-modal-bar-art" class="disc-bar-fill fill-art" style="width: 20%;"></div></div>
+                        <span id="dag-modal-num-art" class="disc-num">0 pts</span>
+                    </div>
+                    <div class="discipline-row">
+                        <span class="disc-name">🛡️ QA:</span>
+                        <div class="disc-bar-track"><div id="dag-modal-bar-qa" class="disc-bar-fill fill-qa" style="width: 20%;"></div></div>
+                        <span id="dag-modal-num-qa" class="disc-num">0 pts</span>
+                    </div>
+                </div>
+
+                <!-- Radar Chart: Balance en 5 Disciplinas -->
+                <div class="radar-chart-container" title="Balance de Arquitectura en 5 Disciplinas">
+                    <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Balance Disciplinas</div>
+                    <svg viewBox="0 0 160 160" class="radar-svg" id="dag-modal-radar-svg">
+                        <polygon points="80,20 137,61 115,129 45,129 23,61" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                        <polygon points="80,35 123,66 106,116 54,116 37,66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                        <polygon points="80,50 109,71 98,104 62,104 51,71" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                        <polygon points="80,65 94,75 89,92 71,92 66,75" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                        <line x1="80" y1="80" x2="80" y2="20" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                        <line x1="80" y1="80" x2="137" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                        <line x1="80" y1="80" x2="115" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                        <line x1="80" y1="80" x2="45" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                        <line x1="80" y1="80" x2="23" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                        <polygon id="dag-modal-radar-poly" points="80,45 115,70 100,115 60,115 45,70" fill="rgba(0, 210, 255, 0.28)" stroke="#00d2ff" stroke-width="2" stroke-linejoin="round" />
+                        <circle id="radar-dot-eng-2" cx="80" cy="45" r="3" fill="#38bdf8" />
+                        <circle id="radar-dot-game-2" cx="115" cy="70" r="3" fill="#facc15" />
+                        <circle id="radar-dot-net-2" cx="100" cy="115" r="3" fill="#c084fc" />
+                        <circle id="radar-dot-art-2" cx="60" cy="115" r="3" fill="#f472b6" />
+                        <circle id="radar-dot-qa-2" cx="45" cy="70" r="3" fill="#34d399" />
+                        <text x="80" y="13" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">ENG</text>
+                        <text x="142" y="63" fill="#facc15" font-size="8" font-weight="700" text-anchor="start">GAME</text>
+                        <text x="120" y="141" fill="#c084fc" font-size="8" font-weight="700" text-anchor="start">NET</text>
+                        <text x="40" y="141" fill="#f472b6" font-size="8" font-weight="700" text-anchor="end">ART</text>
+                        <text x="18" y="63" fill="#34d399" font-size="8" font-weight="700" text-anchor="end">QA</text>
+                    </svg>
+                </div>
+
+                <div class="friction-gauge">
+                    <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Indicador de Fricción</div>
+                    <div id="dag-modal-friction" class="friction-val low">+12%</div>
+                    <div id="dag-modal-coupling" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Acoplamiento: 1.1x</div>
+                    <div id="dag-modal-friction-badge" class="friction-badge-pill pill-optimo">Acoplamiento Óptimo</div>
+                </div>
+
+                <div class="tech-debt-gauge">
+                    <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Medidor de Deuda Técnica</div>
+                    <div class="tacometer-wrapper" style="width: 100px; margin: 0 auto;">
+                        <svg viewBox="0 0 100 55" class="tacometer-svg">
+                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
+                            <path d="M 10 50 A 40 40 0 0 1 26 21" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+                            <path d="M 28 19 A 40 40 0 0 1 72 19" fill="none" stroke="#f59e0b" stroke-width="8" opacity="0.9" />
+                            <path d="M 74 21 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+                            <line id="dag-modal-debt-needle" x1="50" y1="50" x2="50" y2="16" stroke="#00d2ff" stroke-width="2.5" stroke-linecap="round" style="transform-origin: 50px 50px; transform: rotate(-90deg); transition: transform 0.4s ease;" />
+                            <circle cx="50" cy="50" r="4.5" fill="#00d2ff" />
+                        </svg>
+                    </div>
+                    <div id="dag-modal-debt-val" class="debt-val" style="color: #10b981; font-size: 20px;">0 pts</div>
+                    <div id="dag-modal-debt-status" class="debt-status-tag tag-clean">🟢 Código Limpio</div>
+                </div>
+            </div>
+
+            <!-- Active Refactor Sprint Action -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,210,255,0.06); border: 1px solid rgba(0,210,255,0.2); padding: 14px 20px; border-radius: 12px; margin-bottom: 20px;">
+                <div>
+                    <strong style="color: #fff; font-size: 14px;">Mantenimiento de Código Activo</strong>
+                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Ordena a los ingenieros limpiar código para reducir -25 pts de deuda técnica y eliminar cuelgues antes del lanzamiento.</div>
+                </div>
+                <button type="button" id="btn-dag-modal-refactor" class="btn-refactor" title="Refactorizar deuda técnica">
+                    🧹 Pagar Deuda Técnica
+                </button>
+            </div>
+
+            <!-- DAG Nodes Groups in Modal: 7 Categorized Sections -->
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>🖥️</span> Motor Gráfico & Renderizado</div>
+                <div id="dag-modal-nodes-render" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>⚛️</span> Físicas & Dinámica de Colisiones</div>
+                <div id="dag-modal-nodes-physics" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>🌐</span> Netcode & Sincronización de Red</div>
+                <div id="dag-modal-nodes-net" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>🧠</span> Inteligencia Artificial & Lógica</div>
+                <div id="dag-modal-nodes-ai" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>🎧</span> Pipeline de Audio & Acústica</div>
+                <div id="dag-modal-nodes-audio" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>🗺️</span> Contenido & Estructura de Mundo</div>
+                <div id="dag-modal-nodes-content" class="dag-nodes-grid"></div>
+            </div>
+
+            <div class="dag-category-block">
+                <div class="dag-category-title"><span>⚙️</span> Sistemas & Jugabilidad Avanzada</div>
+                <div id="dag-modal-nodes-systems" class="dag-nodes-grid"></div>
+            </div>
+
+            <!-- Backwards-compatibility hidden container -->
+            <div id="dag-modal-nodes-base" style="display: none;"></div>
+
+            <div style="margin-top: 24px; text-align: right;">
+                <button type="button" class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 10px 32px;">
+                    ✓ Guardar Arquitectura
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: SELECCIÓN DE PIPELINE TECNOLÓGICO (MOTOR PROPIO VS MOTOR COMERCIAL) -->
+    <div id="modal-tech-pipeline" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>⚙️</span> Selección de Pipeline Tecnológico: Motor Comercial vs In-House</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5;">
+                Selecciona la infraestructura técnica fundamental para tu próximo videojuego. Compara el impacto de regalías, la deuda técnica mínima inamovible (bloatware base), la reducción de fricción en géneros afines, los nodos avanzados desbloqueados desde el Día 1 y los ingresos pasivos por licenciamiento a terceros.
+            </p>
+
+            <div class="pipeline-modal-grid">
+                <!-- Tarjeta 1: Motor Comercial -->
+                <div id="pipe-card-commercial" class="pipeline-comparison-card commercial" onclick="selectPipelineFromModal('commercial_unreal')">
+                    <div class="pipe-header">
+                        <span class="pipeline-badge badge-commercial">⚡ Motor Comercial (Unreal / Unity)</span>
+                        <h3 class="pipe-title">Epic & Commercial Systems</h3>
+                    </div>
+                    <div class="pipe-metrics-summary">
+                        <div class="pipe-metric-box warn">
+                            <span class="pipe-metric-label">Regalías sobre Ventas</span>
+                            <span class="pipe-metric-value">7% Perpetuo</span>
+                        </div>
+                        <div class="pipe-metric-box crit">
+                            <span class="pipe-metric-label">Deuda Técnica Base</span>
+                            <span class="pipe-metric-value">+20 pts Inamovible</span>
+                        </div>
+                    </div>
+                    <ul class="pipe-features-list">
+                        <li><span class="feat-icon check">✓</span> <strong>Nodos Avanzados Día 1:</strong> Ray Tracing RTX, Físicas Destructibles, Servidores Dedicados y Audio 3D listos para usar sin I+D.</li>
+                        <li><span class="feat-icon check">✓</span> <strong>Desarrollo Acelerado:</strong> Reduce tiempos de configuración y acelera el desarrollo inicial un 25%.</li>
+                        <li><span class="feat-icon warn">⚠️</span> <strong>Bloatware Inamovible:</strong> Código base con +20 pts de deuda técnica fija que <em>no se pueden refactorizar</em>.</li>
+                        <li><span class="feat-icon crit">⚠️</span> <strong>Comisión Comercial:</strong> La compañía propietaria del motor deduce el 7% de todos los ingresos brutos por ventas.</li>
+                    </ul>
+                    <div class="pipe-select-action">
+                        <button type="button" class="dock-btn btn-pipeline-select" id="btn-select-commercial">
+                            Seleccionar Motor Comercial
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tarjeta 2: Motor Propio -->
+                <div id="pipe-card-inhouse" class="pipeline-comparison-card inhouse active" onclick="selectPipelineFromModal('inhouse_custom')">
+                    <div class="pipe-header">
+                        <span class="pipeline-badge badge-inhouse">💎 Motor Propio (In-House Engine)</span>
+                        <h3 class="pipe-title">Arquitectura Propietaria del Estudio</h3>
+                    </div>
+                    <div class="pipe-metrics-summary">
+                        <div class="pipe-metric-box ok">
+                            <span class="pipe-metric-label">Regalías sobre Ventas</span>
+                            <span class="pipe-metric-value">0% (Margen Total)</span>
+                        </div>
+                        <div class="pipe-metric-box ok">
+                            <span class="pipe-metric-label">Deuda Técnica Base</span>
+                            <span class="pipe-metric-value">0 pts (Código Limpio)</span>
+                        </div>
+                    </div>
+                    <ul class="pipe-features-list">
+                        <li><span class="feat-icon check">✓</span> <strong>0% de Regalías:</strong> Tu estudio retiene el 100% de la facturación neta en todas las plataformas.</li>
+                        <li><span class="feat-icon check">✓</span> <strong>-50% de Fricción Técnica:</strong> Arquitectura a medida que reduce la fricción técnica a la mitad en géneros afines.</li>
+                        <li><span class="feat-icon check">✓</span> <strong>Licenciamiento a Terceros:</strong> Puedes licenciar la tecnología a estudios rivales para recibir royalties pasivos mensuales.</li>
+                        <li><span class="feat-icon warn">⏳</span> <strong>Alerta de Obsolescencia:</strong> Requiere ciclos de I+D periódicos (-15% de eficiencia anual sin mantenimiento).</li>
+                    </ul>
+                    <div class="pipe-select-action">
+                        <button type="button" class="dock-btn btn-pipeline-select" id="btn-select-inhouse">
+                            Seleccionar Motor Propio
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+                <button type="button" class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 10px 28px;">
+                    ✓ Confirmar Pipeline
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: CRÍTICAS Y REVIEWS DE LA PRENSA -->
+    <div id="modal-reviews" class="modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2 id="review-game-title" class="modal-title"><span>📰</span> Reseñas de la Prensa Especializada</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <div id="overall-score-banner" class="overall-score-banner">
+                <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 6px;">
+                    Puntuación Media Crítica
+                </div>
+                <div id="overall-score-num" class="overall-number">9.2</div>
+            </div>
+
+            <div id="reviews-container" class="reviews-grid"></div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 12px 32px; margin: 0 auto;">
+                    ¡A las Tiendas! Ver Rankings de Ventas
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: GESTIÓN DE EQUIPO, FATIGA Y CONTRATACIÓN -->
+    <div id="modal-hire" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 820px;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>👥</span> Gestión de Equipo & Reclutamiento</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <!-- Quick Team Actions Bar -->
+            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); padding: 12px 18px; border-radius: 12px; margin-bottom: 18px;">
+                <div id="hire-capacity" style="font-size: 15px; font-weight: 700; color: var(--accent-cyan);"></div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="staff-action-btn" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante">
+                        ☕ Café Express ($500)
+                    </button>
+                    <button class="staff-action-btn" onclick="refreshCandidates()" title="Buscar 4 nuevos candidatos en el mercado">
+                        🔄 Buscar Nuevos Talentos ($2,500)
+                    </button>
+                </div>
+            </div>
+
+            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">Desarrolladores en Nómina Activa</h3>
+            <div id="current-team-list" class="cards-list" style="margin-bottom: 24px;"></div>
+
+            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-cyan);">Candidatos Disponibles para Contratar</h3>
+            <div id="candidates-list" class="cards-list"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: I+D & TECH TREE PROGRESSION -->
+    <div id="modal-research" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 960px; max-height: 92vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🔬</span> Laboratorio de I+D & Árbol Tecnológico</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <!-- Top Summary & Economy Bar -->
+            <div class="tech-tree-header-banner">
+                <div class="tech-metric-card rp-card">
+                    <span class="tech-metric-icon">🔬</span>
+                    <div>
+                        <div class="tech-metric-label">Puntos de I+D Disponibles</div>
+                        <div class="tech-metric-value"><span id="research-rp-val">30</span> RP</div>
+                    </div>
+                </div>
+                <div class="tech-metric-card year-card">
+                    <span class="tech-metric-icon">📅</span>
+                    <div>
+                        <div class="tech-metric-label">Línea de Tiempo Histórica</div>
+                        <div class="tech-metric-value" id="research-year-val">Año 1982 (Era 8-bit)</div>
+                    </div>
+                </div>
+                <div class="tech-metric-card passive-card">
+                    <span class="tech-metric-icon">💡</span>
+                    <div>
+                        <div class="tech-metric-label">Estudio Pasivo en Reposo</div>
+                        <div class="tech-metric-value" id="research-passive-val">+1 RP/semana</div>
+                    </div>
+                </div>
+                <div class="tech-metric-card unlocked-card">
+                    <span class="tech-metric-icon">💎</span>
+                    <div>
+                        <div class="tech-metric-label">Tecnologías Dominadas</div>
+                        <div class="tech-metric-value" id="research-unlocked-count">7 / 22 Módulos</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Research Countdown Card -->
+            <div id="active-research-container" style="margin-bottom: 20px;"></div>
+
+            <!-- Competitor Hardware Reverse Engineering Section -->
+            <div class="reverse-engineering-section" style="margin-bottom: 24px;">
+                <div class="section-collapsible-header" id="btn-toggle-rev-hardware" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">🛒</span>
+                        <strong style="font-size: 15px; color: var(--accent-gold);">Ingeniería Inversa de Hardware Rival (Desmantelar para obtener RP)</strong>
+                    </div>
+                    <span id="rev-hardware-toggle-icon" style="color: var(--text-secondary); font-size: 12px;">Desplegar ▼</span>
+                </div>
+                <div id="reverse-engineering-panel" style="margin-top: 12px; display: none;">
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.4;">
+                        Adquiere hardware y componentes de la competencia en el mercado negro tecnológico. Desmantelarlos y analizar sus circuitos genera una inyección inmediata masiva de Puntos de I+D para acelerar tus proyectos.
+                    </p>
+                    <div id="reverse-engineering-grid" class="rev-hardware-grid"></div>
+                </div>
+            </div>
+
+            <!-- Visual Tech Tree by Specialized Branches -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+                <div>
+                    <h3 style="font-size: 16px; color: var(--accent-cyan); margin: 0;">Árbol de Arquitectura por Ramas Tecnológicas</h3>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">
+                        Cada nodo requiere alcanzar su año histórico mínimo y dominar sus prerrequisitos. Solo los nodos <strong>DESBLOQUEADOS</strong> pueden añadirse a tus juegos.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Branch Filter Tabs -->
+            <div class="branch-filter-bar" id="branch-filter-tabs">
+                <button class="branch-tab-btn active" data-branch="all">🌐 Todas las Ramas</button>
+                <button class="branch-tab-btn" data-branch="render">🖥️ Render</button>
+                <button class="branch-tab-btn" data-branch="physics">⚛️ Físicas</button>
+                <button class="branch-tab-btn" data-branch="netcode">🌐 Netcode</button>
+                <button class="branch-tab-btn" data-branch="ai">🧠 IA</button>
+                <button class="branch-tab-btn" data-branch="audio">🎧 Audio</button>
+                <button class="branch-tab-btn" data-branch="content">🗺️ Contenido</button>
+                <button class="branch-tab-btn" data-branch="systems">⚙️ Sistemas</button>
+            </div>
+
+            <!-- Branches Content Container -->
+            <div id="tech-tree-branches-container" style="margin-bottom: 28px;"></div>
+
+            <!-- Legacy Engine Compilation Form (Optional In-House Engine Build) -->
+            <div class="inhouse-engine-builder-box" style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
+                <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">🔨 Compilar Motor Propietario In-House ($22,000 + módulos)</h3>
+                <form id="form-custom-engine" style="background: rgba(0,0,0,0.25); padding: 16px; border-radius: 12px;">
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label">Nombre del Motor In-House</label>
+                        <input type="text" id="input-engine-name" class="form-input" placeholder="Ej: Titan Forge Engine v1.0" required>
+                    </div>
+                    <label class="form-label">Módulos Desbloqueados a Integrar:</label>
+                    <div id="engine-features-checkboxes" style="margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
+                    <button type="submit" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center;">
+                        🔨 Compilar y Registrar Motor en la Empresa
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: HISTORIAL & TOP 10 RIVAL LEADERBOARD -->
+    <div id="modal-history" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 860px;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>📈</span> Top 10 Ranking de Ventas Global & Catálogo</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+
+            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">Top 10 Tabla de Éxitos Semanales de la Industria</h3>
+            <div id="chart-leaderboard-container" style="margin-bottom: 24px; overflow-x: auto;"></div>
+
+            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-cyan);">Historial de Videojuegos Creados por tu Estudio</h3>
+            <div id="games-history-list" class="cards-list"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: INFORME DE JUEGO (POST-MORTEM) -->
+    <div id="modal-postmortem" class="modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2 id="pm-title" class="modal-title"><span>📊</span> Informe de Desarrollo Post-Lanzamiento</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <div id="pm-content" style="padding: 10px 0;">
+                <div style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
+                    <div style="font-size: 16px; font-weight: 800; color: #d8b4fe;" id="pm-rp-gain">+35 Puntos de Investigación Obtenidos</div>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">El equipo ha reflexionado sobre los aciertos y fallos del proyecto.</p>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px; margin-bottom: 14px;">
+                    <h4 style="font-size: 14px; color: var(--accent-cyan); margin-bottom: 6px;">Evaluación de Sinergia</h4>
+                    <p id="pm-synergy-text" style="font-size: 14px; line-height: 1.5; color: #fff;"></p>
+                </div>
+                <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px;">
+                    <h4 style="font-size: 14px; color: var(--accent-gold); margin-bottom: 6px;">Afinidad de Audiencia</h4>
+                    <p id="pm-audience-text" style="font-size: 14px; line-height: 1.5; color: #fff;"></p>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 20px;">
+                <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 10px 30px; margin: 0 auto;">
+                    Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: FERIA ANUAL DE VIDEOJUEGOS (MEGA GAME EXPO) -->
+    <div id="modal-expo" class="modal-backdrop">
+        <div class="modal-window">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🎪</span> ¡Llega la Mega Games Expo Anual!</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5;">
+                La mayor feria internacional de videojuegos abre sus puertas en junio. Contrata un stand para exhibir tus títulos, disparar el hype y ganar miles de seguidores.
+            </p>
+            <div style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px;">
+                <div class="candidate-card" style="cursor: pointer;" onclick="attendExpo(1)">
+                    <div>
+                        <strong style="color: #fff;">Stand Pequeño Indie</strong>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Para estudios emergentes. Presencia modesta en los pasillos secundarios.</div>
+                        <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +60 Fans, +15 Hype</div>
+                    </div>
+                    <div>
+                        <button class="staff-action-btn">$5,000</button>
+                    </div>
+                </div>
+
+                <div class="candidate-card" style="cursor: pointer;" onclick="attendExpo(2)">
+                    <div>
+                        <strong style="color: #fff;">Gran Expositor Central</strong>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Zona destacada con pantallas gigantes y azafatas.</div>
+                        <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +280 Fans, +45 Hype</div>
+                    </div>
+                    <div>
+                        <button class="staff-action-btn">$22,000</button>
+                    </div>
+                </div>
+
+                <div class="candidate-card" style="cursor: pointer;" onclick="attendExpo(3)">
+                    <div>
+                        <strong style="color: #fff;">Conferencia Magistral (Keynote Principal)</strong>
+                        <div style="font-size: 12px; color: var(--text-secondary);">Presentación mundial retransmitida en directo a millones de espectadores.</div>
+                        <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +850 Fans, +90 Hype</div>
+                    </div>
+                    <div>
+                        <button class="staff-action-btn">$65,000</button>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: right;">
+                <button class="staff-action-btn" onclick="closeAllModals()">Omitir este año</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+
+    <!-- Three.js and Post-Processing Libraries (Local Standalone) -->
+    <script src="three.min.js"></script>
+    <script src="OrbitControls.js"></script>
+    <script src="EffectComposer.js"></script>
+    <script src="CopyShader.js"></script>
+    <script src="LuminosityHighPassShader.js"></script>
+    <script src="ShaderPass.js"></script>
+    <script src="RenderPass.js"></script>
+    <script src="UnrealBloomPass.js"></script>
+
+    <!-- Game Logic & Audio Scripts -->
+    <script src="audio.js"></script>
+    <script src="dag_engine.js"></script>
+    <script src="simulation.js"></script>
+    <script src="world.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
