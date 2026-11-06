@@ -771,7 +771,14 @@ class ScopeNode {
             qa: 0
         };
         this.completed = false;
+        this.isRegression = false;
         this.regressedCount = 0;
+    }
+
+    get status() {
+        if (this.isRegression) return 'regression';
+        if (this.completed) return 'completed';
+        return this.progress > 0 ? 'in_progress' : 'active';
     }
 
     getTotalWorkload() {
@@ -799,12 +806,14 @@ class ScopeNode {
     updateCompletionState() {
         this.progress = this.getCurrentProgressTotal();
         this.completed = this.progress >= 100;
+        if (this.completed) this.isRegression = false;
         return this.completed;
     }
 
     applyRegression(lossRatio = 0.25) {
         if (this.progress <= 15) return 0;
         const previousProgress = this.progress;
+        this.isRegression = true;
         // Roll back discipline progress
         for (let d in this.disciplineProgress) {
             this.disciplineProgress[d] = Math.max(0, this.disciplineProgress[d] * (1.0 - lossRatio));
@@ -1304,22 +1313,49 @@ class ScopeDAG {
 }
 
 // =========================================================================
-// 3. DYNAMIC TECHNICAL DEBT MODEL
+// 3. SUBSISTEMA DE DEUDA TÉCNICA Y MANTENIBILIDAD (TechnicalDebtManager)
 // =========================================================================
 
-class TechnicalDebtModel {
+class TechnicalDebtManager {
     constructor(config = {}) {
-        this.accumulatedDebt = config.initialDebt || 0; // Cumulative persistent debt
-        this.baseBloatwareDebt = config.baseBloatwareDebt || 0; // Unremovable commercial floor
+        // 1. Core Data Structure Properties (Punto 1)
+        this.rawDebt = config.initialDebt !== undefined ? config.initialDebt : (config.rawDebt || 0); // Valor numérico acumulado
+        this.baseBloatwareDebt = config.baseBloatwareDebt || 0; // Tasa mínima no eliminable para motores comerciales
+        this.hiddenDebt = config.hiddenDebt || 0; // Deuda oculta que no se detecta sin testers de QA
+        this.accumulatedFriction = 1.0; // Multiplicador que encarece el coste de los siguientes días
+        this.regressionRisk = 0.0; // Probabilidad (0.0 a 1.0) de romper nodos conectados
+
+        // Modos operativos
         this.crunchActive = false;
         this.refactorModeActive = false;
+        this.emergencyPatchActive = false;
 
-        // Diagnostic stats
-        this.totalDebtGenerated = this.accumulatedDebt;
+        // Historial y auditoría de eventos
+        this.totalDebtGenerated = this.rawDebt;
         this.totalDebtPaid = 0;
         this.regressionHistory = [];
         this.lastRegressionTick = 0;
         this.totalRegressions = 0;
+
+        this.updateDerivedMetrics(6);
+    }
+
+    // Compatibilidad hacia atrás
+    get accumulatedDebt() {
+        return this.rawDebt;
+    }
+    set accumulatedDebt(val) {
+        this.rawDebt = val;
+    }
+
+    get visibleDebt() {
+        return Math.max(0, Math.round((this.rawDebt - this.hiddenDebt) * 10) / 10);
+    }
+
+    get healthStatus() {
+        if (this.rawDebt <= 20) return 'clean';
+        if (this.rawDebt <= 45) return 'moderate';
+        return 'critical';
     }
 
     setCrunchMode(enabled) {
@@ -1338,74 +1374,123 @@ class TechnicalDebtModel {
 
     setBaseDebt(floor) {
         this.baseBloatwareDebt = floor || 0;
-        this.accumulatedDebt = Math.max(this.baseBloatwareDebt, this.accumulatedDebt || 0);
+        this.rawDebt = Math.max(this.baseBloatwareDebt, this.rawDebt || 0);
+        this.updateDerivedMetrics();
     }
 
     /**
-     * Differential Tick Calculation:
-     * Generates and processes Technical Debt across 4 factors:
-     * 1. Crunch time (horas extra): ΔTD_crunch = 0.38 * staffCount * (fatigueFactor + 1)
-     * 2. Developer Skill Gap vs Node Complexity: ΔTD_skill = Σ max(0, complexity - skill) / 22
-     * 3. Dependency Saturation (Acoplamiento Espagueti): ΔTD_coupling = (connectedCount / 10)^1.6 * 0.15
-     * 4. Active Refactoring: ΔTD_refactor = - (developerTechSum / 30) * efficiency
+     * Punto 3.1 & 1: Actualiza la fricción acumulada y el riesgo de regresiones
+     * ProgresoEfectivo = ProgresoTeórico / (1 + (rawDebt / 100) * 0.5)
      */
-    tick(params = {}) {
+    updateDerivedMetrics(connectedCount = 6) {
+        // Multiplicador de fricción que ralentiza el avance de características
+        this.accumulatedFriction = Math.max(1.0, 1.0 + (this.rawDebt / 100.0) * 0.5);
+
+        // Riesgo de regresión (0.0 a 1.0)
+        if (this.rawDebt <= 12) {
+            this.regressionRisk = 0.0;
+        } else {
+            const couplingScale = Math.pow(1.0 + 0.04 * Math.max(1, connectedCount), 1.30);
+            const baseProb = (this.rawDebt - 10.0) / 140.0;
+            this.regressionRisk = Math.min(0.85, Math.max(0.02, baseProb * couplingScale * 0.25));
+        }
+    }
+
+    /**
+     * Punto 2: Generación de Deuda por Tick (Fórmulas de Inyección)
+     */
+    simulateTick(params = {}) {
         const {
             staff = [],
             activeNodes = [],
             dagComplexity = 20,
-            connectedCount = 6,
-            isLateStage = false
+            connectedCount = activeNodes.length || 6,
+            isLateStage = false,
+            engineModifier = 1.0, // Motor propio: reduce tasa (0.55-0.65x); Comercial: tasa estándar (0.85-1.0x)
+            qaPower = 0,          // Capacidad de detección de QA
+            extraHours = 0        // Horas extra si crunch activo
         } = params;
 
-        let deltaDebt = 0;
-        let crunchDebtGen = 0;
-        let skillGapDebtGen = 0;
-        let couplingDebtGen = 0;
+        let gapDebt = 0;
+        let crunchDebt = 0;
+        let couplingDebt = 0;
         let refactorDebtPaid = 0;
+        let hiddenDebtDiscovered = 0;
 
-        const staffCount = staff.length || 1;
+        const staffCount = Math.max(1, staff.length);
         const avgStaffTech = staff.reduce((acc, e) => acc + (e.tech || 25), 0) / staffCount;
         const avgStaffStamina = staff.reduce((acc, e) => acc + (e.stamina || 100), 0) / staffCount;
-        const fatigueRatio = Math.max(0, (100 - avgStaffStamina) / 100);
+        const avgFatigue = Math.max(0, (100 - avgStaffStamina) / 100);
 
-        // Factor 1: Crunch Time / Horas Extra
-        if (this.crunchActive) {
-            crunchDebtGen = (0.35 * staffCount) * (1.0 + fatigueRatio * 1.8);
-            deltaDebt += crunchDebtGen;
-        }
+        if (!this.refactorModeActive) {
+            // 1. Desajuste de Habilidad (Skill Gap):
+            // Si la habilidad media del programador asignado es inferior al nivel del nodo:
+            // gapDebt = (NivelNodo - HabilidadDev) * FactorComplejidad
+            const uncompletedNodes = activeNodes.filter(n => !n.completed);
+            if (uncompletedNodes.length > 0) {
+                const targetNode = uncompletedNodes[0];
+                const nodeTierLevel = (targetNode.tier || 1) * 18; // Tier 1=18, Tier 2=36, Tier 3=54
+                const complexityFactor = Math.max(0.6, (targetNode.complexity || 25) / 28.0);
+                if (nodeTierLevel > avgStaffTech) {
+                    const skillGap = nodeTierLevel - avgStaffTech;
+                    gapDebt = (skillGap / 10.0) * complexityFactor * 0.22;
+                }
+            }
 
-        // Factor 2: Skill Gap (Programmer skill vs active node complexity)
-        if (activeNodes.length > 0 && !this.refactorModeActive) {
-            let maxActiveComplexity = 0;
+            // 2. Presión y Fatiga (Crunch Penalty):
+            // Si se activa el modo "Crunch" o el cansancio del empleado supera el 70% (stamina < 30):
+            // crunchDebt = HorasExtra * MultiplicadorFatiga
+            const isCrunch = this.crunchActive;
+            const isHighFatigue = avgStaffStamina < 30; // cansancio supera 70%
+            if (isCrunch || isHighFatigue) {
+                const hours = isCrunch ? (extraHours > 0 ? extraHours : 2.0) : 1.2;
+                const fatigueMultiplier = 1.0 + (avgFatigue * 2.2);
+                crunchDebt = (hours * fatigueMultiplier) * (staffCount * 0.28);
+            }
+
+            // 3. Fricción por Grafos y Dependencias:
+            // Cuantos más nodos estén interconectados sin capas intermedias de abstracción:
+            // couplingDebt = NodosConectados * 0.15
+            if (connectedCount > 3) {
+                couplingDebt = (connectedCount - 3) * 0.15 * 0.30;
+            }
+        } else {
+            // Punto 4: Acción Activa "Refactorizar / Limpiar Código"
+            // Todo el esfuerzo diario se destina a reducir rawDebt:
+            // DeudaReducida = Suma(HabilidadProgramadores) * 1.5
+            const programmersTechSum = staff.reduce((acc, e) => acc + (e.tech || 22), 0);
+            refactorDebtPaid = (programmersTechSum * 1.5) * 0.055; // Ajustado por tick diario
+
+            // Curar nodos en regresión durante la refactorización
             activeNodes.forEach(n => {
-                if (!n.completed && n.complexity > maxActiveComplexity) {
-                    maxActiveComplexity = n.complexity;
+                if (n.isRegression) {
+                    n.isRegression = false;
                 }
             });
-            if (maxActiveComplexity > avgStaffTech) {
-                const gap = maxActiveComplexity - avgStaffTech;
-                skillGapDebtGen = (gap / 20.0) * 0.18;
-                deltaDebt += skillGapDebtGen;
-            }
         }
 
-        // Factor 3: Dependency Saturation / Spaghetti Coupling
-        if (connectedCount > 6 && !this.refactorModeActive) {
-            couplingDebtGen = Math.pow((connectedCount - 5) * 0.22, 1.6) * 0.12;
-            deltaDebt += couplingDebtGen;
+        // Deuda total del tick: rawDebt += (gapDebt + crunchDebt + couplingDebt) * ModificadorMotor
+        const generatedTickDebt = (gapDebt + crunchDebt + couplingDebt) * engineModifier;
+        const deltaDebt = generatedTickDebt - refactorDebtPaid;
+
+        // Distribución de Deuda Oculta (Hidden Debt):
+        // Si no hay suficientes testers de QA, una fracción importante no es detectada
+        if (generatedTickDebt > 0) {
+            const hasDedicatedQA = staff.some(e => (e.role && e.role.toLowerCase().includes('qa')) || e.trait === 'Bug Hunter') || qaPower > 25;
+            const hiddenFraction = hasDedicatedQA ? 0.05 : Math.max(0.15, 0.65 - (qaPower / 40.0));
+            this.hiddenDebt += generatedTickDebt * hiddenFraction;
         }
 
-        // Factor 4: Active Refactoring Task ('Refactorizar / Pagar Deuda')
-        if (this.refactorModeActive) {
-            const totalTechPower = staff.reduce((acc, e) => acc + (e.tech || 20), 0);
-            refactorDebtPaid = (totalTechPower / 32.0) * 0.75;
-            deltaDebt -= refactorDebtPaid;
+        // Descubrimiento de deuda oculta por el equipo de QA
+        if (this.hiddenDebt > 0 && (qaPower > 0 || staff.length > 0)) {
+            const qaDiscoveryRate = (qaPower * 0.05) + (staffCount * 0.15);
+            hiddenDebtDiscovered = Math.min(this.hiddenDebt, qaDiscoveryRate);
+            this.hiddenDebt = Math.max(0, this.hiddenDebt - hiddenDebtDiscovered);
         }
 
-        // Accumulate and clamp to unremovable bloatware floor
-        const previousDebt = this.accumulatedDebt;
-        this.accumulatedDebt = Math.max(this.baseBloatwareDebt, this.accumulatedDebt + deltaDebt);
+        // Aplicar a rawDebt respetando piso base de bloatware
+        this.rawDebt = Math.max(this.baseBloatwareDebt, this.rawDebt + deltaDebt);
+        if (this.hiddenDebt > this.rawDebt) this.hiddenDebt = this.rawDebt;
 
         if (deltaDebt > 0) {
             this.totalDebtGenerated += deltaDebt;
@@ -1413,66 +1498,69 @@ class TechnicalDebtModel {
             this.totalDebtPaid += Math.abs(deltaDebt);
         }
 
-        // Practical Consequence 1: Development Speed Penalty
-        // Up to 60% penalty in advanced development stages
-        const speedPenalty = this.calculateSpeedPenalty(isLateStage);
+        this.updateDerivedMetrics(connectedCount);
 
-        // Practical Consequence 2: Regression Probability per tick
-        const regressionResult = this.checkRegressionRoll(activeNodes);
+        // Punto 3.1: ProgresoEfectivo = ProgresoTeórico / (1 + (rawDebt / 100) * 0.5)
+        const speedMultiplier = 1.0 / this.accumulatedFriction;
+
+        // Punto 3.2: Tirada de regresión de código
+        let regressionEvent = null;
+        if (!this.refactorModeActive && activeNodes.length > 0) {
+            regressionEvent = this.checkRegressionRoll(activeNodes);
+        }
 
         return {
-            currentDebt: Math.round(this.accumulatedDebt * 10) / 10,
-            baseBloatwareDebt: this.baseBloatwareDebt,
+            rawDebt: Math.round(this.rawDebt * 10) / 10,
+            currentDebt: Math.round(this.rawDebt * 10) / 10,
+            visibleDebt: this.visibleDebt,
+            hiddenDebt: Math.round(this.hiddenDebt * 10) / 10,
+            accumulatedFriction: Math.round(this.accumulatedFriction * 100) / 100,
+            regressionRisk: Math.round(this.regressionRisk * 1000) / 1000,
+            speedMultiplier: Math.round(speedMultiplier * 100) / 100,
+            speedPenalty: Math.round((1.0 - speedMultiplier) * 100) / 100,
             deltaDebt: Math.round(deltaDebt * 100) / 100,
-            crunchDebtGen: Math.round(crunchDebtGen * 100) / 100,
-            skillGapDebtGen: Math.round(skillGapDebtGen * 100) / 100,
-            couplingDebtGen: Math.round(couplingDebtGen * 100) / 100,
+            gapDebt: Math.round(gapDebt * 100) / 100,
+            crunchDebt: Math.round(crunchDebt * 100) / 100,
+            couplingDebt: Math.round(couplingDebt * 100) / 100,
             refactorDebtPaid: Math.round(refactorDebtPaid * 100) / 100,
-            speedPenalty: Math.round(speedPenalty * 100) / 100,
-            speedMultiplier: Math.round((1.0 - speedPenalty) * 100) / 100,
-            regression: regressionResult
+            hiddenDebtDiscovered: Math.round(hiddenDebtDiscovered * 100) / 100,
+            baseBloatwareDebt: this.baseBloatwareDebt,
+            regression: regressionEvent
         };
     }
 
-    /**
-     * Speed Penalty Calculation:
-     * Technical debt drags down execution speed by up to 60% in late stages.
-     */
-    calculateSpeedPenalty(isLateStage = true) {
-        if (this.accumulatedDebt <= 5) return 0;
-        // Sigmoidal saturation curve bounded strictly at 0.60
-        const maxPenalty = isLateStage ? 0.60 : 0.40;
-        const penalty = (this.accumulatedDebt / (this.accumulatedDebt + 65.0)) * maxPenalty;
-        return Math.min(maxPenalty, Math.max(0, penalty));
+    tick(params) {
+        return this.simulateTick(params);
     }
 
     /**
-     * Regression Probability in Each Tick:
-     * A completed node can break and require re-work, creating sudden bug spikes.
+     * Punto 3.2: Eventos de Regresión (Código Roto)
      */
     checkRegressionRoll(nodes = []) {
-        if (this.accumulatedDebt < 18 || nodes.length === 0 || this.refactorModeActive) {
+        if (this.rawDebt <= 12 || nodes.length === 0 || this.refactorModeActive) {
             return null;
         }
 
-        // Base regression probability scaling with debt: 1% at TD=20, up to 20% at TD=150+
-        const regressionProb = Math.min(0.20, Math.max(0.01, (this.accumulatedDebt - 15) / 500.0));
-        if (Math.random() < regressionProb) {
-            // Pick a candidate node with progress > 20%
+        // Tirada diaria de probabilidad gobernada por regressionRisk
+        const tickProb = Math.min(0.20, this.regressionRisk * 0.12);
+        if (Math.random() < tickProb) {
             const candidates = nodes.filter(n => n.progress > 20);
             if (candidates.length === 0) return null;
 
             const targetNode = candidates[Math.floor(Math.random() * candidates.length)];
-            const progressLost = targetNode.applyRegression(0.20 + Math.random() * 0.15);
-            const generatedBugs = 2 + Math.floor(this.accumulatedDebt / 30);
+            // Pierde un 15-25% de su progreso terminado
+            const lossRatio = 0.15 + (Math.random() * 0.10);
+            const progressLost = targetNode.applyRegression(lossRatio);
+            targetNode.isRegression = true;
 
             const regressionEvent = {
                 nodeId: targetNode.id,
                 nodeName: targetNode.name,
                 progressLost: Math.round(progressLost),
                 remainingProgress: targetNode.progress,
-                newBugs: generatedBugs,
-                message: `⚠️ ¡REGRESIÓN TÉCNICA! La deuda acumulada (${Math.round(this.accumulatedDebt)}) ha roto el subsistema "${targetNode.name}". Se pierde un ${Math.round(progressLost)}% de avance y surgen +${generatedBugs} bugs.`
+                lossPercentage: Math.round(lossRatio * 100),
+                newBugs: 2 + Math.floor(this.rawDebt / 30),
+                message: `⚠️ Regresión de código: el módulo de "${targetNode.name}" se ha desestabilizado perdiendo un ${Math.round(lossRatio * 100)}% de avance.`
             };
 
             this.regressionHistory.unshift(regressionEvent);
@@ -1483,39 +1571,80 @@ class TechnicalDebtModel {
     }
 
     /**
-     * Launch Penalties Calculation:
-     * Evaluates server crash risks and review penalties at release.
+     * Punto 5: Impacto en el Lanzamiento y Post-Lanzamiento
      */
-    calculateLaunchPenalties(netcodeNodeId = 'net_singleplayer') {
+    calculateLaunchPenalties(netcodeNodeId = 'net_singleplayer', platformId = 'pc') {
         const penalties = {
+            reviewScoreBonus: 0,
             reviewScorePenalty: 0,
+            fpsDrops: false,
             serverCrashRisk: 0,
-            userReviewBacklash: false,
-            criticalFlaws: []
+            desktopCrashes: false,
+            refundRate: 0.0,
+            requiresEmergencyPatch: false,
+            criticalFlaws: [],
+            launchStabilityStatus: 'smooth' // 'smooth', 'rough', 'critical'
         };
 
-        if (this.accumulatedDebt > 12) {
-            // Score hit: up to -2.8 stars on critic reviews
-            penalties.reviewScorePenalty = Math.min(2.8, Math.round((this.accumulatedDebt / 28.0) * 10) / 10);
-        }
+        const debt = this.rawDebt;
 
-        // Online multiplayer server collapse risk
-        const isOnline = netcodeNodeId === 'net_dedicated' || netcodeNodeId === 'net_p2p';
-        if (isOnline && this.accumulatedDebt > 25) {
-            penalties.serverCrashRisk = Math.min(0.85, (this.accumulatedDebt - 22) * 0.025);
-            if (penalties.serverCrashRisk > 0.40) {
-                penalties.criticalFlaws.push('Colapso crítico de servidores en el día de lanzamiento debido a código espagueti y concurrencia rota.');
+        // Umbral Bajo: rawDebt <= 20 -> Lanzamiento fluido, críticas elogian fluidez (+Reviews)
+        if (debt <= 20) {
+            penalties.launchStabilityStatus = 'smooth';
+            penalties.reviewScoreBonus = 0.6;
+        }
+        // Umbral Medio: 20 < rawDebt <= 45 -> Caídas de FPS, bugs menores, penalización moderada
+        else if (debt <= 45) {
+            penalties.launchStabilityStatus = 'rough';
+            penalties.fpsDrops = true;
+            penalties.reviewScorePenalty = Math.min(1.4, Math.round(((debt - 20) / 25.0 * 1.2) * 10) / 10);
+            penalties.criticalFlaws.push('Tirones de framerate, micro-stuttering y pequeñas asperezas en el rendimiento.');
+        }
+        // Umbral Crítico: rawDebt > 45 -> Cuelgues masivos, servidores colapsados, ola de críticas y devoluciones
+        else {
+            penalties.launchStabilityStatus = 'critical';
+            penalties.desktopCrashes = true;
+            penalties.reviewScorePenalty = Math.min(3.5, Math.round((1.5 + (debt - 45) / 20.0 * 1.5) * 10) / 10);
+            penalties.refundRate = Math.min(0.40, 0.25 + (debt - 45) * 0.003); // 25% a 40% devoluciones
+
+            const isOnline = netcodeNodeId === 'net_dedicated' || netcodeNodeId === 'net_p2p';
+            if (isOnline) {
+                penalties.serverCrashRisk = Math.min(0.95, 0.50 + (debt - 45) * 0.015);
+                penalties.criticalFlaws.push('Colapso total de servidores de autenticación y partidas multijugador el Día 1.');
             }
-        }
 
-        if (this.accumulatedDebt > 50) {
-            penalties.userReviewBacklash = true;
-            penalties.criticalFlaws.push('Fugas de memoria masivas, cuelgues constantes y stuttering severo reportados por la comunidad.');
+            penalties.criticalFlaws.push('Cuelgues masivos al escritorio (CTD), corrupción de partidas guardadas y optimización deficiente.');
+            penalties.requiresEmergencyPatch = true;
+            this.emergencyPatchActive = true;
         }
 
         return penalties;
     }
+
+    /**
+     * Post-lanzamiento: Realiza un ciclo de parche de emergencia para estabilizar el juego
+     */
+    performEmergencyPatchTick(staff = []) {
+        const staffCount = Math.max(1, staff.length);
+        const totalTech = staff.reduce((acc, e) => acc + (e.tech || 25), 0);
+        const debtPaid = Math.max(2.5, (totalTech / 15.0));
+        this.rawDebt = Math.max(this.baseBloatwareDebt, this.rawDebt - debtPaid);
+        this.hiddenDebt = Math.max(0, this.hiddenDebt - debtPaid);
+        this.updateDerivedMetrics();
+
+        const isStabilized = this.rawDebt <= 20;
+        if (isStabilized) {
+            this.emergencyPatchActive = false;
+        }
+        return {
+            remainingDebt: Math.round(this.rawDebt * 10) / 10,
+            debtPaid: Math.round(debtPaid * 10) / 10,
+            isStabilized
+        };
+    }
 }
+
+const TechnicalDebtModel = TechnicalDebtManager;
 
 // =========================================================================
 // 4. COMMERCIAL ENGINES VS IN-HOUSE PROPRIETARY PIPELINE
@@ -1752,6 +1881,7 @@ const DAGEngine = {
     TechTreeManager,
     ScopeNode,
     ScopeDAG,
+    TechnicalDebtManager,
     TechnicalDebtModel,
     InHouseEngine,
     EnginePipelineManager,
@@ -1781,4 +1911,4 @@ const DAGEngine = {
     }
 };
 
-export { DAG_CATALOG, REVERSE_ENGINEERING_CATALOG, TechTreeManager, ScopeNode, ScopeDAG, TechnicalDebtModel, CommercialEngineCatalog, InHouseEngine, EnginePipelineManager, DAGEngine };
+export { DAG_CATALOG, REVERSE_ENGINEERING_CATALOG, TechTreeManager, ScopeNode, ScopeDAG, TechnicalDebtManager, TechnicalDebtModel, CommercialEngineCatalog, InHouseEngine, EnginePipelineManager, DAGEngine };

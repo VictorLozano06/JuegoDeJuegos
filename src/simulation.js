@@ -550,6 +550,10 @@ class TycoonGame {
         this.activePublisherContract = null;
         this.discoveredInsights = []; // Unlocked post-mortem insights
 
+        // Subsistema de Deuda Técnica: Alertas de Crisis y Modo Parche de Emergencia Post-Lanzamiento
+        this.isEmergencyPatchActive = false;
+        this.emergencyPatchData = null; // { gameId, gameName, currentDebt, targetDebt: 20, refundRate, serverCrash, flaws, debtModel }
+
         this.initTop10Leaderboard();
         this.rollNewMarketTrend();
 
@@ -749,6 +753,14 @@ class TycoonGame {
 
     // --- PROJECT CREATION & DEV CYCLES ---
     startNewGameProject(config) {
+        // Validación de Modo Parche de Emergencia Post-Lanzamiento (Punto 5)
+        if (this.isEmergencyPatchActive && this.emergencyPatchData) {
+            return {
+                success: false,
+                message: `🚨 ¡PROYECTO BLOQUEADO! Tu estudio está bajo Alerta de Crisis por el colapso técnico de "${this.emergencyPatchData.gameName}". Debes estabilizar el juego con un [Parche de Emergencia] antes de arrancar otro proyecto.`
+            };
+        }
+
         // config: { name, topicId, genreId, platformId, targetAudience, engineId, pipelineType, selectedNodeIds, sliders }
         const topic = TOPICS.find(t => t.id === config.topicId) || TOPICS[0];
         const genre = GENRES.find(g => g.id === config.genreId) || GENRES[0];
@@ -917,17 +929,31 @@ class TycoonGame {
             }
 
             const activeNodesList = proj.scopeDAG ? proj.scopeDAG.getActiveNodes() : [];
-            debtTickResult = proj.techDebtModel.tick({
+            const engineModifier = (proj.pipelineType === 'inhouse') ? 0.6 : 1.0;
+            const qaPower = this.employees.reduce((acc, emp) => {
+                let p = 0;
+                if (emp.trait === 'Bug Hunter' || emp.trait === 'Cazador de Bugs') p += 25;
+                if (emp.role && (emp.role.toLowerCase().includes('qa') || emp.role.toLowerCase().includes('tester'))) p += 35;
+                return acc + p;
+            }, 0);
+
+            debtTickResult = proj.techDebtModel.simulateTick({
                 staff: this.employees,
                 activeNodes: activeNodesList,
                 dagComplexity: proj.friction || 25,
                 connectedCount: activeNodesList.length || 6,
-                isLateStage: proj.stage >= 3
+                isLateStage: proj.stage >= 3,
+                engineModifier: engineModifier,
+                qaPower: qaPower,
+                extraHours: (proj.devMode === 'crunch') ? 3.0 : 0
             });
 
-            devSpeedMultiplier = debtTickResult.speedMultiplier; // Up to 60% penalty
+            // Punto 3.1: Penalización de velocidad y fricción acumulada
+            devSpeedMultiplier = debtTickResult.speedMultiplier; // 1.0 / accumulatedFriction
+            proj.accumulatedFriction = debtTickResult.accumulatedFriction;
+            proj.regressionRisk = debtTickResult.regressionRisk;
 
-            // Handle regression triggered by Technical Debt
+            // Punto 3.2: Gestión de eventos de regresión
             if (debtTickResult.regression) {
                 proj.regressionsCount = (proj.regressionsCount || 0) + 1;
                 proj.bugs += debtTickResult.regression.newBugs;
@@ -938,9 +964,9 @@ class TycoonGame {
             }
         }
 
-        // Active Refactoring Task Mode ('Refactorizar / Pagar Deuda')
+        // Punto 4: Acción Activa "Refactorizar / Limpiar Código"
+        // Mientras está activo, el equipo deja de avanzar en las características del juego (Progreso = 0%)
         if (proj.devMode === 'refactor') {
-            // Developers allocate full effort to squashing bugs and eliminating technical debt
             if (Math.random() < 0.45 * speedMultiplier) {
                 proj.bugs = Math.max(0, proj.bugs - 1);
                 if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('research', 0);
@@ -1128,23 +1154,33 @@ class TycoonGame {
             activeSynergiesList = syn.synergies || [];
         }
 
-        // 9. Technical Debt Launch Penalties & Server Stability
-        let debtPenalties = { reviewScorePenalty: 0, serverCrashRisk: 0, criticalFlaws: [] };
+        // 9. Technical Debt Launch Penalties & Server Stability (Punto 5)
+        let debtPenalties = {
+            reviewScoreBonus: 0,
+            reviewScorePenalty: 0,
+            fpsDrops: false,
+            serverCrashRisk: 0,
+            desktopCrashes: false,
+            refundRate: 0.0,
+            requiresEmergencyPatch: false,
+            criticalFlaws: [],
+            launchStabilityStatus: 'smooth'
+        };
         if (proj.techDebtModel) {
             const netcodeNode = proj.scopeDAG ? proj.scopeDAG.getActiveNodes().find(n => n.category === 'netcode') : null;
             const netcodeId = netcodeNode ? netcodeNode.id : 'net_singleplayer';
-            debtPenalties = proj.techDebtModel.calculateLaunchPenalties(netcodeId);
+            debtPenalties = proj.techDebtModel.calculateLaunchPenalties(netcodeId, proj.platform.id);
         }
 
         // --- RAW BASE SCORE (1.5 to 10.0) ---
-        let rawScore = (pointsFactor * 3.8) + (sliderScoreFactor * 3.2) + ((topicSynergy - 0.7) * 2.8) + ((audienceFactor - 1.0) * 1.8) + engineBonus + trendBoost + bugImpact + synergyBonus - debtPenalties.reviewScorePenalty;
+        let rawScore = (pointsFactor * 3.8) + (sliderScoreFactor * 3.2) + ((topicSynergy - 0.7) * 2.8) + ((audienceFactor - 1.0) * 1.8) + engineBonus + trendBoost + bugImpact + synergyBonus + (debtPenalties.reviewScoreBonus || 0) - (debtPenalties.reviewScorePenalty || 0);
         rawScore = Math.max(1.8, Math.min(10.0, rawScore));
 
         // --- 4 SPECIALIZED PRESS CRITICS WITH DISTINCT BIASES & PERSONALITIES ---
         // Critic 1: GameByte Tech (⚡) - Focuses on tech, engine, physics, bugs, tech debt & servers
         const techWeight = proj.techPoints >= proj.designPoints ? 0.35 : -0.20;
         const techBugPenalty = proj.bugs > 0 ? proj.bugs * 0.25 : 0.20;
-        const scoreTech = Math.min(10, Math.max(2, Math.round((rawScore + techWeight - techBugPenalty - (debtPenalties.reviewScorePenalty * 0.5) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
+        const scoreTech = Math.min(10, Math.max(2, Math.round((rawScore + techWeight - techBugPenalty - (debtPenalties.reviewScorePenalty * 0.5) + (debtPenalties.reviewScoreBonus * 0.5) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
 
         // Critic 2: Polygon Star (⭐) - Focuses on story, world, dialogues, mature themes
         const storyWeight = (proj.genre.id === 'RPG' || proj.genre.id === 'Adventure') ? 0.40 : 0.05;
@@ -1153,7 +1189,7 @@ class TycoonGame {
 
         // Critic 3: AllGames Hub (🎮) - Focuses on pure gameplay, fun factor, audience fit
         const gameFunBonus = (audienceFactor >= 1.1) ? 0.35 : -0.25;
-        const scoreHub = Math.min(10, Math.max(2, Math.round((rawScore + gameFunBonus + (Math.random() * 0.6 - 0.3)) * 10) / 10));
+        const scoreHub = Math.min(10, Math.max(2, Math.round((rawScore + gameFunBonus - (debtPenalties.reviewScorePenalty * 0.3) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
 
         // Critic 4: Digital Forge (🔥) - Hardcore industry vet, looks at engine tier, graphics/sound polish & synergies
         const enginePower = (proj.engine && ((proj.engine.features && proj.engine.features.length >= 3) || proj.engine.tier >= 2)) ? 0.40 : -0.15;
@@ -1186,18 +1222,32 @@ class TycoonGame {
             }
         ];
 
-        // Tailored comments per outlet
-        reviews[0].comment = scoreTech >= 9.0
-            ? (proj.bugs === 0 ? "¡Un prodigio técnico sin un solo bug! El rendimiento del motor es sencillamente asombroso." : "Arquitectura técnica colosal y físicas impecables. Puntero en su generación.")
-            : (scoreTech >= 7.0 ? "Apartado técnico competente y código estable. Muy buen aprovechamiento del hardware." : (debtPenalties.serverCrashRisk > 0.40 ? `¡Caos en el lanzamiento! Los servidores y la concurrencia han colapsado por deuda técnica y código espagueti.` : (proj.bugs > 3 ? `Sufrimos demasiados cuelgues y bugs (${proj.bugs}). Necesitaba más tiempo en el horno.` : "El motor gráfico y las mecánicas técnicas se quedan bastante desfasadas.")));
+        // Tailored comments per outlet governed by Technical Debt stability
+        const currentRawDebt = proj.techDebtModel ? Math.round(proj.techDebtModel.rawDebt) : 0;
+        if (debtPenalties.launchStabilityStatus === 'smooth') {
+            reviews[0].comment = scoreTech >= 9.0
+                ? "¡Prodigio de ingeniería técnica! Código impecable, 60 FPS rocosos y cero fricción. La arquitectura técnica vuela sin fisuras."
+                : (scoreTech >= 7.0 ? "Optimización ejemplar y código extraordinariamente limpio. Es un alivio disfrutar de un lanzamiento tan fluido." : "El código es estable y libre de bugs, aunque el motor base carece de ambición técnica.");
+        } else if (debtPenalties.launchStabilityStatus === 'rough') {
+            reviews[0].comment = `Apartado técnico aceptable pero con tirones evidentes de framerate, micro-stuttering y caídas de FPS. La deuda técnica acumulada (${currentRawDebt} pts) empieza a pasar factura en el rendimiento.`;
+        } else {
+            // Critical
+            const isOnline = debtPenalties.serverCrashRisk > 0;
+            reviews[0].comment = isOnline
+                ? `¡COLAPSO TOTAL! Cuelgues continuos al escritorio (CTD) y caída absoluta de los servidores multijugador el Día 1. La deuda crítica (${currentRawDebt} pts) vuelve el juego injugable.`
+                : `¡DESASTRE TÉCNICO! Crashes masivos al escritorio, corrupción de memoria y rendimiento pésimo por código espagueti (${currentRawDebt} pts). Injugable el Día 1.`;
+            reviews[2].comment = `Una pesadilla de optimización. La comunidad está solicitando reembolsos masivos (${Math.round(debtPenalties.refundRate * 100)}% de devoluciones el Día 1).`;
+        }
 
         reviews[1].comment = scoreStar >= 9.0
             ? `¡Una obra de arte! El universo de ${proj.topic.name} tratado con una madurez narrativa sobrecogedora.`
             : (scoreStar >= 7.0 ? "Guion cautivador y personajes con carisma. Una propuesta artística con verdadera personalidad." : (topicSynergy < 0.95 ? `La temática de ${proj.topic.name} no termina de cuajar con el formato ${proj.genre.name}.` : "Falta alma en la ambientación y los diálogos caen en lugares comunes."));
 
-        reviews[2].comment = scoreHub >= 9.0
-            ? "¡Diversión pura y adictiva! Desde que tomas el mando no puedes soltarlo. Candidato clarísimo a Juego del Año."
-            : (scoreHub >= 7.0 ? "Jugabilidad directa, niveles bien diseñados y controles sumamente satisfactorios." : (audienceFactor < 1.0 ? "Desconecta de su público objetivo; el diseño de niveles resulta confuso y tosco." : "Se deja jugar pero no aporta nada memorable al catálogo."));
+        if (!reviews[2].comment) {
+            reviews[2].comment = scoreHub >= 9.0
+                ? "¡Diversión pura y adictiva! Desde que tomas el mando no puedes soltarlo. Candidato clarísimo a Juego del Año."
+                : (scoreHub >= 7.0 ? "Jugabilidad directa, niveles bien diseñados y controles sumamente satisfactorios." : (audienceFactor < 1.0 ? "Desconecta de su público objetivo; el diseño de niveles resulta confuso y tosco." : "Se deja jugar pero no aporta nada memorable al catálogo."));
+        }
 
         reviews[3].comment = scoreForge >= 9.0
             ? (activeSynergiesList.length > 0 ? `Valores de producción de élite. Las sinergias tecnológicas de ${activeSynergiesList.map(s => s.name).join(', ')} deslumbran por completo.` : `Valores de producción de élite. La combinación de ${proj.genre.name} con ${proj.topic.name} es la cumbre de la temporada.`)
@@ -1215,9 +1265,14 @@ class TycoonGame {
             Math.pow(avgScore / 2.2, 3.85) * eraSalesFactor * marketShareBonus * trendSalesMultiplier * synergyQualityMultiplier
         );
 
-        // Technical debt crash penalty on sales (bad reviews and launch refunds)
+        // Technical debt crash penalty on sales & purchase refunds (Punto 5)
+        let refundsLost = 0;
+        if (debtPenalties.refundRate > 0) {
+            refundsLost = Math.floor(totalSalesPotential * debtPenalties.refundRate);
+            totalSalesPotential = Math.max(10, totalSalesPotential - refundsLost);
+        }
         if (debtPenalties.serverCrashRisk > 0.40) {
-            totalSalesPotential = Math.floor(totalSalesPotential * 0.75);
+            totalSalesPotential = Math.floor(totalSalesPotential * 0.70);
         }
 
         // Fanbase loyalty multiplier
@@ -1256,8 +1311,26 @@ class TycoonGame {
             royaltiesPaidTotal: 0,
             techDebtAtRelease: proj.techDebtModel ? Math.round(proj.techDebtModel.accumulatedDebt * 10) / 10 : 0,
             regressionsSuffered: proj.regressionsCount || 0,
-            synergies: activeSynergiesList
+            synergies: activeSynergiesList,
+            launchStabilityStatus: debtPenalties.launchStabilityStatus,
+            refundsLost: refundsLost,
+            refundRate: debtPenalties.refundRate || 0
         };
+
+        // Activación del Modo Parche de Emergencia Post-Lanzamiento si deuda crítica
+        if (debtPenalties.requiresEmergencyPatch) {
+            this.isEmergencyPatchActive = true;
+            this.emergencyPatchData = {
+                gameId: releasedGame.id,
+                gameName: releasedGame.name,
+                currentDebt: currentRawDebt,
+                targetDebt: 20,
+                refundRate: debtPenalties.refundRate,
+                serverCrash: debtPenalties.serverCrashRisk > 0,
+                flaws: debtPenalties.criticalFlaws,
+                debtModel: proj.techDebtModel
+            };
+        }
 
         this.gamesHistory.unshift(releasedGame);
         this.activeSales.push(releasedGame);
@@ -1927,6 +2000,55 @@ class TycoonGame {
 
     refactorCodebase() {
         return this.setProjectDevMode('refactor');
+    }
+
+    // Acción Activa: "Refactorizar / Limpiar Código" (Punto 4)
+    refactorTechDebt() {
+        if (!this.currentProject) {
+            return { success: false, message: 'No hay proyecto en desarrollo para refactorizar.' };
+        }
+        const newMode = (this.currentProject.devMode === 'refactor') ? 'normal' : 'refactor';
+        this.setProjectDevMode(newMode);
+        const msg = (newMode === 'refactor')
+            ? 'Refactorización activa: el equipo frena el avance de características (Progreso = 0%) para pagar deuda técnica y sanear código.'
+            : 'Refactorización finalizada: el equipo reanuda la producción regular de nodos.';
+        return { success: true, mode: newMode, message: msg };
+    }
+
+    // Acción Post-Lanzamiento: "Parche de Emergencia" (Punto 5)
+    deployEmergencyPatch() {
+        if (!this.isEmergencyPatchActive || !this.emergencyPatchData) {
+            return { success: false, message: 'No hay ninguna crisis post-lanzamiento activa en este momento.' };
+        }
+        const patchCost = 4500;
+        if (this.funds < patchCost) {
+            return {
+                success: false,
+                message: `Fondos insuficientes para costear el hotfix de emergencia ($${patchCost.toLocaleString()} requeridos).`
+            };
+        }
+        this.funds -= patchCost;
+
+        // Estabilizar deuda del título por debajo de umbral bajo (<= 20)
+        if (this.emergencyPatchData.debtModel) {
+            this.emergencyPatchData.debtModel.rawDebt = 14;
+            this.emergencyPatchData.debtModel.updateDerivedMetrics();
+        }
+        this.emergencyPatchData.currentDebt = 14;
+        this.isEmergencyPatchActive = false;
+
+        // Recuperación de buena voluntad en la comunidad
+        this.fans += 180;
+
+        if (soundEngine) {
+            soundEngine.playFanfare(8.5);
+        }
+        this.notify();
+
+        return {
+            success: true,
+            message: `🛠️ ¡Parche de Emergencia Hotfix v1.1 desplegado con éxito! La deuda técnica ha descendido a 14 pts (Código Limpio). Los servidores se han estabilizado y la comunidad te recompensa con +180 fans.`
+        };
     }
 }
 

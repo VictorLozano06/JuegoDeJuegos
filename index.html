@@ -70,13 +70,27 @@
             </div>
         </header>
 
+        <!-- Post-Launch Emergency Patch Crisis Banner (Punto 5) -->
+        <div id="emergency-patch-banner" class="emergency-patch-banner" style="display: none;">
+            <div class="emergency-patch-content">
+                <span class="emergency-patch-icon">🚨</span>
+                <div class="emergency-patch-text">
+                    <strong>¡CRISIS POST-LANZAMIENTO ACTIVADA!</strong>
+                    <span id="emergency-patch-msg">El juego lanzado sufre cuelgues masivos y colapso de servidores por deuda técnica crítica (>45 pts). El estudio no puede iniciar nuevos proyectos hasta estabilizar el código.</span>
+                </div>
+            </div>
+            <button type="button" id="btn-deploy-emergency-patch" class="btn-emergency-action">
+                🛠️ Desplegar Parche de Emergencia (Hotfix v1.1 - $4,500)
+            </button>
+        </div>
+
         <!-- Active Project HUD -->
         <section id="active-project-bar">
             <!-- Regression Alert Banner -->
             <div id="regression-alert-banner" class="regression-alert-banner">
                 <span>⚠️ <span id="regression-alert-text">¡Regresión detectada en código!</span></span>
                 <button type="button" id="btn-fix-regression-now" class="btn-refactor" style="padding: 4px 10px; font-size: 11px;">
-                    🧹 Refactorizar Ya
+                    🛠️ Refactorizar Ya
                 </button>
             </div>
 
@@ -93,14 +107,18 @@
                 </div>
             </div>
 
-            <!-- Dynamic Workload & Technical Debt Counters -->
+            <!-- Dynamic Workload & Technical Debt Counters (Punto 6) -->
             <div class="proj-points-row">
                 <div class="point-pill pill-tech">💻 Motor: <span id="pts-tech">0</span></div>
                 <div class="point-pill pill-design">🎨 Gameplay/Arte: <span id="pts-design">0</span></div>
                 <div class="point-pill" style="color: #a855f7;">🌐 Red: <span id="pts-net">0</span></div>
                 <div class="point-pill" style="color: #10b981;">🛡️ QA: <span id="pts-qa">0</span></div>
-                <div class="point-pill" style="color: #f59e0b;">⚡ Fricción: <span id="pts-friction">+18%</span></div>
-                <div class="point-pill pill-bugs">⚠️ Deuda Técnica: <span id="pts-debt">0</span></div>
+                <div class="point-pill pill-friction" style="color: #f59e0b;" title="Fricción acumulada que ralentiza el avance de características">⚡ Fricción: <span id="pts-friction">1.00x (+0%)</span></div>
+                <div id="pill-debt-health" class="point-pill pill-debt-health status-clean" title="Salud del Código y Deuda Técnica Acumulada">
+                    <span id="debt-health-icon">🟢</span> Salud: <strong id="pts-debt-status">Limpio</strong> (<span id="pts-debt">0</span> pts)
+                    <span id="pts-hidden-debt-badge" class="badge-hidden-debt" style="display: none;">(+<span id="pts-hidden-debt">0</span> oculta)</span>
+                </div>
+                <div class="point-pill pill-regression-risk" style="color: #ec4899;" title="Probabilidad de que un cambio rompa un nodo completado">⚠️ Riesgo Regresión: <span id="pts-regression-risk">0%</span></div>
             </div>
 
             <div class="proj-progress-track">
@@ -114,28 +132,84 @@
                         <span>🌐</span> Ver Grafo DAG
                     </button>
                     <button id="btn-toggle-refactor" class="btn-refactor" type="button" title="Pagar deuda técnica, desacoplar módulos y evitar regresiones">
-                        🧹 Refactorizar Deuda
+                        🛠️ Refactorizar Código
                     </button>
                     <button id="btn-release-game" class="release-btn" style="display: none;">🚀 Lanzar Videojuego</button>
                 </div>
             </div>
         </section>
 
-        <!-- Bottom Action Dock -->
+        <!-- Game Dev Tycoon Radial / Contextual Floating Menu (Punto 2) -->
+        <div id="developer-context-menu" class="gdt-context-menu" style="display: none;">
+            <div class="gdt-menu-header">
+                <div class="gdt-dev-avatar" id="gdt-menu-avatar">👨‍💻</div>
+                <div class="gdt-dev-info">
+                    <div class="gdt-dev-name" id="gdt-menu-name">Raúl Vance</div>
+                    <div class="gdt-dev-role" id="gdt-menu-role">Desarrollador Líder</div>
+                </div>
+                <button type="button" id="gdt-menu-close" class="gdt-menu-close-btn" title="Cerrar">✕</button>
+            </div>
+            <div class="gdt-dev-stamina-wrapper" title="Energía del Empleado">
+                <div class="gdt-stamina-label">
+                    <span>⚡ Energía:</span>
+                    <span id="gdt-menu-stamina-val">100%</span>
+                </div>
+                <div class="gdt-stamina-track">
+                    <div id="gdt-menu-stamina-fill" class="gdt-stamina-fill" style="width: 100%;"></div>
+                </div>
+            </div>
+            <div class="gdt-menu-actions">
+                <button type="button" class="gdt-menu-btn btn-action-new-game" id="gdt-btn-new-game">
+                    <span class="gdt-btn-icon">➕</span>
+                    <div class="gdt-btn-text">
+                        <strong>Nuevo Proyecto</strong>
+                        <small>Desarrollar Videojuego</small>
+                    </div>
+                </button>
+                <button type="button" class="gdt-menu-btn" id="gdt-btn-research">
+                    <span class="gdt-btn-icon">🔬</span>
+                    <div class="gdt-btn-text">
+                        <strong>Investigar Tecnología (I+D)</strong>
+                        <small>Nodos de Render, IA y Red</small>
+                    </div>
+                </button>
+                <button type="button" class="gdt-menu-btn" id="gdt-btn-engine">
+                    <span class="gdt-btn-icon">🛠️</span>
+                    <div class="gdt-btn-text">
+                        <strong>Motor Propio</strong>
+                        <small>Desarrollar / Mantener Tecnología</small>
+                    </div>
+                </button>
+                <button type="button" class="gdt-menu-btn btn-action-rest" id="gdt-btn-rest">
+                    <span class="gdt-btn-icon">☕</span>
+                    <div class="gdt-btn-text">
+                        <strong>Tomar Descanso</strong>
+                        <small>Recuperar +100% de Energía</small>
+                    </div>
+                </button>
+                <button type="button" class="gdt-menu-btn" id="gdt-btn-stats">
+                    <span class="gdt-btn-icon">📊</span>
+                    <div class="gdt-btn-text">
+                        <strong>Habilidades y Estado</strong>
+                        <small>Ver Perfil y Personal</small>
+                    </div>
+                </button>
+            </div>
+        </div>
+
+        <!-- Bottom Action Dock (Punto 3: HUD Minimalista y Accesos Rápidos Discretos) -->
         <footer class="bottom-dock">
-            <button id="btn-new-game" class="dock-btn btn-primary-action" title="Nuevo Proyecto (N)">
-                <span>➕</span> Nuevo Videojuego
-            </button>
-            <button id="btn-open-dag" class="dock-btn" title="Árbol de Nodos & Deuda Técnica (G)">
-                <span>🌐</span> Grafo DAG
-            </button>
-            <button id="btn-research" class="dock-btn" title="I+D & Motores (R)">
-                <span>🔬</span> I+D & Motores
-            </button>
-            <button id="btn-hire" class="dock-btn" title="Personal & Energía (H)">
-                <span>👥</span> Equipo & Personal
-            </button>
-            <button id="btn-history" class="dock-btn" title="Top 10 & Historial (C)">
+            <!-- Botones ocultos para compatibilidad con atajos de teclado y referencias existentes -->
+            <button id="btn-new-game" class="dock-btn btn-primary-action" style="display: none;" title="Nuevo Proyecto (N)"><span>➕</span> Nuevo Videojuego</button>
+            <button id="btn-open-dag" class="dock-btn" style="display: none;" title="Árbol de Nodos & Deuda Técnica (G)"><span>🌐</span> Grafo DAG</button>
+            <button id="btn-research" class="dock-btn" style="display: none;" title="I+D & Motores (R)"><span>🔬</span> I+D & Motores</button>
+            <button id="btn-hire" class="dock-btn" style="display: none;" title="Personal & Energía (H)"><span>👥</span> Equipo & Personal</button>
+
+            <!-- Accesos rápidos discretos -->
+            <div class="dock-hint-pill" title="Haz clic en cualquier desarrollador de la oficina para abrir el menú de tareas y proyectos">
+                <span>💡</span> <strong>Tip:</strong> Haz clic en un desarrollador para asignar tareas
+            </div>
+            <button id="btn-history" class="dock-btn" title="Top 10 & Historial de Ventas (C)">
                 <span>📈</span> Top 10 & Ventas
             </button>
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">

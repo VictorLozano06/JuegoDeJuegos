@@ -1033,27 +1033,51 @@ export class WorldEngine {
             this.scene.add(crtLight);
             this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.85, z + 0.2), pointLight: crtLight });
 
-            // Keyboard with beige body and dark keys
-            const kb = new THREE.Mesh(
-                new THREE.BoxGeometry(0.85, 0.04, 0.32),
-                new THREE.MeshStandardMaterial({ color: 0xd1c7a7, roughness: 0.5 })
+            // 1. Teclado Retro Plano y Ergonómico (delante del monitor CRT)
+            const kbBase = new THREE.Mesh(
+                new THREE.BoxGeometry(0.70, 0.024, 0.22),
+                new THREE.MeshStandardMaterial({ color: 0xd8cca3, roughness: 0.6 })
             );
-            kb.position.set(-0.1, 1.42, 0.22);
-            deskGroup.add(kb);
+            kbBase.position.set(-0.06, 1.362, 0.22);
+            kbBase.castShadow = true;
+            deskGroup.add(kbBase);
 
-            // Joystick retro on side
+            const kbKeys = new THREE.Mesh(
+                new THREE.BoxGeometry(0.66, 0.014, 0.18),
+                new THREE.MeshStandardMaterial({ color: 0x8a7f66, roughness: 0.75 })
+            );
+            kbKeys.position.set(-0.06, 1.378, 0.22);
+            deskGroup.add(kbKeys);
+
+            // 2. Alfombrilla y Ratón Retro Box (a la derecha del teclado)
+            const mousepad = new THREE.Mesh(
+                new THREE.BoxGeometry(0.24, 0.005, 0.24),
+                new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.85 })
+            );
+            mousepad.position.set(0.46, 1.353, 0.22);
+            deskGroup.add(mousepad);
+
+            const mouseMesh = new THREE.Mesh(
+                new THREE.BoxGeometry(0.08, 0.032, 0.12),
+                new THREE.MeshStandardMaterial({ color: 0xd8cca3, roughness: 0.55 })
+            );
+            mouseMesh.position.set(0.46, 1.372, 0.22);
+            mouseMesh.castShadow = true;
+            deskGroup.add(mouseMesh);
+
+            // 3. Joystick Decorativo Vintage (recolocado en la esquina posterior para no estorbar)
             const joyBase = new THREE.Mesh(
                 new THREE.BoxGeometry(0.18, 0.06, 0.18),
                 new THREE.MeshStandardMaterial({ color: 0x111111 })
             );
-            joyBase.position.set(0.65, 1.43, 0.22);
+            joyBase.position.set(0.86, 1.38, -0.25);
             deskGroup.add(joyBase);
 
             const joyStick = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.018, 0.018, 0.22),
                 new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 })
             );
-            joyStick.position.set(0.65, 1.54, 0.22);
+            joyStick.position.set(0.86, 1.49, -0.25);
             joyStick.rotation.z = 0.15;
             deskGroup.add(joyStick);
 
@@ -1087,13 +1111,36 @@ export class WorldEngine {
                     this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.8, z) });
                 }
             });
+
+            // Teclado moderno y ratón
+            const modernKb = new THREE.Mesh(
+                new THREE.BoxGeometry(0.68, 0.02, 0.20),
+                new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.5, roughness: 0.4 })
+            );
+            modernKb.position.set(-0.05, 1.36, 0.22);
+            deskGroup.add(modernKb);
+
+            const modernPad = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.005, 0.25),
+                new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 })
+            );
+            modernPad.position.set(0.46, 1.353, 0.22);
+            deskGroup.add(modernPad);
+
+            const modernMouse = new THREE.Mesh(
+                new THREE.BoxGeometry(0.075, 0.028, 0.11),
+                new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6 })
+            );
+            modernMouse.position.set(0.46, 1.37, 0.22);
+            deskGroup.add(modernMouse);
         }
 
         // Office Chair
         const chair = this.createChair(isRetro ? 0x8d6e63 : 0x0284c7);
-        chair.position.set(0, 0, 0.85);
+        chair.position.set(0, 0, 0.82);
         deskGroup.add(chair);
 
+        deskGroup.userData = { type: 'desk', index };
         this.officeGroup.add(deskGroup);
         this.desks.push({ index: index, group: deskGroup, worldPos: new THREE.Vector3(x, y, z) });
     }
@@ -1459,6 +1506,7 @@ export class WorldEngine {
 
     buildCharacterMesh(empData, index) {
         const group = new THREE.Group();
+        group.userData = { type: 'employee', index };
 
         // Customization profile or default
         const cust = (empData && empData.customization) ? empData.customization : {};
@@ -1466,142 +1514,265 @@ export class WorldEngine {
         const hairColor = cust.hairColor || [0x271910, 0x9a3412, 0x18181b, 0x78350f][index % 4];
         const shirtColor = cust.shirtColor || [0x2563eb, 0xdc2626, 0x16a34a, 0x7c3aed, 0xd97706, 0xdb2777][index % 6];
         const pantsColor = cust.pantsColor || 0x1e293b;
+        const shoesColor = 0x0f172a;
         const hairStyle = cust.hairStyle || 'mop';
         const shirtStyle = cust.shirtStyle || 'flannel';
         const accessory = cust.accessory !== undefined ? cust.accessory : (index === 0 ? 'glasses_retro' : (index % 2 === 1 ? 'glasses_retro' : 'none'));
 
-        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.7 });
+        const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.65 });
         const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.7 });
         const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.8 });
-        const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.9 });
+        const hairMat = new THREE.MeshStandardMaterial({ color: hairColor, roughness: 0.85 });
+        const shoesMat = new THREE.MeshStandardMaterial({ color: shoesColor, roughness: 0.6 });
 
-        // Torso
-        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.48, 0.28), shirtMat);
-        torso.position.y = 0.98;
+        // --- 1. PELVIS & ANATOMICAL LEGS HIERARCHY (Sentado real en la silla con pies en el suelo) ---
+        const pelvisGroup = new THREE.Group();
+        pelvisGroup.position.set(0, 0.74, 0);
+
+        const hipsMesh = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.12, 0.30), pantsMat);
+        hipsMesh.position.set(0, 0.06, 0);
+        hipsMesh.castShadow = true;
+        pelvisGroup.add(hipsMesh);
+        group.add(pelvisGroup);
+
+        // Pierna Izquierda: Muslo rotado 90° adelante (eje X) y rodilla 90° abajo para apoyar el pie en el suelo (Y=0)
+        const leftLegGroup = new THREE.Group();
+        leftLegGroup.position.set(-0.13, 0.05, -0.05);
+        leftLegGroup.rotation.x = -Math.PI / 2; // Muslo proyectado horizontalmente hacia la mesa (-Z)
+
+        const leftThighMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), pantsMat);
+        leftThighMesh.position.set(0, -0.21, 0);
+        leftThighMesh.castShadow = true;
+        leftLegGroup.add(leftThighMesh);
+
+        // Rodilla Izquierda
+        const leftKneeGroup = new THREE.Group();
+        leftKneeGroup.position.set(0, -0.42, 0);
+        leftKneeGroup.rotation.x = Math.PI / 2; // Espinilla 90° verticalmente hacia el suelo
+
+        const leftShinMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.70, 0.12), pantsMat);
+        leftShinMesh.position.set(0, -0.35, 0);
+        leftShinMesh.castShadow = true;
+        leftKneeGroup.add(leftShinMesh);
+
+        // Pie y Zapato Izquierdo apoyado en el suelo
+        const leftFootMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.22), shoesMat);
+        leftFootMesh.position.set(0, -0.74, -0.05);
+        leftFootMesh.castShadow = true;
+        leftKneeGroup.add(leftFootMesh);
+
+        leftLegGroup.add(leftKneeGroup);
+        pelvisGroup.add(leftLegGroup);
+
+        // Pierna Derecha: Muslo rotado 90° adelante y rodilla 90° abajo (Simétrica)
+        const rightLegGroup = new THREE.Group();
+        rightLegGroup.position.set(0.13, 0.05, -0.05);
+        rightLegGroup.rotation.x = -Math.PI / 2;
+
+        const rightThighMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.42, 0.13), pantsMat);
+        rightThighMesh.position.set(0, -0.21, 0);
+        rightThighMesh.castShadow = true;
+        rightLegGroup.add(rightThighMesh);
+
+        // Rodilla Derecha
+        const rightKneeGroup = new THREE.Group();
+        rightKneeGroup.position.set(0, -0.42, 0);
+        rightKneeGroup.rotation.x = Math.PI / 2;
+
+        const rightShinMesh = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.70, 0.12), pantsMat);
+        rightShinMesh.position.set(0, -0.35, 0);
+        rightShinMesh.castShadow = true;
+        rightKneeGroup.add(rightShinMesh);
+
+        // Pie y Zapato Derecho apoyado en el suelo
+        const rightFootMesh = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.08, 0.22), shoesMat);
+        rightFootMesh.position.set(0, -0.74, -0.05);
+        rightFootMesh.castShadow = true;
+        rightKneeGroup.add(rightFootMesh);
+
+        rightLegGroup.add(rightKneeGroup);
+        pelvisGroup.add(rightLegGroup);
+
+        // --- 2. JERARQUÍA DE TORSO Y ESPINA ---
+        const torsoGroup = new THREE.Group();
+        torsoGroup.position.set(0, 0.82, 0.02);
+        torsoGroup.rotation.x = -0.06; // Postura natural inclinada hacia el monitor
+
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.50, 0.28), shirtMat);
+        torso.position.set(0, 0.25, 0);
         torso.castShadow = true;
-        group.add(torso);
+        torsoGroup.add(torso);
+        group.add(torsoGroup);
 
-        // Hoodie collar if hoodie style
         if (shirtStyle === 'hoodie') {
             const hood = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.16, 0.16), shirtMat);
-            hood.position.set(0, 1.22, -0.14);
-            group.add(hood);
+            hood.position.set(0, 0.50, -0.12);
+            torsoGroup.add(hood);
         }
 
-        // Head
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), skinMat);
-        head.position.y = 1.44;
-        head.castShadow = true;
-        group.add(head);
+        // --- 3. CABEZA Y CUELLO ---
+        const headGroup = new THREE.Group();
+        headGroup.position.set(0, 0.52, 0.02);
 
-        // Hair Styles
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 0.08, 12), skinMat);
+        neck.position.set(0, 0.04, 0);
+        headGroup.add(neck);
+
+        const head = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.34), skinMat);
+        head.position.set(0, 0.22, 0.02);
+        head.castShadow = true;
+        headGroup.add(head);
+
+        // Ojos estilizados de desarrollador
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x1e293b });
+        const leftEye = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.06, 0.02), eyeMat);
+        leftEye.position.set(-0.09, 0.23, 0.195);
+        headGroup.add(leftEye);
+
+        const rightEye = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.06, 0.02), eyeMat);
+        rightEye.position.set(0.09, 0.23, 0.195);
+        headGroup.add(rightEye);
+
+        // Peinados
         if (hairStyle === 'mop') {
             const hair = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.16, 0.38), hairMat);
-            hair.position.y = 1.62;
-            group.add(hair);
-            // Front bangs
-            const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.08, 0.08), hairMat);
-            bangs.position.set(0, 1.56, 0.18);
-            group.add(bangs);
+            hair.position.set(0, 0.40, 0.02);
+            headGroup.add(hair);
+            const bangs = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.09, 0.08), hairMat);
+            bangs.position.set(0, 0.33, 0.20);
+            headGroup.add(bangs);
         } else if (hairStyle === 'short') {
-            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.11, 0.36), hairMat);
-            hair.position.y = 1.61;
-            group.add(hair);
+            const hair = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.36), hairMat);
+            hair.position.set(0, 0.39, 0.02);
+            headGroup.add(hair);
         } else if (hairStyle === 'curly') {
             const hair = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.22, 0.42), hairMat);
-            hair.position.y = 1.65;
-            group.add(hair);
+            hair.position.set(0, 0.43, 0.02);
+            headGroup.add(hair);
         } else if (hairStyle === 'cap') {
-            // Retro baseball cap
             const capMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.5 });
             const cap = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.12, 0.36), capMat);
-            cap.position.y = 1.62;
-            group.add(cap);
+            cap.position.set(0, 0.40, 0.02);
+            headGroup.add(cap);
             const bill = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.03, 0.20), capMat);
-            bill.position.set(0, 1.58, 0.24);
+            bill.position.set(0, 0.36, 0.26);
             bill.rotation.x = -0.1;
-            group.add(bill);
+            headGroup.add(bill);
         }
 
-        // Accessories (Glasses, Headphones, Beard)
+        // Accesorios
         if (accessory === 'glasses_retro') {
             const glasses = new THREE.Mesh(
                 new THREE.BoxGeometry(0.32, 0.10, 0.04),
                 new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.2 })
             );
-            glasses.position.set(0, 1.44, 0.18);
-            group.add(glasses);
+            glasses.position.set(0, 0.23, 0.20);
+            headGroup.add(glasses);
         } else if (accessory === 'glasses_modern') {
             const glasses = new THREE.Mesh(
                 new THREE.BoxGeometry(0.32, 0.08, 0.03),
                 new THREE.MeshStandardMaterial({ color: 0x09090b, metalness: 0.8, roughness: 0.2 })
             );
-            glasses.position.set(0, 1.44, 0.18);
-            group.add(glasses);
+            glasses.position.set(0, 0.23, 0.20);
+            headGroup.add(glasses);
         } else if (accessory === 'headphones') {
-            // 80s Orange Foam Over-Ear Studio Headphones
             const orangeFoam = new THREE.MeshStandardMaterial({ color: 0xf97316, roughness: 0.8 });
             const metalBand = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.9, roughness: 0.2 });
-            [-0.20, 0.20].forEach(xOff => {
+            [-0.19, 0.19].forEach(xOff => {
                 const earPad = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 12), orangeFoam);
                 earPad.rotation.z = Math.PI / 2;
-                earPad.position.set(xOff, 1.46, 0);
-                group.add(earPad);
+                earPad.position.set(xOff, 0.24, 0.02);
+                headGroup.add(earPad);
             });
             const band = new THREE.Mesh(new THREE.TorusGeometry(0.20, 0.015, 6, 16, Math.PI), metalBand);
             band.rotation.z = Math.PI;
-            band.position.set(0, 1.46, 0);
-            group.add(band);
+            band.position.set(0, 0.24, 0.02);
+            headGroup.add(band);
         } else if (accessory === 'beard') {
-            // 80s Dev Mustache & Stubble
-            const stache = new THREE.Mesh(
-                new THREE.BoxGeometry(0.20, 0.06, 0.04),
-                hairMat
-            );
-            stache.position.set(0, 1.34, 0.18);
-            group.add(stache);
+            const stache = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.06, 0.04), hairMat);
+            stache.position.set(0, 0.12, 0.20);
+            headGroup.add(stache);
         }
 
-        // Arms & Hands
-        const armGeo = new THREE.BoxGeometry(0.12, 0.36, 0.12);
-        const leftArm = new THREE.Mesh(armGeo, shirtMat);
-        leftArm.position.set(-0.28, 0.96, 0.1);
-        leftArm.rotation.x = -Math.PI / 3.5;
-        group.add(leftArm);
+        torsoGroup.add(headGroup);
 
-        const rightArm = new THREE.Mesh(armGeo, shirtMat);
-        rightArm.position.set(0.28, 0.96, 0.1);
-        rightArm.rotation.x = -Math.PI / 3.5;
-        group.add(rightArm);
+        // --- 4. BRAZOS Y MANOS APOYADAS SOBRE LA MESA ESCRIBIENDO ---
+        // Brazo Izquierdo: Hombro -> Antebrazo -> Mano apoyada sobre el teclado
+        const leftShoulderGroup = new THREE.Group();
+        leftShoulderGroup.position.set(-0.25, 0.44, 0);
+        leftShoulderGroup.rotation.x = -Math.PI / 4.0;
+        leftShoulderGroup.rotation.z = 0.08;
 
-        // Legs
-        const legGeo = new THREE.BoxGeometry(0.14, 0.4, 0.14);
-        const leftLeg = new THREE.Mesh(legGeo, pantsMat);
-        leftLeg.position.set(-0.13, 0.55, 0.15);
-        leftLeg.rotation.x = Math.PI / 2.2;
-        group.add(leftLeg);
+        const leftUpperArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.30, 0.11), shirtMat);
+        leftUpperArm.position.set(0, -0.15, 0);
+        leftUpperArm.castShadow = true;
+        leftShoulderGroup.add(leftUpperArm);
 
-        const rightLeg = new THREE.Mesh(legGeo, pantsMat);
-        rightLeg.position.set(0.13, 0.55, 0.15);
-        rightLeg.rotation.x = Math.PI / 2.2;
-        group.add(rightLeg);
+        const leftElbowGroup = new THREE.Group();
+        leftElbowGroup.position.set(0, -0.30, 0);
+        leftElbowGroup.rotation.x = -Math.PI / 3.2; // Antebrazo en ángulo horizontal hacia el teclado
+        leftElbowGroup.rotation.y = 0.25; // Inclinado hacia el centro del teclado
 
-        // Idea Bulb
+        const leftForearm = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.28, 0.10), shirtMat);
+        leftForearm.position.set(0, -0.14, 0);
+        leftForearm.castShadow = true;
+        leftElbowGroup.add(leftForearm);
+
+        const leftHand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.04, 0.12), skinMat);
+        leftHand.position.set(0, -0.28, 0.02);
+        leftElbowGroup.add(leftHand);
+
+        leftShoulderGroup.add(leftElbowGroup);
+        torsoGroup.add(leftShoulderGroup);
+
+        // Brazo Derecho: Hombro -> Antebrazo -> Mano apoyada sobre el ratón / teclado
+        const rightShoulderGroup = new THREE.Group();
+        rightShoulderGroup.position.set(0.25, 0.44, 0);
+        rightShoulderGroup.rotation.x = -Math.PI / 4.0;
+        rightShoulderGroup.rotation.z = -0.08;
+
+        const rightUpperArm = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.30, 0.11), shirtMat);
+        rightUpperArm.position.set(0, -0.15, 0);
+        rightUpperArm.castShadow = true;
+        rightShoulderGroup.add(rightUpperArm);
+
+        const rightElbowGroup = new THREE.Group();
+        rightElbowGroup.position.set(0, -0.30, 0);
+        rightElbowGroup.rotation.x = -Math.PI / 3.2;
+        rightElbowGroup.rotation.y = -0.25;
+
+        const rightForearm = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.28, 0.10), shirtMat);
+        rightForearm.position.set(0, -0.14, 0);
+        rightForearm.castShadow = true;
+        rightElbowGroup.add(rightForearm);
+
+        const rightHand = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.04, 0.12), skinMat);
+        rightHand.position.set(0, -0.28, 0.02);
+        rightElbowGroup.add(rightHand);
+
+        rightShoulderGroup.add(rightElbowGroup);
+        torsoGroup.add(rightShoulderGroup);
+
+        // Bombilla de Ideas (Idea Bulb)
         const bulbGroup = new THREE.Group();
-        const bulb = new THREE.Mesh(
-            new THREE.SphereGeometry(0.14, 12, 12),
-            new THREE.MeshBasicMaterial({ color: 0xfacc15 })
-        );
+        const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.14, 12, 12), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
         bulbGroup.add(bulb);
         const bulbGlow = new THREE.PointLight(0xfacc15, 0, 2);
         bulbGroup.add(bulbGlow);
-        bulbGroup.position.set(0, 1.95, 0);
+        bulbGroup.position.set(0, 0.70, 0);
         bulbGroup.visible = false;
-        group.add(bulbGroup);
+        headGroup.add(bulbGroup);
+
+        // Mallas para resaltado al hacer hover
+        const highlightMeshes = [torso, head, leftUpperArm, rightUpperArm, leftForearm, rightForearm];
 
         return {
-            group, torso, head, leftArm, rightArm, bulbGroup, bulbGlow,
-            state: 'typing', animTimer: Math.random() * 10, index
+            group, torsoGroup, torso, headGroup, head,
+            leftShoulderGroup, rightShoulderGroup, leftElbowGroup, rightElbowGroup,
+            leftLegGroup, rightLegGroup, leftKneeGroup, rightKneeGroup,
+            highlightMeshes, bulbGroup, bulbGlow,
+            state: 'typing', animTimer: Math.random() * 10, index,
+            shirtMat, skinMat
         };
     }
 
@@ -1622,7 +1793,7 @@ export class WorldEngine {
 
         if (this.desks[index]) {
             const deskPos = this.desks[index].worldPos;
-            newChar.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.85);
+            newChar.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.80);
             newChar.group.rotation.y = 0;
         }
     }
@@ -1631,7 +1802,7 @@ export class WorldEngine {
         this.characters.forEach((charObj, i) => {
             if (this.desks[i]) {
                 const deskPos = this.desks[i].worldPos;
-                charObj.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.85);
+                charObj.group.position.set(deskPos.x, deskPos.y, deskPos.z + 0.80);
                 charObj.group.rotation.y = 0;
             }
         });
@@ -1761,20 +1932,49 @@ export class WorldEngine {
             }
         }
 
-        // Animate Characters
+        // Animate Characters (Game Dev Tycoon Micro-loop Animation)
         this.characters.forEach(char => {
             char.animTimer += delta;
+
             if (char.state === 'typing') {
-                const tapL = Math.sin(time * 16 + char.index) * 0.09;
-                const tapR = Math.cos(time * 16 + char.index) * 0.09;
-                char.leftArm.rotation.x = -Math.PI / 3.4 + tapL;
-                char.rightArm.rotation.x = -Math.PI / 3.4 + tapR;
-                char.head.rotation.x = 0.12 + Math.sin(time * 3) * 0.04;
-                char.torso.position.y = 0.98 + Math.sin(time * 2.5) * 0.012;
+                // Micro-loop de tecleo natural con pausas orgánicas de pensamiento
+                const isTyping = Math.sin(time * 0.9 + char.index * 1.5) > -0.35;
+
+                if (isTyping && char.leftElbowGroup && char.rightElbowGroup) {
+                    const tapL = Math.sin(time * 15 + char.index * 2.5) * 0.05;
+                    const tapR = Math.cos(time * 15 + char.index * 2.5 + 1.2) * 0.05;
+                    char.leftElbowGroup.rotation.x = -Math.PI / 3.2 + tapL;
+                    char.rightElbowGroup.rotation.x = -Math.PI / 3.2 + tapR;
+                } else if (char.leftElbowGroup && char.rightElbowGroup) {
+                    char.leftElbowGroup.rotation.x = -Math.PI / 3.2;
+                    char.rightElbowGroup.rotation.x = -Math.PI / 3.2;
+                }
+
+                // Cabeceo oscilante y rotación sutil de la cabeza escaneando el monitor CRT
+                if (char.headGroup) {
+                    char.headGroup.rotation.x = 0.08 + Math.sin(time * 2.6 + char.index) * 0.035;
+                    char.headGroup.rotation.y = Math.sin(time * 1.4 + char.index * 0.8) * 0.07;
+                }
+
+                // Respiración sutil en el torso
+                if (char.torsoGroup) {
+                    char.torsoGroup.position.y = 0.82 + Math.sin(time * 2.0 + char.index) * 0.008;
+                }
             } else if (char.state === 'celebrating') {
-                char.leftArm.rotation.x = Math.PI * 0.8;
-                char.rightArm.rotation.x = Math.PI * 0.8;
-                char.group.position.y = Math.abs(Math.sin(time * 9)) * 0.45;
+                if (char.leftShoulderGroup && char.rightShoulderGroup) {
+                    char.leftShoulderGroup.rotation.x = Math.PI * 0.75 + Math.sin(time * 10) * 0.15;
+                    char.rightShoulderGroup.rotation.x = Math.PI * 0.75 + Math.cos(time * 10) * 0.15;
+                }
+                if (char.headGroup) char.headGroup.rotation.x = -0.22;
+                if (char.torsoGroup) char.torsoGroup.position.y = 0.82 + Math.abs(Math.sin(time * 8)) * 0.08;
+            } else if (char.state === 'thinking') {
+                if (char.headGroup) {
+                    char.headGroup.rotation.x = 0.16;
+                    char.headGroup.rotation.z = 0.12;
+                }
+                if (char.rightElbowGroup) {
+                    char.rightElbowGroup.rotation.x = -Math.PI / 2.3;
+                }
             }
         });
 
@@ -2678,7 +2878,7 @@ export class WorldEngine {
         let pointerDownPos = new THREE.Vector2();
         let pointerDownTime = 0;
 
-        // Pointer Move for Hover Raycasting
+        // Pointer Move for Hover Raycasting (Punto 2: Hover con outline / luminosidad brillante)
         this.renderer.domElement.addEventListener('pointermove', (e) => {
             const rect = this.renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2724,6 +2924,48 @@ export class WorldEngine {
                 if (typeof this.onNodeHoverCallback === 'function') {
                     this.onNodeHoverCallback(null, null, false);
                 }
+            }
+
+            // 2. Raycast Characters & Workstations (Hover de personajes al estilo Game Dev Tycoon)
+            const officeTargets = [...this.charactersGroup.children, ...this.desks.map(d => d.group)];
+            const officeHits = raycaster.intersectObjects(officeTargets, true);
+
+            if (officeHits.length > 0) {
+                const hitObj = officeHits[0].object;
+                let targetChar = null;
+
+                for (const char of this.characters) {
+                    if (char.group.getObjectById(hitObj.id)) {
+                        targetChar = char;
+                        break;
+                    }
+                }
+                if (!targetChar) {
+                    for (const desk of this.desks) {
+                        if (desk.group.getObjectById(hitObj.id)) {
+                            targetChar = this.characters[desk.index] || this.characters[0];
+                            break;
+                        }
+                    }
+                }
+
+                if (targetChar) {
+                    if (this.hoveredCharacter !== targetChar) {
+                        if (this.hoveredCharacter) {
+                            this.unhighlightCharacter(this.hoveredCharacter);
+                        }
+                        this.hoveredCharacter = targetChar;
+                        this.highlightCharacter(targetChar);
+                    }
+                    this.container.style.cursor = 'pointer';
+                    return;
+                }
+            }
+
+            if (this.hoveredCharacter) {
+                this.unhighlightCharacter(this.hoveredCharacter);
+                this.hoveredCharacter = null;
+                this.container.style.cursor = 'default';
             }
         });
 
@@ -2773,25 +3015,93 @@ export class WorldEngine {
                 }
             }
 
-            // 2. Raycast Characters in Office
-            const charHits = raycaster.intersectObjects(this.charactersGroup.children, true);
-            if (charHits.length > 0) {
-                if (soundEngine) soundEngine.playKeyboardTap();
-                const clickedMesh = charHits[0].object;
-                this.characters.forEach(char => {
+            // 2. Raycast Characters in Office (Punto 2: Apertura de menú contextual Game Dev Tycoon)
+            const officeTargets = [...this.charactersGroup.children, ...this.desks.map(d => d.group)];
+            const officeHits = raycaster.intersectObjects(officeTargets, true);
+
+            if (officeHits.length > 0) {
+                const clickedMesh = officeHits[0].object;
+                let clickedChar = null;
+
+                for (const char of this.characters) {
                     if (char.group.getObjectById(clickedMesh.id)) {
-                        char.state = 'thinking';
-                        char.bulbGroup.visible = true;
-                        char.bulbGlow.intensity = 1.4;
-                        setTimeout(() => {
-                            char.state = 'typing';
-                            char.bulbGroup.visible = false;
-                            char.bulbGlow.intensity = 0;
-                        }, 2500);
+                        clickedChar = char;
+                        break;
                     }
-                });
+                }
+                if (!clickedChar) {
+                    for (const desk of this.desks) {
+                        if (desk.group.getObjectById(clickedMesh.id)) {
+                            clickedChar = this.characters[desk.index] || this.characters[0];
+                            break;
+                        }
+                    }
+                }
+
+                if (clickedChar) {
+                    if (soundEngine) soundEngine.playKeyboardTap();
+
+                    clickedChar.state = 'thinking';
+                    if (clickedChar.bulbGroup) {
+                        clickedChar.bulbGroup.visible = true;
+                        clickedChar.bulbGlow.intensity = 1.4;
+                        setTimeout(() => {
+                            clickedChar.state = 'typing';
+                            if (clickedChar.bulbGroup) {
+                                clickedChar.bulbGroup.visible = false;
+                                clickedChar.bulbGlow.intensity = 0;
+                            }
+                        }, 2200);
+                    }
+
+                    // Proyectar coordenadas 3D a coordenadas 2D en pantalla
+                    const worldPos = new THREE.Vector3();
+                    clickedChar.group.getWorldPosition(worldPos);
+                    worldPos.y += 1.35; // Nivel de la cabeza/pecho del desarrollador
+
+                    const projected = worldPos.clone().project(this.camera);
+                    const screenX = rect.left + (projected.x * 0.5 + 0.5) * rect.width;
+                    const screenY = rect.top + (-(projected.y * 0.5) + 0.5) * rect.height;
+
+                    window.dispatchEvent(new CustomEvent('developer-selected', {
+                        detail: {
+                            index: clickedChar.index,
+                            screenX: Math.round(screenX),
+                            screenY: Math.round(screenY),
+                            charObj: clickedChar
+                        }
+                    }));
+                    return;
+                }
             }
+
+            // Clic en el suelo o espacio vacío: cerrar menú contextual
+            window.dispatchEvent(new CustomEvent('world-clicked-empty'));
         });
+    }
+
+    highlightCharacter(char) {
+        if (!char) return;
+        if (char.shirtMat) {
+            char.shirtMat.emissive.setHex(0x00d2ff);
+            char.shirtMat.emissiveIntensity = 0.38;
+        }
+        if (char.skinMat) {
+            char.skinMat.emissive.setHex(0x38bdf8);
+            char.skinMat.emissiveIntensity = 0.20;
+        }
+    }
+
+    unhighlightCharacter(char) {
+        if (!char) return;
+        if (char.shirtMat) {
+            char.shirtMat.emissive.setHex(0x000000);
+            char.shirtMat.emissiveIntensity = 0.0;
+        }
+        if (char.skinMat) {
+            char.skinMat.emissive.setHex(0x000000);
+            char.skinMat.emissiveIntensity = 0.0;
+        }
     }
 
     highlightDependencies(nodeId, highlight = true) {
