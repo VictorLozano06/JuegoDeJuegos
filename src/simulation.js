@@ -1,3 +1,6 @@
+import { soundEngine } from './audio.js';
+import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
+
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
  * Deep, balanced mathematical systems inspired by Game Dev Tycoon & Software Inc.
@@ -512,10 +515,7 @@ class TycoonGame {
         this.researchedTechs = ['graphics2d_v1', 'sound_chiptune'];
 
         // Research & Development (I+D) Tech Tree System
-        this.techTreeManager = (typeof TechTreeManager !== 'undefined') ? new TechTreeManager() : null;
-        if (typeof window !== 'undefined' && this.techTreeManager) {
-            window.techTreeManager = this.techTreeManager;
-        }
+        this.techTreeManager = new TechTreeManager();
         this.activeResearch = null; // { techId, nodeName, icon, costRP, totalWeeks, weeksRemaining, progress }
 
         this.customEngines = [
@@ -595,7 +595,7 @@ class TycoonGame {
             if (item.isPlayer) item.dev = this.companyName;
         });
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true };
     }
@@ -760,12 +760,12 @@ class TycoonGame {
         let engine = null;
         if (dagPipeline) {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === dagPipeline.id)) ||
-                     (window.CommercialEngineCatalog && window.CommercialEngineCatalog.find(e => e.id === dagPipeline.id)) ||
+                     (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === dagPipeline.id)) ||
                      (this.inHouseEngines && this.inHouseEngines.find(e => e.id === dagPipeline.id)) ||
                      dagPipeline;
         } else if (pipelineType === 'commercial') {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === config.engineId)) ||
-                     (window.CommercialEngineCatalog && window.CommercialEngineCatalog.find(e => e.id === config.engineId)) ||
+                     (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === config.engineId)) ||
                      (this.commercialEngines && this.commercialEngines[0]);
         } else {
             engine = (this.inHouseEngines && this.inHouseEngines.find(e => e.id === config.engineId)) ||
@@ -801,7 +801,7 @@ class TycoonGame {
         let frictionData = null;
 
         if (typeof ScopeDAG !== 'undefined') {
-            scopeDAG = new ScopeDAG(defaultNodeIds);
+            scopeDAG = new ScopeDAG(defaultNodeIds, { techTreeManager: this.techTreeManager });
             if (engine && typeof engine.getFrictionMultiplier === 'function') {
                 // In-House engine halves friction in affine genres
                 frictionMultiplier = engine.getFrictionMultiplier(genre.id, this.year, this.week);
@@ -857,8 +857,8 @@ class TycoonGame {
             lastRegression: null
         };
 
-        if (window.soundEngine) {
-            window.soundEngine.playLevelUp();
+        if (soundEngine) {
+            soundEngine.playLevelUp();
         }
 
         this.notify();
@@ -934,7 +934,7 @@ class TycoonGame {
                 proj.lastRegression = debtTickResult.regression;
                 proj.lastRegressionTime = Date.now();
                 if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('bug', 0);
-                if (window.soundEngine) window.soundEngine.playBubble('bug');
+                if (soundEngine) soundEngine.playBubble('bug');
             }
         }
 
@@ -976,7 +976,7 @@ class TycoonGame {
                     const techGained = Math.max(1, Math.ceil(emp.tech * 0.075 * stageTechWeight));
                     proj.techPoints += techGained;
                     if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('tech', index);
-                    if (window.soundEngine && Math.random() < 0.18) window.soundEngine.playBubble('tech');
+                    if (soundEngine && Math.random() < 0.18) soundEngine.playBubble('tech');
                 }
 
                 // Design Points generation
@@ -985,7 +985,7 @@ class TycoonGame {
                     const designGained = Math.max(1, Math.ceil(emp.design * 0.075 * stageDesignWeight));
                     proj.designPoints += designGained;
                     if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('design', index);
-                    if (window.soundEngine && Math.random() < 0.18) window.soundEngine.playBubble('design');
+                    if (soundEngine && Math.random() < 0.18) soundEngine.playBubble('design');
                 }
 
                 // DAG Discipline Progress contribution
@@ -1012,7 +1012,7 @@ class TycoonGame {
                     if (Math.random() < bugChance) {
                         proj.bugs += 1;
                         if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('bug', index);
-                        if (window.soundEngine && Math.random() < 0.15) window.soundEngine.playBubble('bug');
+                        if (soundEngine && Math.random() < 0.15) soundEngine.playBubble('bug');
                     }
                 }
 
@@ -1024,7 +1024,7 @@ class TycoonGame {
                     if (Math.random() < fixChance) {
                         proj.bugs = Math.max(0, proj.bugs - 1);
                         if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('research', index);
-                        if (window.soundEngine && Math.random() < 0.20) window.soundEngine.playBubble('research');
+                        if (soundEngine && Math.random() < 0.20) soundEngine.playBubble('research');
                     }
                 }
 
@@ -1052,10 +1052,10 @@ class TycoonGame {
             proj.stageProgress = 0;
             if (proj.stage < 3) {
                 proj.stage += 1;
-                if (window.soundEngine) window.soundEngine.playClick();
+                if (soundEngine) soundEngine.playClick();
             } else if (proj.stage === 3) {
                 proj.stage = 4; // Polish & bugfix stage
-                if (window.soundEngine) window.soundEngine.playClick();
+                if (soundEngine) soundEngine.playClick();
             }
         }
 
@@ -1272,8 +1272,8 @@ class TycoonGame {
         releasedGame.launchRPGain = launchRP;
 
         // Sound fanfare
-        if (window.soundEngine) {
-            window.soundEngine.playFanfare(avgScore);
+        if (soundEngine) {
+            soundEngine.playFanfare(avgScore);
         }
 
         this.currentProject = null;
@@ -1346,8 +1346,8 @@ class TycoonGame {
             });
         }
 
-        if (weeklyIncomeTotal > 0 && window.soundEngine) {
-            window.soundEngine.playCash();
+        if (weeklyIncomeTotal > 0 && soundEngine) {
+            soundEngine.playCash();
         }
 
         // Cycle competitor market and update top 10 leaderboard
@@ -1398,18 +1398,10 @@ class TycoonGame {
                 }
                 this.activeResearch = null;
 
-                if (window.soundEngine && window.soundEngine.playLevelUp) {
-                    window.soundEngine.playLevelUp();
+                if (soundEngine && soundEngine.playLevelUp) {
+                    soundEngine.playLevelUp();
                 }
-                if (typeof showToast === 'function') {
-                    showToast(`🎉 ¡I+D COMPLETADA! Módulo "${finishedTechName}" investigado y desbloqueado para tus videojuegos.`, 'success');
-                }
-                if (typeof renderDAGNodes === 'function') {
-                    renderDAGNodes();
-                }
-                if (typeof renderTechTree === 'function') {
-                    renderTechTree();
-                }
+                this.onResearchCompleted?.(finishedTechName);
             }
         }
 
@@ -1433,7 +1425,7 @@ class TycoonGame {
             this.fans += prizeFans;
             this.funds += prizeMoney;
 
-            if (window.soundEngine) window.soundEngine.playLevelUp();
+            if (soundEngine) soundEngine.playLevelUp();
             return {
                 won: true,
                 game: winner.name,
@@ -1486,7 +1478,7 @@ class TycoonGame {
         this.funds -= check.cost;
         this.era = check.targetEra;
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true, newEra: this.era, name: check.name };
     }
@@ -1523,7 +1515,7 @@ class TycoonGame {
         const cIdx = this.availableCandidates.findIndex(c => c.name === candidate.name);
         if (cIdx !== -1) this.availableCandidates.splice(cIdx, 1);
 
-        if (window.soundEngine) window.soundEngine.playClick();
+        if (soundEngine) soundEngine.playClick();
         this.notify();
         return { success: true };
     }
@@ -1573,7 +1565,7 @@ class TycoonGame {
         }
 
         this.availableCandidates = newPool;
-        if (window.soundEngine) window.soundEngine.playClick();
+        if (soundEngine) soundEngine.playClick();
         this.notify();
         return { success: true };
     }
@@ -1588,7 +1580,7 @@ class TycoonGame {
             emp.stamina = Math.min(emp.maxStamina, emp.stamina + 35);
         });
 
-        if (window.soundEngine) window.soundEngine.playClick();
+        if (soundEngine) soundEngine.playClick();
         this.notify();
         return { success: true, message: '☕ ¡Café de alta calidad para el equipo! +35 de energía para todos.' };
     }
@@ -1602,7 +1594,7 @@ class TycoonGame {
         this.funds -= cost;
         emp.stamina = emp.maxStamina;
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true, message: `🏖️ ¡${emp.name} vuelve de vacaciones totalmente renovado al 100%!` };
     }
@@ -1627,7 +1619,7 @@ class TycoonGame {
             emp.design += 8;
         }
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true, message: `📚 ¡${emp.name} ha completado la capacitación! +8 en ${skillType === 'tech' ? 'Tecnología' : 'Diseño'}.` };
     }
@@ -1663,7 +1655,7 @@ class TycoonGame {
             audience: audienceHint
         });
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return {
             success: true,
@@ -1716,7 +1708,7 @@ class TycoonGame {
             progress: 0
         };
 
-        if (window.soundEngine && window.soundEngine.playClick) window.soundEngine.playClick();
+        if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         this.notify();
         return {
             success: true,
@@ -1753,8 +1745,8 @@ class TycoonGame {
             this.techTreeManager.dismantledHardware.add(hwId);
         }
 
-        if (window.soundEngine && window.soundEngine.playCash) window.soundEngine.playCash();
-        if (window.soundEngine && window.soundEngine.playLevelUp) window.soundEngine.playLevelUp();
+        if (soundEngine && soundEngine.playCash) soundEngine.playCash();
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
         this.notify();
 
         return {
@@ -1784,7 +1776,7 @@ class TycoonGame {
         tech.researched = true;
         this.researchedTechs.push(tech.id);
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true };
     }
@@ -1819,7 +1811,7 @@ class TycoonGame {
         };
         this.customEngines.push(newEngine);
 
-        if (window.soundEngine) window.soundEngine.playCash();
+        if (soundEngine) soundEngine.playCash();
         this.notify();
         return { success: true, engine: newEngine };
     }
@@ -1867,7 +1859,7 @@ class TycoonGame {
         };
 
         this.inHouseEngines.push(newEngine);
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return { success: true, engine: newEngine, message: `🚀 ¡Proyecto de I+D concluido! Motor propio "${newEngine.name}" listo para producción con 0% royalties.` };
     }
@@ -1893,7 +1885,7 @@ class TycoonGame {
             res = { success: true, message: `Motor ${engine.name} actualizado con éxito.` };
         }
 
-        if (window.soundEngine) window.soundEngine.playLevelUp();
+        if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return res;
     }
@@ -1904,7 +1896,7 @@ class TycoonGame {
 
         if (typeof engine.licenseToStudio === 'function') {
             const res = engine.licenseToStudio(studioName, monthlyFee);
-            if (res.success && window.soundEngine) window.soundEngine.playCash();
+            if (res.success && soundEngine) soundEngine.playCash();
             this.notify();
             return res;
         }
@@ -1939,4 +1931,6 @@ class TycoonGame {
 }
 
 // Global game instance
-window.game = new TycoonGame();
+const game = new TycoonGame();
+
+export { game, GENRES, PLATFORMS, TOPICS };

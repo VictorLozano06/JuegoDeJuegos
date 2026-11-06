@@ -415,5 +415,5 @@ class SoundEngine {
 }
 
 // Global sound manager instance
-window.soundEngine = new SoundEngine();
+export const soundEngine = new SoundEngine();
 

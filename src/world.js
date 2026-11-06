@@ -1,3 +1,9 @@
+import { soundEngine } from './audio.js';
+import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
+import { game } from './simulation.js';
+
+const THREE = window.THREE;
+
 /**
  * Dev Empire 3D - Three.js Visual World Engine (AAA Polished Edition)
  * Diorama Isometric Framing, Rich Visual Storytelling Props, PBR Materials,
@@ -196,7 +202,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     }
 ];
 
-class WorldEngine {
+export class WorldEngine {
     constructor(containerId) {
         this.container = document.getElementById(containerId);
         this.scene = null;
@@ -1604,7 +1610,7 @@ class WorldEngine {
         const oldChar = this.characters[index];
         this.charactersGroup.remove(oldChar.group);
 
-        const empData = (window.game && window.game.employees && window.game.employees[index]) ? window.game.employees[index] : {};
+        const empData = (game && game.employees && game.employees[index]) ? game.employees[index] : {};
         if (customConfig) {
             empData.customization = { ...empData.customization, ...customConfig };
         }
@@ -1977,7 +1983,7 @@ class WorldEngine {
         let rawNodes = SCOPE_ARCHITECTURE_NODES;
         let externalEdges = null;
 
-        const techMgr = (typeof window !== 'undefined' && window.techTreeManager) || null;
+        const techMgr = game.techTreeManager;
 
         if (Array.isArray(customNodes) && customNodes.length > 0) {
             // Filter strictly to unlocked technologies if TechTreeManager is active
@@ -2748,8 +2754,8 @@ class WorldEngine {
                     // Click Punch Animation (Jumps to 1.28x and spring-returns to 1.15x)
                     nodeObj.currentScale = 1.28;
 
-                    if (window.soundEngine) {
-                        window.soundEngine.playBubble('tech');
+                    if (soundEngine) {
+                        soundEngine.playBubble('tech');
                     }
 
                     // Cycle or Toggle Node State
@@ -2758,9 +2764,6 @@ class WorldEngine {
                     // Callback & DOM Custom Event emission
                     if (typeof this.onNodeClickCallback === 'function') {
                         this.onNodeClickCallback(nodeObj.id, nodeObj.data);
-                    }
-                    if (typeof window.on3DNodeClicked === 'function') {
-                        window.on3DNodeClicked(nodeObj.id);
                     }
                     window.dispatchEvent(new CustomEvent('scope-node-selected', {
                         detail: { nodeId: nodeObj.id, node: nodeObj.data }
@@ -2773,7 +2776,7 @@ class WorldEngine {
             // 2. Raycast Characters in Office
             const charHits = raycaster.intersectObjects(this.charactersGroup.children, true);
             if (charHits.length > 0) {
-                if (window.soundEngine) window.soundEngine.playKeyboardTap();
+                if (soundEngine) soundEngine.playKeyboardTap();
                 const clickedMesh = charHits[0].object;
                 this.characters.forEach(char => {
                     if (char.group.getObjectById(clickedMesh.id)) {

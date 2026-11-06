@@ -1,3 +1,8 @@
+import { soundEngine } from './audio.js';
+import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
+import { game, GENRES, PLATFORMS, TOPICS } from './simulation.js';
+import { WorldEngine } from './world.js';
+
 /**
  * DEV EMPIRE 3D - Main Application Controller
  * Seamless bridge connecting Simulation Logic, Three.js 3D World Engine,
@@ -9,24 +14,30 @@ let devInterval = null;
 let calendarInterval = null;
 let lastExpoYearTriggered = 0;
 
-// Global Architecture, Tech Tree and Pipeline Managers
-window.techTreeManager = (window.game && window.game.techTreeManager) ? window.game.techTreeManager : ((typeof TechTreeManager !== 'undefined') ? new TechTreeManager() : null);
-if (window.game && !window.game.techTreeManager) {
-    window.game.techTreeManager = window.techTreeManager;
-}
-window.scopeDAG = new ScopeDAG();
-window.debtManager = new TechnicalDebtManager();
-window.pipelineManager = new TechPipelineManager();
+const techTreeManager = game.techTreeManager;
+const scopeDAG = new ScopeDAG(null, { techTreeManager });
+const debtManager = new TechnicalDebtModel();
+const pipelineManager = new EnginePipelineManager();
+
+game.onResearchCompleted = (name) => {
+    showToast(`🎉 ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
+    renderDAGNodes();
+    renderTechTree();
+};
+
+// Legacy HTML onclick attributes call these UI actions by name.
+window.closeAllModals = closeAllModals;
 
 document.addEventListener('DOMContentLoaded', () => {
     // 1. Initialize 3D World Engine
     world = new WorldEngine('canvas-container');
+    world.onNodeClick(on3DNodeClicked);
 
     // Sync initial character
-    world.syncEmployees(window.game.employees);
+    world.syncEmployees(game.employees);
 
     // Initial 3D DAG render
-    world.renderScopeDAG3D(window.scopeDAG, window.pipelineManager.getActivePipeline());
+    world.renderScopeDAG3D(scopeDAG, pipelineManager.getActivePipeline());
 
     // 2. Setup UI Event Listeners & Keyboard Shortcuts
     setupUIControls();
@@ -38,12 +49,12 @@ document.addEventListener('DOMContentLoaded', () => {
     initCompanyCreatorModal();
 
     // 4. Bind Game State Listeners
-    window.game.onStateChange((state) => {
+    game.onStateChange((state) => {
         renderHUD(state);
     });
 
     // 5. Initial Render
-    renderHUD(window.game);
+    renderHUD(game);
 
     // 6. Start Simulation Loops
     startSimulationLoops();
@@ -55,7 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('autostart') === '1') {
-        window.game.startNewGameProject({
+        game.startNewGameProject({
             name: 'Neon Matrix 1985',
             topicId: 'cyberpunk',
             genreId: 'RPG',
@@ -63,7 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
             engineId: 'engine_v1',
             targetAudience: 'Mature'
         });
-    } else if (!window.game.hasCustomizedProfile) {
+    } else if (!game.hasCustomizedProfile) {
         setTimeout(() => {
             openCompanyCreatorModal();
         }, 700);
@@ -78,36 +89,36 @@ function startSimulationLoops() {
 
     // Development tick loop (for active projects)
     devInterval = setInterval(() => {
-        if (window.game.gameSpeed > 0 && window.game.currentProject) {
-            window.game.advanceDevTick(world);
+        if (game.gameSpeed > 0 && game.currentProject) {
+            game.advanceDevTick(world);
         }
     }, 120);
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {
-        if (window.game.gameSpeed > 0) {
-            window.game.advanceCalendar();
+        if (game.gameSpeed > 0) {
+            game.advanceCalendar();
             checkCalendarEvents();
         }
-    }, 2800 / (window.game.gameSpeed || 1));
+    }, 2800 / (game.gameSpeed || 1));
 }
 
 function checkCalendarEvents() {
     // Annual Mega Game Expo in Month 6 (June), Week 1
-    if (window.game.month === 6 && window.game.week === 1 && lastExpoYearTriggered !== window.game.year) {
-        lastExpoYearTriggered = window.game.year;
+    if (game.month === 6 && game.week === 1 && lastExpoYearTriggered !== game.year) {
+        lastExpoYearTriggered = game.year;
         openModal('modal-expo');
-        if (window.soundEngine) window.soundEngine.playFanfare(8.5);
+        if (soundEngine) soundEngine.playFanfare(8.5);
     }
 }
 
 function setGameSpeed(speed) {
-    window.game.gameSpeed = speed;
+    game.gameSpeed = speed;
     document.querySelectorAll('.speed-btn').forEach(btn => {
         btn.classList.toggle('active', parseInt(btn.dataset.speed) === speed);
     });
     startSimulationLoops();
-    if (window.soundEngine) window.soundEngine.playClick();
+    if (soundEngine) soundEngine.playClick();
 }
 
 // --- KEYBOARD SHORTCUTS CONTROLLER ---
@@ -124,7 +135,7 @@ function setupKeyboardShortcuts() {
         if (e.code === 'Space') {
             e.preventDefault();
             // Toggle pause / 1x speed
-            const newSpeed = window.game.gameSpeed === 0 ? 1 : 0;
+            const newSpeed = game.gameSpeed === 0 ? 1 : 0;
             setGameSpeed(newSpeed);
         } else if (key === '1') {
             setGameSpeed(1);
@@ -133,7 +144,7 @@ function setupKeyboardShortcuts() {
         } else if (key === '3' || key === '4') {
             setGameSpeed(4);
         } else if (key === 'n') {
-            if (!window.game.currentProject) {
+            if (!game.currentProject) {
                 openModal('modal-new-game');
             } else {
                 showToast('Ya tienes un proyecto en desarrollo.', 'warn');
@@ -155,12 +166,12 @@ function setupKeyboardShortcuts() {
                 renderDAGNodes();
                 updateDAGMetricsUI();
                 openModal('modal-scope-dag');
-                if (window.soundEngine && window.soundEngine.playClick) window.soundEngine.playClick();
+                if (soundEngine && soundEngine.playClick) soundEngine.playClick();
             }
         } else if (key === 'p') {
             openCompanyCreatorModal();
         } else if (key === 'm') {
-            const isMuted = window.soundEngine.toggleMute();
+            const isMuted = soundEngine.toggleMute();
             document.getElementById('audio-toggle').innerText = isMuted ? '🔇' : '🔊';
             showToast(isMuted ? 'Sonido silenciado' : 'Sonido activado', 'info');
         } else if (e.key === 'Escape') {
@@ -179,12 +190,12 @@ function setupKeyboardShortcuts() {
 function setupUIControls() {
     // Audio user gesture init
     document.body.addEventListener('click', () => {
-        if (window.soundEngine) window.soundEngine.resume();
+        if (soundEngine) soundEngine.resume();
     }, { once: true });
 
     // Audio Mute toggle
     document.getElementById('audio-toggle').addEventListener('click', () => {
-        const isMuted = window.soundEngine.toggleMute();
+        const isMuted = soundEngine.toggleMute();
         document.getElementById('audio-toggle').innerText = isMuted ? '🔇' : '🔊';
         showToast(isMuted ? 'Sonido silenciado' : 'Sonido activado', 'info');
     });
@@ -199,7 +210,7 @@ function setupUIControls() {
 
     // Bottom Dock Modals
     document.getElementById('btn-new-game').addEventListener('click', () => {
-        if (window.game.currentProject) {
+        if (game.currentProject) {
             showToast('¡Ya tienes un proyecto en desarrollo!', 'warn');
             return;
         }
@@ -242,13 +253,13 @@ function setupUIControls() {
     const btnDagModalRefactor = document.getElementById('btn-dag-modal-refactor');
     if (btnDagModalRefactor) {
         btnDagModalRefactor.addEventListener('click', () => {
-            if (!window.game.currentProject) {
+            if (!game.currentProject) {
                 showToast('Inicia un proyecto para refactorizar deuda técnica activa durante el desarrollo.', 'warn');
                 return;
             }
-            const res = window.game.refactorTechDebt();
+            const res = game.refactorTechDebt();
             if (res && res.success) {
-                renderHUD(window.game);
+                renderHUD(game);
                 updateDAGMetricsUI();
                 showToast(`🧹 ${res.message}`, 'success');
             } else if (res && !res.success) {
@@ -296,13 +307,13 @@ function setupUIControls() {
                 if (holoHud) holoHud.style.display = 'none';
                 showToast('🏢 Proyección 3D apagada. Vista de oficina restaurada.', 'info');
             } else {
-                const pipe = window.pipelineManager.getActivePipeline();
-                world.showScopeDAG(window.scopeDAG, pipe);
+                const pipe = pipelineManager.getActivePipeline();
+                world.showScopeDAG(scopeDAG, pipe);
                 const holoHud = document.getElementById('hologram-overlay-bar');
                 if (holoHud) holoHud.style.display = 'flex';
                 showToast('🌐 Mesa Holográfica 3D activada.', 'info');
             }
-            if (window.soundEngine && window.soundEngine.playClick) window.soundEngine.playClick();
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
 
@@ -340,8 +351,8 @@ function setupUIControls() {
                 if (valLabel) {
                     valLabel.innerText = Math.round(val * 100) + '%';
                 }
-                if (window.game.currentProject) {
-                    const currentSliders = window.game.currentProject.sliders[stage];
+                if (game.currentProject) {
+                    const currentSliders = game.currentProject.sliders[stage];
                     if (currentSliders) {
                         currentSliders[e.target.name] = val;
                     }
@@ -357,7 +368,7 @@ function setupUIControls() {
         }
         const holoHud = document.getElementById('hologram-overlay-bar');
         if (holoHud) holoHud.style.display = 'none';
-        const releasedGame = window.game.finishAndReleaseGame();
+        const releasedGame = game.finishAndReleaseGame();
         if (releasedGame) {
             world.triggerLaunchConfetti();
             showReviewModal(releasedGame);
@@ -368,11 +379,11 @@ function setupUIControls() {
     const refactorBtn = document.getElementById('btn-toggle-refactor');
     if (refactorBtn) {
         refactorBtn.addEventListener('click', () => {
-            if (!window.game.currentProject) {
+            if (!game.currentProject) {
                 showToast('No hay ningún proyecto en marcha para refactorizar.', 'warn');
                 return;
             }
-            const proj = window.game.currentProject;
+            const proj = game.currentProject;
             if (proj.devMode === 'refactor') {
                 proj.devMode = 'normal';
                 showToast('Modo de desarrollo reanudado a Normal.', 'info');
@@ -380,8 +391,8 @@ function setupUIControls() {
                 proj.devMode = 'refactor';
                 showToast('🧹 Equipo asignado a Refactorizar: amortizando deuda técnica y limpiando código.', 'success');
             }
-            if (window.soundEngine) window.soundEngine.playClick();
-            renderHUD(window.game);
+            if (soundEngine) soundEngine.playClick();
+            renderHUD(game);
         });
     }
 
@@ -389,10 +400,10 @@ function setupUIControls() {
     const fixRegBtn = document.getElementById('btn-fix-regression-now');
     if (fixRegBtn) {
         fixRegBtn.addEventListener('click', () => {
-            if (window.game.currentProject) {
-                window.game.currentProject.devMode = 'refactor';
+            if (game.currentProject) {
+                game.currentProject.devMode = 'refactor';
                 showToast('🧹 Refactorización de emergencia activada.', 'success');
-                renderHUD(window.game);
+                renderHUD(game);
             }
         });
     }
@@ -442,15 +453,15 @@ function initDAGArchitectureUI() {
     if (btn3D) {
         btn3D.addEventListener('click', () => {
             closeAllModals();
-            const activePipe = window.pipelineManager.getActivePipeline();
+            const activePipe = pipelineManager.getActivePipeline();
             if (world) {
-                world.showScopeDAG(window.scopeDAG, activePipe);
+                world.showScopeDAG(scopeDAG, activePipe);
             }
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'flex';
             showToast('🌐 Mesa Holográfica 3D encendida. Haz clic en los nodos para configurarlos.', 'info');
-            if (window.soundEngine && window.soundEngine.playNodeToggle) {
-                window.soundEngine.playNodeToggle(true);
+            if (soundEngine && soundEngine.playNodeToggle) {
+                soundEngine.playNodeToggle(true);
             }
         });
     }
@@ -459,15 +470,15 @@ function initDAGArchitectureUI() {
     if (btnModal3D) {
         btnModal3D.addEventListener('click', () => {
             closeAllModals();
-            const activePipe = window.pipelineManager.getActivePipeline();
+            const activePipe = pipelineManager.getActivePipeline();
             if (world) {
-                world.showScopeDAG(window.scopeDAG, activePipe);
+                world.showScopeDAG(scopeDAG, activePipe);
             }
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'flex';
             showToast('🌐 Mesa Holográfica 3D encendida.', 'info');
-            if (window.soundEngine && window.soundEngine.playNodeToggle) {
-                window.soundEngine.playNodeToggle(true);
+            if (soundEngine && soundEngine.playNodeToggle) {
+                soundEngine.playNodeToggle(true);
             }
         });
     }
@@ -481,7 +492,7 @@ function initDAGArchitectureUI() {
             renderDAGNodes();
             updateDAGMetricsUI();
             openModal('modal-new-game');
-            if (window.soundEngine && window.soundEngine.playClick) window.soundEngine.playClick();
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
 
@@ -492,34 +503,34 @@ function initDAGArchitectureUI() {
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'none';
             showToast('🏢 Proyección apagada. Vista normal de oficina restaurada.', 'info');
-            if (window.soundEngine && window.soundEngine.playClick) window.soundEngine.playClick();
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
 }
 
 window.selectPipelineFromModal = function(pipeId) {
-    window.pipelineManager.selectPipeline(pipeId);
-    const activePipe = window.pipelineManager.getActivePipeline();
-    window.debtManager.setBaseDebt(activePipe.baseDebtFloor);
+    pipelineManager.selectPipeline(pipeId);
+    const activePipe = pipelineManager.getActivePipeline();
+    debtManager.setBaseDebt(activePipe.baseDebtFloor);
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
     if (world && world.renderScopeDAG3D) {
-        world.renderScopeDAG3D(window.scopeDAG, activePipe);
+        world.renderScopeDAG3D(scopeDAG, activePipe);
     }
-    if (window.soundEngine && window.soundEngine.playClick) {
-        window.soundEngine.playClick();
+    if (soundEngine && soundEngine.playClick) {
+        soundEngine.playClick();
     }
     showToast(`Pipeline configurado: ${activePipe.name}`, 'success');
 };
 
 function renderPipelineSelector() {
     const container = document.getElementById('pipeline-selector-container');
-    const selectedId = window.pipelineManager.selectedPipelineId;
+    const selectedId = pipelineManager.selectedPipelineId;
 
     if (container) {
         container.innerHTML = '';
-        window.pipelineManager.availablePipelines.forEach(pipe => {
+        pipelineManager.availablePipelines.forEach(pipe => {
             const card = document.createElement('div');
             const isCommercial = pipe.type === 'commercial';
             const isSelected = pipe.id === selectedId;
@@ -577,16 +588,16 @@ function applyDAGPreset(presetId) {
         targetNodes = ['render_raster', 'physics_basic', 'net_singleplayer', 'ai_scripts', 'audio_stereo', 'content_linear', 'sys_modding'];
     }
 
-    const mgr = window.techTreeManager || (window.game && window.game.techTreeManager);
+    const mgr = techTreeManager || (game && game.techTreeManager);
     const initialCount = targetNodes.length;
     if (mgr && typeof mgr.isUnlocked === 'function') {
         targetNodes = targetNodes.filter(id => mgr.isUnlocked(id));
     }
 
-    window.scopeDAG.nodes.clear();
-    window.scopeDAG.edges = [];
+    scopeDAG.nodes.clear();
+    scopeDAG.edges = [];
     targetNodes.forEach(id => {
-        window.scopeDAG.addNode(id);
+        scopeDAG.addNode(id);
     });
 
     // Update preset buttons visual active state
@@ -597,12 +608,12 @@ function applyDAGPreset(presetId) {
 
     renderDAGNodes();
     updateDAGMetricsUI();
-    const pipe = window.pipelineManager.getActivePipeline();
+    const pipe = pipelineManager.getActivePipeline();
     if (world && world.renderScopeDAG3D && world.scopeDagGroup && world.scopeDagGroup.visible) {
-        world.renderScopeDAG3D(window.scopeDAG, pipe);
+        world.renderScopeDAG3D(scopeDAG, pipe);
     }
-    if (window.soundEngine && window.soundEngine.playNodeToggle) {
-        window.soundEngine.playNodeToggle(true);
+    if (soundEngine && soundEngine.playNodeToggle) {
+        soundEngine.playNodeToggle(true);
     }
     const filteredNotice = targetNodes.length < initialCount ? ` (${targetNodes.length}/${initialCount} módulos investigados)` : '';
     showToast(`Preset "${presetId.toUpperCase()}" aplicado al Árbol de Arquitectura${filteredNotice}`, 'success');
@@ -638,15 +649,15 @@ function renderDAGNodes() {
         }
     });
 
-    const pipe = window.pipelineManager.getActivePipeline();
-    const mgr = window.techTreeManager || (window.game && window.game.techTreeManager);
+    const pipe = pipelineManager.getActivePipeline();
+    const mgr = techTreeManager || (game && game.techTreeManager);
 
     // Strict hygiene: purge any locked node from active scopeDAG
     if (mgr && typeof mgr.isUnlocked === 'function') {
-        const activeKeys = Array.from(window.scopeDAG.nodes.keys());
+        const activeKeys = Array.from(scopeDAG.nodes.keys());
         activeKeys.forEach(k => {
             if (!mgr.isUnlocked(k)) {
-                window.scopeDAG.removeNode(k);
+                scopeDAG.removeNode(k);
             }
         });
     }
@@ -660,13 +671,13 @@ function renderDAGNodes() {
     });
 
     availableNodes.forEach(node => {
-        const isActive = window.scopeDAG.selectedNodeIds.has(node.id);
-        const state = window.scopeDAG.nodeStates.get(node.id) || {};
+        const isActive = scopeDAG.selectedNodeIds.has(node.id);
+        const state = scopeDAG.nodeStates.get(node.id) || {};
         const isRegression = state.status === 'regression';
 
         // Check prerequisites among unlocked nodes
         const prereqs = node.prerequisites || [];
-        const missing = prereqs.filter(p => !window.scopeDAG.selectedNodeIds.has(p));
+        const missing = prereqs.filter(p => !scopeDAG.selectedNodeIds.has(p));
         const isAvailable = !isActive && missing.length === 0;
         const isLocked = !isActive && missing.length > 0;
 
@@ -728,7 +739,7 @@ function renderDAGNodes() {
                 const pills = prereqs.map(pId => {
                     const pDef = SCOPE_NODES_CATALOG.find(n => n.id === pId);
                     const pName = pDef ? pDef.name : pId;
-                    const met = window.scopeDAG.selectedNodeIds.has(pId);
+                    const met = scopeDAG.selectedNodeIds.has(pId);
                     return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '✓' : '✗'} ${pName}</span>`;
                 }).join(' ');
                 reqsHtml = `<div class="node-req-row"><span style="opacity: 0.7;">Req:</span> ${pills}</div>`;
@@ -755,25 +766,25 @@ function renderDAGNodes() {
                         return mDef ? mDef.name : m;
                     });
                     showToast(`🔒 "${node.name}" está bloqueado. Requiere: ${missingNames.join(', ')}`, 'warn');
-                    if (window.soundEngine && window.soundEngine.playDebtAlert) window.soundEngine.playDebtAlert();
+                    if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
                     return;
                 }
 
-                const toggleRes = window.scopeDAG.toggleNode(node.id);
+                const toggleRes = scopeDAG.toggleNode(node.id);
                 if (!toggleRes.success) {
                     showToast(toggleRes.reason, 'warn');
-                    if (window.soundEngine && window.soundEngine.playDebtAlert) window.soundEngine.playDebtAlert();
+                    if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
                     return;
                 }
 
-                if (window.soundEngine && window.soundEngine.playNodeToggle) {
-                    window.soundEngine.playNodeToggle(toggleRes.action === 'added');
+                if (soundEngine && soundEngine.playNodeToggle) {
+                    soundEngine.playNodeToggle(toggleRes.action === 'added');
                 }
 
                 renderDAGNodes();
                 updateDAGMetricsUI();
                 if (world && world.renderScopeDAG3D && world.scopeDagGroup && world.scopeDagGroup.visible) {
-                    world.renderScopeDAG3D(window.scopeDAG, pipe);
+                    world.renderScopeDAG3D(scopeDAG, pipe);
                 }
             });
 
@@ -826,9 +837,9 @@ function updateRadarChart(polyId, dotsPrefix, workload) {
 }
 
 function updateDAGMetricsUI() {
-    const pipe = window.pipelineManager.getActivePipeline();
-    const friction = window.scopeDAG.calculateFriction(pipe.frictionMultiplier);
-    const workload = window.scopeDAG.calculateWorkload(pipe.frictionMultiplier);
+    const pipe = pipelineManager.getActivePipeline();
+    const friction = scopeDAG.calculateFriction(pipe.frictionMultiplier);
+    const workload = scopeDAG.calculateWorkload(pipe.frictionMultiplier);
 
     const totalRaw = workload.totals.engine + workload.totals.gameplay + workload.totals.net + workload.totals.art + workload.totals.qa;
     const totalEffective = workload.effectiveWorkload.totalSum;
@@ -851,7 +862,7 @@ function updateDAGMetricsUI() {
         fricModal.className = 'friction-val ' + friction.warningLevel;
     }
 
-    const coupText = `Acoplamiento: ${friction.couplingFactor}x (${window.scopeDAG.nodes.size} nodos)`;
+    const coupText = `Acoplamiento: ${friction.couplingFactor}x (${scopeDAG.nodes.size} nodos)`;
     const coupNewGame = document.getElementById('metric-coupling');
     if (coupNewGame) coupNewGame.innerText = coupText;
     const coupModal = document.getElementById('dag-modal-coupling');
@@ -875,8 +886,8 @@ function updateDAGMetricsUI() {
     }
 
     // Tech Debt Gauge: Calculate Value & Tacometer Needle Angle
-    const currentDebt = (window.game && window.game.currentProject && window.game.currentProject.techDebtModel)
-        ? Math.round(window.game.currentProject.techDebtModel.accumulatedDebt)
+    const currentDebt = (game && game.currentProject && game.currentProject.techDebtModel)
+        ? Math.round(game.currentProject.techDebtModel.accumulatedDebt)
         : pipe.baseDebtFloor;
 
     const clampedDebt = Math.min(100, Math.max(0, currentDebt));
@@ -959,19 +970,19 @@ function updateDAGMetricsUI() {
     updateRadarChart('dag-modal-radar-poly', '2', workload);
 }
 
-window.on3DNodeClicked = function(nodeId) {
-    const toggleRes = window.scopeDAG.toggleNode(nodeId);
+function on3DNodeClicked(nodeId) {
+    const toggleRes = scopeDAG.toggleNode(nodeId);
     if (!toggleRes.success) {
         showToast(toggleRes.reason, 'warn');
         return;
     }
     renderDAGNodes();
     updateDAGMetricsUI();
-    const pipe = window.pipelineManager.getActivePipeline();
-    world.renderScopeDAG3D(window.scopeDAG, pipe);
-    const nodeObj = window.scopeDAG.getNode(nodeId);
+    const pipe = pipelineManager.getActivePipeline();
+    world.renderScopeDAG3D(scopeDAG, pipe);
+    const nodeObj = scopeDAG.getNode(nodeId);
     showToast(`🌐 Nodo "${nodeObj ? nodeObj.name : nodeId}" modificado en el DAG.`, 'info');
-};
+}
 
 function setupStageTabs() {
     // Legacy support fallback
@@ -981,7 +992,7 @@ function updatePlatformOptions() {
     const platformSelect = document.getElementById('select-platform');
     if (!platformSelect) return;
     platformSelect.innerHTML = '';
-    PLATFORMS.filter(p => p.eraUnlocked <= window.game.era).forEach(p => {
+    PLATFORMS.filter(p => p.eraUnlocked <= game.era).forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
         opt.innerText = `${p.icon} ${p.name} ($${p.devCost.toLocaleString()})`;
@@ -994,31 +1005,31 @@ function updateEngineOptions() {
 }
 
 function startProjectFromWizard() {
-    const name = document.getElementById('input-game-name').value.trim() || 'Juego ' + (window.game.gamesHistory.length + 1);
+    const name = document.getElementById('input-game-name').value.trim() || 'Juego ' + (game.gamesHistory.length + 1);
     const topicId = document.getElementById('select-topic').value;
     const genreId = document.getElementById('select-genre').value;
     const platformId = document.getElementById('select-platform').value;
     const targetAudience = document.getElementById('select-audience').value;
 
-    const activePipeline = window.pipelineManager.getActivePipeline();
-    const friction = window.scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
-    const workload = window.scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
+    const activePipeline = pipelineManager.getActivePipeline();
+    const friction = scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
+    const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
-    if (window.scopeDAG.selectedNodeIds.size < 3) {
+    if (scopeDAG.selectedNodeIds.size < 3) {
         showToast('Debes seleccionar al menos 3 nodos de arquitectura para estructurar el juego.', 'warn');
         return;
     }
 
     const dagConfig = {
-        selectedNodeIds: Array.from(window.scopeDAG.selectedNodeIds),
+        selectedNodeIds: Array.from(scopeDAG.selectedNodeIds),
         friction: friction,
         workload: workload,
         pipeline: activePipeline
     };
 
-    window.debtManager.setBaseDebt(activePipeline.baseDebtFloor);
+    debtManager.setBaseDebt(activePipeline.baseDebtFloor);
 
-    const result = window.game.startNewGameProject({
+    const result = game.startNewGameProject({
         name, topicId, genreId, platformId, targetAudience, dagConfig
     });
 
@@ -1176,13 +1187,13 @@ function renderHUD(state) {
 }
 
 function handleOfficeUpgrade() {
-    const res = window.game.upgradeOffice();
+    const res = game.upgradeOffice();
     if (res.success) {
         world.buildOffice(res.newEra);
-        world.syncEmployees(window.game.employees);
+        world.syncEmployees(game.employees);
         updatePlatformOptions();
         showToast(`🎉 ¡ENHORABUENA! Tu empresa se ha mudado a: ${res.name}`, 'success');
-        if (window.soundEngine) window.soundEngine.playFanfare(9.5);
+        if (soundEngine) soundEngine.playFanfare(9.5);
     } else {
         showToast(res.message, 'warn');
     }
@@ -1229,11 +1240,11 @@ function renderRecruitment() {
     const currentList = document.getElementById('current-team-list');
     currentList.innerHTML = '';
 
-    const maxStaff = window.game.getMaxStaffCapacity();
-    document.getElementById('hire-capacity').innerText = `Capacidad del Estudio: ${window.game.employees.length}/${maxStaff} miembros`;
+    const maxStaff = game.getMaxStaffCapacity();
+    document.getElementById('hire-capacity').innerText = `Capacidad del Estudio: ${game.employees.length}/${maxStaff} miembros`;
 
     // 1. Current Active Team with live Stamina bars
-    window.game.employees.forEach(emp => {
+    game.employees.forEach(emp => {
         const staminaPct = Math.round((emp.stamina / emp.maxStamina) * 100);
         const staminaClass = staminaPct > 50 ? '' : (staminaPct > 25 ? 'warn' : 'crit');
         const statusLabel = staminaPct > 50 ? 'Óptimo' : (staminaPct > 25 ? 'Cansado' : 'Fatigado');
@@ -1273,12 +1284,12 @@ function renderRecruitment() {
     const candidatesList = document.getElementById('candidates-list');
     candidatesList.innerHTML = '';
 
-    if (window.game.availableCandidates.length === 0) {
+    if (game.availableCandidates.length === 0) {
         candidatesList.innerHTML = `<p style="color: var(--text-secondary); padding: 10px;">No hay candidatos disponibles en este momento. Haz clic en "Buscar Nuevos Talentos".</p>`;
         return;
     }
 
-    window.game.availableCandidates.forEach(c => {
+    game.availableCandidates.forEach(c => {
         const card = document.createElement('div');
         card.className = 'candidate-card';
         card.innerHTML = `
@@ -1302,12 +1313,12 @@ function renderRecruitment() {
 }
 
 window.hireCandidate = function(name) {
-    const candidate = window.game.availableCandidates.find(c => c.name === name);
+    const candidate = game.availableCandidates.find(c => c.name === name);
     if (!candidate) return;
 
-    const res = window.game.hireEmployee(candidate);
+    const res = game.hireEmployee(candidate);
     if (res.success) {
-        world.syncEmployees(window.game.employees);
+        world.syncEmployees(game.employees);
         renderRecruitment();
         showToast(`🎉 ¡${candidate.name} se ha unido al equipo de desarrollo!`, 'success');
     } else {
@@ -1316,7 +1327,7 @@ window.hireCandidate = function(name) {
 };
 
 window.orderTeamCoffee = function() {
-    const res = window.game.orderTeamCoffee();
+    const res = game.orderTeamCoffee();
     if (res.success) {
         renderRecruitment();
         showToast(res.message, 'success');
@@ -1326,7 +1337,7 @@ window.orderTeamCoffee = function() {
 };
 
 window.refreshCandidates = function() {
-    const res = window.game.refreshCandidatePool();
+    const res = game.refreshCandidatePool();
     if (res.success) {
         renderRecruitment();
         showToast("🔄 Bolsa de empleo actualizada con nuevos candidatos.", 'info');
@@ -1336,7 +1347,7 @@ window.refreshCandidates = function() {
 };
 
 window.sendOnVacation = function(empId) {
-    const res = window.game.sendOnVacation(empId);
+    const res = game.sendOnVacation(empId);
     if (res.success) {
         renderRecruitment();
         showToast(res.message, 'success');
@@ -1346,7 +1357,7 @@ window.sendOnVacation = function(empId) {
 };
 
 window.trainEmployee = function(empId, skillType) {
-    const res = window.game.trainEmployee(empId, skillType);
+    const res = game.trainEmployee(empId, skillType);
     if (res.success) {
         renderRecruitment();
         showToast(res.message, 'success');
@@ -1392,8 +1403,7 @@ function setupTechBranchFilterTabs() {
 function renderTechTree() {
     setupTechBranchFilterTabs();
 
-    const game = window.game;
-    const mgr = window.techTreeManager || (game && game.techTreeManager);
+    const mgr = techTreeManager || (game && game.techTreeManager);
     if (!game || !mgr) return;
 
     const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
@@ -1657,28 +1667,28 @@ function renderTechTree() {
 }
 
 window.startTechResearch = function(techId) {
-    if (!window.game) return;
-    const res = window.game.startTechResearch(techId);
+    if (!game) return;
+    const res = game.startTechResearch(techId);
     if (res.success) {
         renderTechTree();
-        renderHUD(window.game);
+        renderHUD(game);
         showToast(res.message, 'success');
     } else {
         showToast(res.message, 'warn');
-        if (window.soundEngine && window.soundEngine.playDebtAlert) window.soundEngine.playDebtAlert();
+        if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
     }
 };
 
 window.dismantleHardware = function(hwId) {
-    if (!window.game) return;
-    const res = window.game.reverseEngineerHardware(hwId);
+    if (!game) return;
+    const res = game.reverseEngineerHardware(hwId);
     if (res.success) {
         renderTechTree();
-        renderHUD(window.game);
+        renderHUD(game);
         showToast(res.message, 'success');
     } else {
         showToast(res.message, 'warn');
-        if (window.soundEngine && window.soundEngine.playDebtAlert) window.soundEngine.playDebtAlert();
+        if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
     }
 };
 
@@ -1688,7 +1698,7 @@ window.researchTech = function(id) {
 
 document.getElementById('form-custom-engine').addEventListener('submit', (e) => {
     e.preventDefault();
-    const name = document.getElementById('input-engine-name').value.trim() || 'Motor Pro v' + (window.game.customEngines.length + 1);
+    const name = document.getElementById('input-engine-name').value.trim() || 'Motor Pro v' + (game.customEngines.length + 1);
     const checked = Array.from(document.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value);
 
     if (checked.length === 0) {
@@ -1696,7 +1706,7 @@ document.getElementById('form-custom-engine').addEventListener('submit', (e) => 
         return;
     }
 
-    const res = window.game.createCustomEngine(name, checked);
+    const res = game.createCustomEngine(name, checked);
     if (res.success) {
         updateEngineOptions();
         renderTechTree();
@@ -1715,12 +1725,12 @@ function renderHistoryAndCharts() {
     const historyList = document.getElementById('games-history-list');
     historyList.innerHTML = '';
 
-    if (window.game.gamesHistory.length === 0) {
+    if (game.gamesHistory.length === 0) {
         historyList.innerHTML = `<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Aún no has publicado ningún videojuego.</p>`;
         return;
     }
 
-    window.game.gamesHistory.forEach(g => {
+    game.gamesHistory.forEach(g => {
         const card = document.createElement('div');
         card.className = 'history-card';
         const isProfitable = g.profit >= 0;
@@ -1769,7 +1779,7 @@ function renderTop10Leaderboard() {
             <tbody>
     `;
 
-    window.game.top10Chart.slice(0, 10).forEach(item => {
+    game.top10Chart.slice(0, 10).forEach(item => {
         let trendIcon = '<span class="trend-arrow same">▬</span>';
         if (item.trend === 'up') trendIcon = '<span class="trend-arrow up">▲</span>';
         if (item.trend === 'down') trendIcon = '<span class="trend-arrow down">▼</span>';
@@ -1797,7 +1807,7 @@ function renderTop10Leaderboard() {
 // --- POST-MORTEM GAME REPORT CONTROLLER ---
 
 window.generateReport = function(gameId) {
-    const res = window.game.generateGameReport(gameId);
+    const res = game.generateGameReport(gameId);
     if (res.success) {
         document.getElementById('pm-rp-gain').innerText = `+${res.rpGained} Puntos de Investigación Obtenidos`;
         document.getElementById('pm-synergy-text').innerText = res.synergy;
@@ -1827,22 +1837,22 @@ window.attendExpo = function(tier) {
         hypeGain = 90;
     }
 
-    if (window.game.funds < cost) {
+    if (game.funds < cost) {
         showToast("Fondos insuficientes para este stand de exhibición.", "warn");
         return;
     }
 
-    window.game.funds -= cost;
-    window.game.fans += fanGain;
+    game.funds -= cost;
+    game.fans += fanGain;
 
     // Boost potential on current active sales
-    window.game.activeSales.forEach(g => {
-        g.salesPotential += Math.floor(hypeGain * 40 * (window.game.era === 1 ? 1 : (window.game.era === 2 ? 3 : 8)));
+    game.activeSales.forEach(g => {
+        g.salesPotential += Math.floor(hypeGain * 40 * (game.era === 1 ? 1 : (game.era === 2 ? 3 : 8)));
     });
 
     closeAllModals();
     showToast(`🎪 ¡Éxito en la Mega Game Expo! +${fanGain} Fans y un impulso de ventas global.`, 'success');
-    if (window.soundEngine) window.soundEngine.playLevelUp();
+    if (soundEngine) soundEngine.playLevelUp();
 };
 
 // --- COMPANY & CHARACTER CREATOR CONTROLLER ---
@@ -1876,13 +1886,13 @@ function initCompanyCreatorModal() {
         logoContainer.innerHTML = '';
         COMPANY_LOGOS.forEach(logo => {
             const item = document.createElement('div');
-            item.className = 'logo-option' + (logo === window.game.companyLogo ? ' active' : '');
+            item.className = 'logo-option' + (logo === game.companyLogo ? ' active' : '');
             item.innerText = logo;
             item.addEventListener('click', () => {
                 document.querySelectorAll('.logo-option').forEach(l => l.classList.remove('active'));
                 item.classList.add('active');
                 localLogo = logo;
-                if (window.soundEngine) window.soundEngine.playClick();
+                if (soundEngine) soundEngine.playClick();
             });
             logoContainer.appendChild(item);
         });
@@ -1894,7 +1904,7 @@ function initCompanyCreatorModal() {
         rndBtn.addEventListener('click', () => {
             const rnd = RANDOM_STUDIO_NAMES[Math.floor(Math.random() * RANDOM_STUDIO_NAMES.length)];
             document.getElementById('input-company-name').value = rnd;
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     }
 
@@ -1905,7 +1915,7 @@ function initCompanyCreatorModal() {
             sw.classList.add('active');
             localCustomization.skin = sw.dataset.skin;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1916,7 +1926,7 @@ function initCompanyCreatorModal() {
             btn.classList.add('active');
             localCustomization.hairStyle = btn.dataset.style;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1927,7 +1937,7 @@ function initCompanyCreatorModal() {
             sw.classList.add('active');
             localCustomization.hairColor = sw.dataset.color;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1938,7 +1948,7 @@ function initCompanyCreatorModal() {
             btn.classList.add('active');
             localCustomization.shirtStyle = btn.dataset.shirt;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1949,7 +1959,7 @@ function initCompanyCreatorModal() {
             sw.classList.add('active');
             localCustomization.shirtColor = sw.dataset.color;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1960,7 +1970,7 @@ function initCompanyCreatorModal() {
             btn.classList.add('active');
             localCustomization.accessory = btn.dataset.acc;
             if (world) world.updateCharacterMesh(0, localCustomization);
-            if (window.soundEngine) window.soundEngine.playClick();
+            if (soundEngine) soundEngine.playClick();
         });
     });
 
@@ -1973,7 +1983,7 @@ function initCompanyCreatorModal() {
             const founderName = document.getElementById('input-founder-name').value.trim() || 'Raúl Vance';
             const founderTrait = document.getElementById('select-founder-trait').value;
 
-            window.game.updateCompanyProfile({
+            game.updateCompanyProfile({
                 companyName: companyName,
                 companyLogo: localLogo,
                 founderName: founderName,
@@ -1984,23 +1994,23 @@ function initCompanyCreatorModal() {
             if (world) world.updateCharacterMesh(0, localCustomization);
             closeAllModals();
             showToast(`🎉 ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
-            if (window.soundEngine) window.soundEngine.playLevelUp();
+            if (soundEngine) soundEngine.playLevelUp();
         });
     }
 }
 
 function openCompanyCreatorModal() {
-    localCustomization = { ...window.game.characterCustomization };
-    localLogo = window.game.companyLogo;
+    localCustomization = { ...game.characterCustomization };
+    localLogo = game.companyLogo;
 
     const inputComp = document.getElementById('input-company-name');
-    if (inputComp) inputComp.value = window.game.companyName;
+    if (inputComp) inputComp.value = game.companyName;
 
     const inputFounder = document.getElementById('input-founder-name');
-    if (inputFounder) inputFounder.value = window.game.founder.name;
+    if (inputFounder) inputFounder.value = game.founder.name;
 
     const traitSelect = document.getElementById('select-founder-trait');
-    if (traitSelect) traitSelect.value = window.game.founder.trait;
+    if (traitSelect) traitSelect.value = game.founder.trait;
 
     // Sync active classes
     document.querySelectorAll('.logo-option').forEach(l => {
@@ -2036,7 +2046,7 @@ function openModal(id) {
     if (modal) {
         modal.style.display = 'flex';
         modal.classList.add('active');
-        if (window.soundEngine) window.soundEngine.playClick();
+        if (soundEngine) soundEngine.playClick();
     }
 }
 
