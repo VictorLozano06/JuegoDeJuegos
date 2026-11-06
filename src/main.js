@@ -375,7 +375,7 @@ function setupUIControls() {
         }
     });
 
-    // Toggle Refactor Mode
+    // Toggle Refactor Mode (Punto 4: [🛠 Refactorizar Código])
     const refactorBtn = document.getElementById('btn-toggle-refactor');
     if (refactorBtn) {
         refactorBtn.addEventListener('click', () => {
@@ -383,13 +383,11 @@ function setupUIControls() {
                 showToast('No hay ningún proyecto en marcha para refactorizar.', 'warn');
                 return;
             }
-            const proj = game.currentProject;
-            if (proj.devMode === 'refactor') {
-                proj.devMode = 'normal';
-                showToast('Modo de desarrollo reanudado a Normal.', 'info');
+            const res = game.refactorTechDebt();
+            if (res.mode === 'refactor') {
+                showToast('🛠️ Modo Refactorizar Activado: El avance de características se detiene (Progreso = 0%) para pagar deuda técnica.', 'success');
             } else {
-                proj.devMode = 'refactor';
-                showToast('🧹 Equipo asignado a Refactorizar: amortizando deuda técnica y limpiando código.', 'success');
+                showToast('▶️ Modo Normal Reanudado: El equipo continúa implementando características del juego.', 'info');
             }
             if (soundEngine) soundEngine.playClick();
             renderHUD(game);
@@ -401,12 +399,211 @@ function setupUIControls() {
     if (fixRegBtn) {
         fixRegBtn.addEventListener('click', () => {
             if (game.currentProject) {
-                game.currentProject.devMode = 'refactor';
-                showToast('🧹 Refactorización de emergencia activada.', 'success');
+                game.setProjectDevMode('refactor');
+                showToast('🛠️ Refactorización de emergencia activada para sanear el módulo desestabilizado.', 'warn');
                 renderHUD(game);
             }
         });
     }
+
+    // Post-Launch Emergency Patch Action Button (Punto 5)
+    const btnDeployPatch = document.getElementById('btn-deploy-emergency-patch');
+    if (btnDeployPatch) {
+        btnDeployPatch.addEventListener('click', () => {
+            const res = game.deployEmergencyPatch();
+            if (res.success) {
+                showToast(res.message, 'success');
+                if (world && world.triggerLaunchConfetti) world.triggerLaunchConfetti();
+            } else {
+                showToast(res.message, 'warn');
+            }
+            renderHUD(game);
+        });
+    }
+
+    // Initialize Game Dev Tycoon Contextual Developer Menu
+    setupDeveloperContextMenu();
+}
+
+// --- GAME DEV TYCOON DEVELOPER CONTEXT MENU CONTROLLER ---
+
+let selectedDevIndex = 0;
+
+function setupDeveloperContextMenu() {
+    const contextMenu = document.getElementById('developer-context-menu');
+    if (!contextMenu) return;
+
+    const menuName = document.getElementById('gdt-menu-name');
+    const menuRole = document.getElementById('gdt-menu-role');
+    const menuAvatar = document.getElementById('gdt-menu-avatar');
+    const staminaVal = document.getElementById('gdt-menu-stamina-val');
+    const staminaFill = document.getElementById('gdt-menu-stamina-fill');
+    const btnClose = document.getElementById('gdt-menu-close');
+
+    const btnNewGame = document.getElementById('gdt-btn-new-game');
+    const btnResearch = document.getElementById('gdt-btn-research');
+    const btnEngine = document.getElementById('gdt-btn-engine');
+    const btnRest = document.getElementById('gdt-btn-rest');
+    const btnStats = document.getElementById('gdt-btn-stats');
+
+    // 1. Listen for 3D raycast developer selection event
+    window.addEventListener('developer-selected', (e) => {
+        const { index, screenX, screenY } = e.detail;
+        selectedDevIndex = (typeof index === 'number') ? index : 0;
+        const emp = (game.employees && game.employees[selectedDevIndex]) ? game.employees[selectedDevIndex] : (game.employees ? game.employees[0] : null);
+
+        if (emp) {
+            if (menuName) menuName.textContent = emp.name || 'Desarrollador';
+            if (menuRole) menuRole.textContent = emp.role || 'Desarrollador General';
+            if (menuAvatar) {
+                const r = emp.role ? emp.role.toLowerCase() : '';
+                menuAvatar.textContent = r.includes('arte') || r.includes('diseño') ? '🎨' : (r.includes('qa') || r.includes('tester') ? '🛡️' : (r.includes('sonido') || r.includes('audio') ? '🎵' : '👨‍💻'));
+            }
+
+            const currentStamina = typeof emp.stamina === 'number' ? emp.stamina : 100;
+            const maxStamina = typeof emp.maxStamina === 'number' ? emp.maxStamina : 100;
+            const staminaPct = Math.max(0, Math.min(100, Math.round((currentStamina / maxStamina) * 100)));
+
+            if (staminaVal) staminaVal.textContent = `${staminaPct}%`;
+            if (staminaFill) {
+                staminaFill.style.width = `${staminaPct}%`;
+                if (staminaPct > 55) {
+                    staminaFill.style.background = 'linear-gradient(90deg, #10b981, #05f082)';
+                } else if (staminaPct > 25) {
+                    staminaFill.style.background = 'linear-gradient(90deg, #f59e0b, #fbbf24)';
+                } else {
+                    staminaFill.style.background = 'linear-gradient(90deg, #ef4444, #f87171)';
+                }
+            }
+        }
+
+        // Clamp menu coordinates into viewport bounds
+        const menuWidth = 270;
+        const menuHeight = 310;
+        let left = screenX - (menuWidth / 2);
+        let top = screenY - menuHeight - 14; // Float slightly above character
+
+        if (top < 70) {
+            top = screenY + 24; // If too close to top bar, open below
+        }
+
+        left = Math.max(16, Math.min(window.innerWidth - menuWidth - 16, left));
+        top = Math.max(64, Math.min(window.innerHeight - menuHeight - 60, top));
+
+        contextMenu.style.left = `${left}px`;
+        contextMenu.style.top = `${top}px`;
+        contextMenu.style.display = 'block';
+
+        if (soundEngine && soundEngine.playClick) {
+            soundEngine.playClick();
+        }
+    });
+
+    // 2. Close on click on empty 3D space
+    window.addEventListener('world-clicked-empty', () => {
+        contextMenu.style.display = 'none';
+    });
+
+    // 3. Close button
+    if (btnClose) {
+        btnClose.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+        });
+    }
+
+    // 4. Action: Nuevo Proyecto / Desarrollar Juego
+    if (btnNewGame) {
+        btnNewGame.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+            if (game.currentProject) {
+                showToast('¡Ya tienes un proyecto en desarrollo!', 'warn');
+                return;
+            }
+            if (world) {
+                world.hideScopeDAG();
+            }
+            const holoHud = document.getElementById('hologram-overlay-bar');
+            if (holoHud) holoHud.style.display = 'none';
+            renderDAGNodes();
+            updateDAGMetricsUI();
+            openModal('modal-new-game');
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        });
+    }
+
+    // 5. Action: Investigar Tecnología (I+D)
+    if (btnResearch) {
+        btnResearch.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+            renderTechTree();
+            openModal('modal-research');
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        });
+    }
+
+    // 6. Action: Desarrollar / Mantener Motor Propio
+    if (btnEngine) {
+        btnEngine.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+            renderPipelineSelector();
+            openModal('modal-tech-pipeline');
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        });
+    }
+
+    // 7. Action: Tomar Descanso / Enviar de Vacaciones
+    if (btnRest) {
+        btnRest.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+            const emp = (game.employees && game.employees[selectedDevIndex]) ? game.employees[selectedDevIndex] : (game.employees ? game.employees[0] : null);
+            if (emp) {
+                emp.stamina = emp.maxStamina || 100;
+                emp.crunchActive = false;
+
+                if (world && world.characters && world.characters[selectedDevIndex]) {
+                    const charObj = world.characters[selectedDevIndex];
+                    charObj.state = 'celebrating';
+                    charObj.stateUntil = world.clock.elapsedTime + 2.4;
+                }
+
+                if (world && world.triggerLaunchConfetti) {
+                    world.triggerLaunchConfetti();
+                }
+                if (soundEngine && soundEngine.playLevelUp) {
+                    soundEngine.playLevelUp();
+                }
+
+                showToast(`☕ ¡${emp.name} ha descansado y recuperó el 100% de energía!`, 'success');
+                renderHUD(game);
+            }
+        });
+    }
+
+    // 8. Action: Ver Habilidades y Estado del Empleado
+    if (btnStats) {
+        btnStats.addEventListener('click', (e) => {
+            e.stopPropagation();
+            contextMenu.style.display = 'none';
+            renderRecruitment();
+            openModal('modal-hire');
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        });
+    }
+
+    // Close when clicking outside of the menu
+    document.addEventListener('pointerdown', (e) => {
+        if (contextMenu.style.display !== 'none' && !contextMenu.contains(e.target)) {
+            const canvasEl = document.getElementById('canvas-container');
+            if (!canvasEl || !canvasEl.contains(e.target)) {
+                contextMenu.style.display = 'none';
+            }
+        }
+    });
 }
 
 // --- POPULATE WIZARDS & DROPDOWNS ---
@@ -1114,14 +1311,57 @@ function renderHUD(state) {
         const qaEl = document.getElementById('pts-qa');
         if (qaEl) qaEl.innerText = qaPoints;
 
-        const fricEl = document.getElementById('pts-friction');
-        if (fricEl) fricEl.innerText = `+${proj.friction || 18}%`;
+        // Subsistema de Deuda Técnica & Medidor de Salud del Código (Puntos 1, 3 y 6)
+        const debtMgr = proj.techDebtModel;
+        const rawDebt = debtMgr ? Math.round(debtMgr.rawDebt * 10) / 10 : (proj.bugs || 0);
+        const visibleDebt = debtMgr ? debtMgr.visibleDebt : rawDebt;
+        const hiddenDebt = debtMgr ? Math.round(debtMgr.hiddenDebt * 10) / 10 : 0;
+        const frictionMult = debtMgr ? debtMgr.accumulatedFriction : (1.0 + (proj.friction || 18) / 100);
+        const frictionPercent = Math.round((frictionMult - 1.0) * 100);
+        const regRiskPercent = debtMgr ? Math.round(debtMgr.regressionRisk * 100) : 0;
+        const healthStatus = debtMgr ? debtMgr.healthStatus : (rawDebt <= 20 ? 'clean' : (rawDebt <= 45 ? 'moderate' : 'critical'));
 
-        const debtVal = proj.techDebtModel ? Math.round(proj.techDebtModel.accumulatedDebt) : (proj.bugs || 0);
+        // Actualizar Medidor Compacto de "Salud del Código / Deuda Técnica"
+        const healthPill = document.getElementById('pill-debt-health');
+        const healthIcon = document.getElementById('debt-health-icon');
+        const debtStatus = document.getElementById('pts-debt-status');
         const debtEl = document.getElementById('pts-debt');
+        const hiddenBadge = document.getElementById('pts-hidden-debt-badge');
+        const hiddenVal = document.getElementById('pts-hidden-debt');
+
+        if (healthPill) {
+            healthPill.className = `point-pill pill-debt-health status-${healthStatus}`;
+        }
+        if (healthIcon) {
+            healthIcon.innerText = healthStatus === 'clean' ? '🟢' : (healthStatus === 'moderate' ? '🟡' : '🔴');
+        }
+        if (debtStatus) {
+            debtStatus.innerText = healthStatus === 'clean' ? 'Limpio' : (healthStatus === 'moderate' ? 'Fricción Moderada' : 'Deuda Crítica');
+        }
         if (debtEl) {
-            debtEl.innerText = debtVal;
-            debtEl.style.color = debtVal > 25 ? 'var(--accent-red)' : (debtVal > 12 ? 'var(--accent-gold)' : 'var(--text-secondary)');
+            debtEl.innerText = visibleDebt;
+        }
+        if (hiddenBadge && hiddenVal) {
+            if (hiddenDebt > 0.5) {
+                hiddenBadge.style.display = 'inline-block';
+                hiddenVal.innerText = hiddenDebt;
+                hiddenBadge.title = `Deuda técnica oculta detectada gradualmente por testers de QA (+${hiddenDebt} pts)`;
+            } else {
+                hiddenBadge.style.display = 'none';
+            }
+        }
+
+        // Fricción Acumulada
+        const fricEl = document.getElementById('pts-friction');
+        if (fricEl) {
+            fricEl.innerText = `${frictionMult.toFixed(2)}x (+${frictionPercent}%)`;
+        }
+
+        // Riesgo de Regresión
+        const riskEl = document.getElementById('pts-regression-risk');
+        if (riskEl) {
+            riskEl.innerText = `${regRiskPercent}%`;
+            riskEl.style.color = regRiskPercent > 35 ? 'var(--accent-red)' : (regRiskPercent > 15 ? 'var(--accent-gold)' : 'var(--text-secondary)');
         }
 
         // Regression alert banner
@@ -1133,22 +1373,22 @@ function renderHUD(state) {
                 if (regText) {
                     const nodeName = proj.lastRegression.nodeName || 'módulo';
                     const lost = proj.lastRegression.progressLost ? Math.round(proj.lastRegression.progressLost) : 20;
-                    regText.innerText = `¡Regresión en "${nodeName}"! Retroceso del ${lost}% y +${proj.lastRegression.newBugs || 2} bugs por deuda técnica.`;
+                    regText.innerText = `¡Regresión en "${nodeName}"! Retroceso del ${lost}% y desestabilización por deuda técnica.`;
                 }
             } else {
                 regBanner.style.display = 'none';
             }
         }
 
-        // Refactor toggle button state
+        // Refactor toggle button state (Punto 4: [🛠 Refactorizar Código])
         const refactorBtn = document.getElementById('btn-toggle-refactor');
         if (refactorBtn) {
             if (proj.devMode === 'refactor') {
                 refactorBtn.classList.add('active');
-                refactorBtn.innerHTML = '🧹 Refactorizando... (Click para Normal)';
+                refactorBtn.innerHTML = '🛠️ Refactorizando... (Click para Normal)';
             } else {
                 refactorBtn.classList.remove('active');
-                refactorBtn.innerHTML = '🧹 Refactorizar Deuda';
+                refactorBtn.innerHTML = '🛠️ Refactorizar Código';
             }
         }
 
@@ -1165,12 +1405,35 @@ function renderHUD(state) {
         const releaseBtn = document.getElementById('btn-release-game');
         if (proj.stage === 4) {
             releaseBtn.style.display = 'block';
-            releaseBtn.innerText = proj.bugs === 0 ? '🚀 Lanzar Obra Maestra (¡0 Bugs!)' : `🚀 Lanzar Videojuego (${proj.bugs} bugs)`;
+            if (healthStatus === 'clean') {
+                releaseBtn.innerText = `🚀 Lanzar Videojuego (Código Limpio: ${visibleDebt} pts)`;
+                releaseBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            } else if (healthStatus === 'moderate') {
+                releaseBtn.innerText = `🚀 Lanzar Videojuego (Fricción Media: ${visibleDebt} pts)`;
+                releaseBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
+            } else {
+                releaseBtn.innerText = `⚠️ Lanzar con Riesgo (¡Deuda Crítica: ${visibleDebt} pts!)`;
+                releaseBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+            }
         } else {
             releaseBtn.style.display = 'none';
         }
     } else {
         projBar.style.display = 'none';
+    }
+
+    // Post-Launch Emergency Patch Crisis Banner (Punto 5)
+    const patchBanner = document.getElementById('emergency-patch-banner');
+    if (patchBanner) {
+        if (state.isEmergencyPatchActive && state.emergencyPatchData) {
+            patchBanner.style.display = 'flex';
+            const msgEl = document.getElementById('emergency-patch-msg');
+            if (msgEl) {
+                msgEl.innerText = `El lanzamiento de "${state.emergencyPatchData.gameName}" sufre cuelgues masivos y colapso técnico por deuda crítica (${state.emergencyPatchData.currentDebt} pts). El estudio no puede iniciar nuevos proyectos hasta estabilizar el código con un hotfix.`;
+            }
+        } else {
+            patchBanner.style.display = 'none';
+        }
     }
 
     // Office Upgrade Button availability
@@ -2055,6 +2318,8 @@ function closeAllModals() {
         m.style.display = 'none';
         m.classList.remove('active');
     });
+    const devMenu = document.getElementById('developer-context-menu');
+    if (devMenu) devMenu.style.display = 'none';
 }
 
 // --- TOAST NOTIFICATIONS ---

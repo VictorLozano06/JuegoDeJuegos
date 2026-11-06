@@ -24,7 +24,25 @@ try {
             $urlPath = $request.Url.LocalPath.TrimStart('/')
             if ($urlPath -eq "") { $urlPath = "index.html" }
 
+            if ($urlPath -eq "api/save_test_result" -and $request.HttpMethod -eq "POST") {
+                $reader = New-Object System.IO.StreamReader($request.InputStream, [System.Text.Encoding]::UTF8)
+                $body = $reader.ReadToEnd()
+                [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot "test_result.txt"), $body)
+                $response.ContentType = "text/plain"
+                $respBytes = [System.Text.Encoding]::UTF8.GetBytes("OK")
+                $response.ContentLength64 = $respBytes.Length
+                $response.OutputStream.Write($respBytes, 0, $respBytes.Length)
+                $response.OutputStream.Close()
+                continue
+            }
+
             $filePath = Join-Path $PSScriptRoot $urlPath
+            if (-not (Test-Path $filePath -PathType Leaf)) {
+                $publicPath = Join-Path $PSScriptRoot "public\$urlPath"
+                if (Test-Path $publicPath -PathType Leaf) {
+                    $filePath = $publicPath
+                }
+            }
 
             if (Test-Path $filePath -PathType Leaf) {
                 $ext = [System.IO.Path]::GetExtension($filePath).ToLower()

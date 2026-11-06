@@ -1056,14 +1056,14 @@ export class WorldEngine {
                 new THREE.BoxGeometry(0.18, 0.06, 0.18),
                 new THREE.MeshStandardMaterial({ color: 0x111111 })
             );
-            joyBase.position.set(0.65, 1.43, 0.22);
+            joyBase.position.set(0.86, 1.38, -0.25);
             deskGroup.add(joyBase);
 
             const joyStick = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.018, 0.018, 0.22),
                 new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 })
             );
-            joyStick.position.set(0.65, 1.54, 0.22);
+            joyStick.position.set(0.86, 1.49, -0.25);
             joyStick.rotation.z = 0.15;
             deskGroup.add(joyStick);
 
@@ -1097,6 +1097,21 @@ export class WorldEngine {
                     this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.8, z) });
                 }
             });
+
+            // Alfombrilla y ratón modernos.
+            const modernPad = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.005, 0.25),
+                new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 })
+            );
+            modernPad.position.set(0.46, 1.353, 0.22);
+            deskGroup.add(modernPad);
+
+            const modernMouse = new THREE.Mesh(
+                new THREE.BoxGeometry(0.075, 0.028, 0.11),
+                new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6 })
+            );
+            modernMouse.position.set(0.46, 1.37, 0.22);
+            deskGroup.add(modernMouse);
         }
 
         // Keep the keyboard under the seated rig's wrist targets in every office.
@@ -1113,6 +1128,7 @@ export class WorldEngine {
         chair.position.set(0, 0, 0.85);
         deskGroup.add(chair);
 
+        deskGroup.userData = { type: 'desk', index };
         this.officeGroup.add(deskGroup);
         this.desks.push({ index: index, group: deskGroup, worldPos: new THREE.Vector3(x, y, z) });
     }
@@ -1501,6 +1517,7 @@ export class WorldEngine {
     }
 
     removeCharacter(character) {
+        if (this.hoveredCharacter === character) this.hoveredCharacter = null;
         this.charactersGroup.remove(character.group);
         character.dispose();
     }
@@ -2579,7 +2596,7 @@ export class WorldEngine {
         let pointerDownPos = new THREE.Vector2();
         let pointerDownTime = 0;
 
-        // Pointer Move for Hover Raycasting
+        // Pointer Move for Hover Raycasting (Punto 2: Hover con outline / luminosidad brillante)
         this.renderer.domElement.addEventListener('pointermove', (e) => {
             const rect = this.renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2625,6 +2642,48 @@ export class WorldEngine {
                 if (typeof this.onNodeHoverCallback === 'function') {
                     this.onNodeHoverCallback(null, null, false);
                 }
+            }
+
+            // 2. Raycast Characters & Workstations (Hover de personajes al estilo Game Dev Tycoon)
+            const officeTargets = [...this.charactersGroup.children, ...this.desks.map(d => d.group)];
+            const officeHits = raycaster.intersectObjects(officeTargets, true);
+
+            if (officeHits.length > 0) {
+                const hitObj = officeHits[0].object;
+                let targetChar = null;
+
+                for (const char of this.characters) {
+                    if (char.group.getObjectById(hitObj.id)) {
+                        targetChar = char;
+                        break;
+                    }
+                }
+                if (!targetChar) {
+                    for (const desk of this.desks) {
+                        if (desk.group.getObjectById(hitObj.id)) {
+                            targetChar = this.characters[desk.index] || this.characters[0];
+                            break;
+                        }
+                    }
+                }
+
+                if (targetChar) {
+                    if (this.hoveredCharacter !== targetChar) {
+                        if (this.hoveredCharacter) {
+                            this.unhighlightCharacter(this.hoveredCharacter);
+                        }
+                        this.hoveredCharacter = targetChar;
+                        this.highlightCharacter(targetChar);
+                    }
+                    this.container.style.cursor = 'pointer';
+                    return;
+                }
+            }
+
+            if (this.hoveredCharacter) {
+                this.unhighlightCharacter(this.hoveredCharacter);
+                this.hoveredCharacter = null;
+                this.container.style.cursor = 'default';
             }
         });
 
@@ -2674,18 +2733,56 @@ export class WorldEngine {
                 }
             }
 
-            // 2. Raycast Characters in Office
+            // A workstation selects its employee, just like clicking the character.
             const visibleCharacters = this.characters.filter(character => character.group.visible);
-            const charHits = raycaster.intersectObjects(visibleCharacters.map(character => character.group), true);
-            if (charHits.length > 0) {
-                const clickedMesh = charHits[0].object;
-                const character = visibleCharacters.find(({ group }) => group.getObjectById(clickedMesh.id));
-                if (!character) return;
-                soundEngine.playKeyboardTap();
-                character.state = 'thinking';
-                character.stateUntil = this.clock.elapsedTime + 2.5;
+            const officeTargets = [...visibleCharacters.map(character => character.group), ...this.desks.map(desk => desk.group)];
+            const officeHits = raycaster.intersectObjects(officeTargets, true);
+            if (officeHits.length > 0) {
+                const hit = officeHits[0].object;
+                let character = visibleCharacters.find(item => item.group.getObjectById(hit.id));
+                if (!character) {
+                    const desk = this.desks.find(item => item.group.getObjectById(hit.id));
+                    character = desk ? this.characters[desk.index] : null;
+                }
+                if (character) {
+                    soundEngine.playKeyboardTap();
+                    character.state = 'thinking';
+                    character.stateUntil = this.clock.elapsedTime + 2.5;
+                    const position = new THREE.Vector3();
+                    character.group.getWorldPosition(position);
+                    position.y += 1.35;
+                    position.project(this.camera);
+                    window.dispatchEvent(new CustomEvent('developer-selected', {
+                        detail: {
+                            index: character.index,
+                            screenX: Math.round(rect.left + (position.x * 0.5 + 0.5) * rect.width),
+                            screenY: Math.round(rect.top + (-position.y * 0.5 + 0.5) * rect.height),
+                            charObj: character
+                        }
+                    }));
+                    return;
+                }
             }
+
+            // Clic en el suelo o espacio vacío: cerrar menú contextual
+            window.dispatchEvent(new CustomEvent('world-clicked-empty'));
         });
+    }
+
+    highlightCharacter(character) {
+        const material = character?.torso.children.find(child => child.isMesh)?.material;
+        if (material?.emissive) {
+            material.emissive.setHex(0x00d2ff);
+            material.emissiveIntensity = 0.25;
+        }
+    }
+
+    unhighlightCharacter(character) {
+        const material = character?.torso.children.find(child => child.isMesh)?.material;
+        if (material?.emissive) {
+            material.emissive.setHex(0x000000);
+            material.emissiveIntensity = 0;
+        }
     }
 
     highlightDependencies(nodeId, highlight = true) {
