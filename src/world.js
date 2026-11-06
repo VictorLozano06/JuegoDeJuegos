@@ -6,6 +6,8 @@ import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
 import { game } from './simulation.js';
 
 const THREE = window.THREE;
+const MAX_RENDER_PIXELS = 1_500_000;
+const SHADOW_REFRESH_INTERVAL = 1 / 20;
 
 /**
  * Dev Empire 3D - Three.js Visual World Engine (AAA Polished Edition)
@@ -291,12 +293,13 @@ export class WorldEngine {
         this.camera.position.copy(this.cameraOfficePos);
         this.camera.lookAt(0, 1.0, 0);
 
-        // Renderer with High DPI, Soft Shadows & ACES Tone Mapping
+        // Limit the drawing buffer independently of the CSS canvas size.
         this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-        this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
-        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        this.resizeRenderer(this.container.clientWidth, this.container.clientHeight);
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.shadowMap.autoUpdate = false;
+        this.nextShadowRefresh = 0;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.1;
         this.container.appendChild(this.renderer.domElement);
@@ -347,6 +350,7 @@ export class WorldEngine {
                 this.composer = new THREE.EffectComposer(this.renderer);
                 this.composer.addPass(renderScene);
                 this.composer.addPass(this.bloomPass);
+                this.composer.setPixelRatio(this.renderer.getPixelRatio() * 0.75);
             }
         } catch (e) {
             console.warn("Postprocessing fallback:", e);
@@ -363,8 +367,8 @@ export class WorldEngine {
         this.sunLight = new THREE.DirectionalLight(0xffdfba, 1.25);
         this.sunLight.position.set(14, 18, 10);
         this.sunLight.castShadow = true;
-        this.sunLight.shadow.mapSize.width = 2048;
-        this.sunLight.shadow.mapSize.height = 2048;
+        this.sunLight.shadow.mapSize.width = 1024;
+        this.sunLight.shadow.mapSize.height = 1024;
         this.sunLight.shadow.camera.near = 0.5;
         this.sunLight.shadow.camera.far = 50;
         const shadowDist = 10;
@@ -573,7 +577,7 @@ export class WorldEngine {
             ctx: ctx,
             texture: new THREE.CanvasTexture(canvas),
             type: type || 'retro',
-            time: 0,
+            lastScroll: -1,
             lines: []
         };
 
@@ -746,10 +750,21 @@ export class WorldEngine {
     buildOffice(era) {
         this.currentEra = era;
 
-        while (this.officeGroup.children.length > 0) {
-            const obj = this.officeGroup.children[0];
-            this.officeGroup.remove(obj);
-        }
+        // All props and maps in this group belong to the previous office.
+        const resources = new Set();
+        this.officeGroup.traverse(object => {
+            if (object.geometry) resources.add(object.geometry);
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            for (const material of materials) {
+                if (!material) continue;
+                resources.add(material);
+                if (material.map) resources.add(material.map);
+            }
+        });
+        for (const resource of resources) resource.dispose();
+        this.officeGroup.clear();
+        this.dynamicTextures = [];
+        this.nextShadowRefresh = 0;
         this.desks = [];
         this.monitors = [];
         this.serverLeds = [];
@@ -1032,8 +1047,8 @@ export class WorldEngine {
 
             // CRT Screen Phosphor Glow Light (Greenish-cyan spotlight onto keyboard and dev)
             const crtLight = new THREE.PointLight(0x34d399, 0.85, 2.2);
-            crtLight.position.set(x, 1.85, z + 0.1);
-            this.scene.add(crtLight);
+            crtLight.position.set(0, 1.85, 0.1);
+            deskGroup.add(crtLight);
             this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.85, z + 0.2), pointLight: crtLight });
 
             // Joystick retro on side
@@ -1053,7 +1068,7 @@ export class WorldEngine {
             deskGroup.add(joyStick);
 
             // Anglepoise Retro Desk Lamp (Tungsten Warm Light Cone)
-            this.createAnglepoiseLamp(deskGroup, 0.88, 1.4, -0.3, x, z);
+            this.createAnglepoiseLamp(deskGroup, 0.88, 1.4, -0.3);
 
             // Soda Can on desk
             this.createSodaCan(deskGroup, -0.85, 1.4, 0.25);
@@ -1102,7 +1117,7 @@ export class WorldEngine {
         this.desks.push({ index: index, group: deskGroup, worldPos: new THREE.Vector3(x, y, z) });
     }
 
-    createAnglepoiseLamp(parent, x, y, z, worldX, worldZ) {
+    createAnglepoiseLamp(parent, x, y, z) {
         const lamp = new THREE.Group();
         lamp.position.set(x, y, z);
 
@@ -1140,14 +1155,11 @@ export class WorldEngine {
 
         parent.add(lamp);
 
-        // Authentic Warm Tungsten Light Point
+        // The sun supplies soft shadows. A point light shadow would redraw
+        // the scene in six directions for every desk lamp.
         const lampLight = new THREE.PointLight(0xffa733, 1.4, 4.5);
-        lampLight.position.set(worldX + x - 0.25, y + 0.52, worldZ + z + 0.16);
-        lampLight.castShadow = true;
-        lampLight.shadow.bias = -0.001;
-        lampLight.shadow.mapSize.width = 1024;
-        lampLight.shadow.mapSize.height = 1024;
-        this.scene.add(lampLight);
+        lampLight.position.copy(bulb.position);
+        lamp.add(lampLight);
     }
 
     createPizzaBox(x, y, z) {
@@ -1583,30 +1595,27 @@ export class WorldEngine {
         requestAnimationFrame(() => this.animate());
 
         const delta = this.clock.getDelta();
-        const time = this.clock.getElapsedTime();
+        const time = this.clock.elapsedTime;
 
         if (this.controls) this.controls.update();
 
-        // Update dynamic monitor screens & CRT Phosphor Flicker
-        this.dynamicTextures.forEach((dyn, idx) => {
-            dyn.time += delta;
-            const ctx = dyn.ctx;
-            ctx.fillStyle = '#051b11'; // Dark green CRT phosphor tube
+        // Upload the CRT canvas only when its scrolling content changes.
+        const scroll = Math.floor(time * 20) % 20;
+        for (const monitor of this.dynamicTextures) {
+            if (monitor.lastScroll === scroll) continue;
+            monitor.lastScroll = scroll;
+            const { ctx, lines, texture } = monitor;
+            ctx.fillStyle = '#051b11';
             ctx.fillRect(0, 0, 256, 192);
-
-            const scroll = Math.floor(dyn.time * 20) % 20;
-            dyn.lines.forEach((line, lIdx) => {
-                const y = 14 + ((lIdx + scroll) % 20) * 8.5;
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
                 ctx.fillStyle = line.color;
-                ctx.fillRect(16 + line.indent, y, line.w, 4);
-            });
-            dyn.texture.needsUpdate = true;
-
-            // CRT Light subtle pulse / flicker
-            if (this.monitors[idx] && this.monitors[idx].pointLight) {
-                const flicker = 0.8 + Math.sin(time * 18 + idx) * 0.12 + (Math.random() * 0.05);
-                this.monitors[idx].pointLight.intensity = flicker;
+                ctx.fillRect(16 + line.indent, 14 + ((i + scroll) % 20) * 8.5, line.w, 4);
             }
+            texture.needsUpdate = true;
+        }
+        this.monitors.forEach(({ pointLight }, index) => {
+            if (pointLight) pointLight.intensity = 0.8 + Math.sin(time * 18 + index) * 0.12;
         });
 
         // Spawn and update Coffee Steam Particles
@@ -1640,6 +1649,8 @@ export class WorldEngine {
             st.mesh.scale.setScalar(1 + (1 - st.life) * 1.5);
             if (st.life <= 0) {
                 this.steamGroup.remove(st.mesh);
+                st.mesh.geometry.dispose();
+                st.mesh.material.dispose();
                 this.steamParticles.splice(s, 1);
             }
         }
@@ -1664,6 +1675,8 @@ export class WorldEngine {
             p.mesh.scale.setScalar(Math.max(0.01, p.life));
             if (p.life <= 0) {
                 this.particlesGroup.remove(p.mesh);
+                p.mesh.geometry.dispose();
+                p.mesh.material.dispose();
                 this.activeParticles.splice(i, 1);
             }
         }
@@ -1680,6 +1693,8 @@ export class WorldEngine {
             conf.life -= conf.decay;
             if (conf.life <= 0) {
                 this.confettiGroup.remove(conf.mesh);
+                conf.mesh.geometry.dispose();
+                conf.mesh.material.dispose();
                 this.confettiParticles.splice(c, 1);
             }
         }
@@ -1702,8 +1717,13 @@ export class WorldEngine {
             }
         }
 
-        // Render pass
-        if (this.composer) {
+        if (time >= this.nextShadowRefresh) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this.nextShadowRefresh = time + SHADOW_REFRESH_INTERVAL;
+        }
+
+        // Bloom is used for the hologram; the office renders in a single pass.
+        if (this.composer && this.viewMode === 'dag_hologram') {
             this.composer.render();
         } else {
             this.renderer.render(this.scene, this.camera);
@@ -1716,8 +1736,15 @@ export class WorldEngine {
         const height = this.container.clientHeight;
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
+        this.resizeRenderer(width, height);
+    }
+
+    resizeRenderer(width, height) {
+        const pixelRatio = Math.min(1, window.devicePixelRatio, Math.sqrt(MAX_RENDER_PIXELS / (width * height)));
+        this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setSize(width, height);
         if (this.composer) {
+            this.composer.setPixelRatio(pixelRatio * 0.75);
             this.composer.setSize(width, height);
         }
     }
@@ -2756,6 +2783,7 @@ export class WorldEngine {
     setViewMode(mode) {
         this.viewMode = (mode === 'office' || mode === 'isometric') ? 'office' : 'dag_hologram';
         this.isTransitioningCamera = true;
+        this.nextShadowRefresh = 0;
 
         if (this.viewMode === 'dag_hologram') {
             this.scopeDagGroup.visible = true;
