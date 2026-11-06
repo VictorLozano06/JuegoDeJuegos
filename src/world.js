@@ -1,3 +1,6 @@
+import { buildGarageLayout } from './garage/layout.js';
+import { applyOfficeLighting } from './garage/lighting.js';
+import { createRetroWorkstation } from './garage/workstation.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
 import { createEmployeeModel } from './characters/model.js';
@@ -246,7 +249,7 @@ export class WorldEngine {
         this.selectedDagNode = null;
 
         // Cinematic Camera Interpolation Targets
-        this.cameraOfficePos = new THREE.Vector3(16, 9, -7);
+        this.cameraOfficePos = new THREE.Vector3(11, 7.3, 8);
         this.cameraOfficeTarget = new THREE.Vector3(0, 1.0, 0);
         this.cameraDagPos = new THREE.Vector3(0.0, 13.5, 14.5);
         this.cameraDagTarget = new THREE.Vector3(0, 3.2, 0);
@@ -380,9 +383,9 @@ export class WorldEngine {
         this.scene.add(this.sunLight);
 
         // Soft secondary cyan rim light for volumetric depth
-        const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
-        rimLight.position.set(-12, 12, -12);
-        this.scene.add(rimLight);
+        this.rimLight = new THREE.DirectionalLight(0x38bdf8, 0.35);
+        this.rimLight.position.set(-12, 12, -12);
+        this.scene.add(this.rimLight);
     }
 
     // --- PROCEDURAL TEXTURES (PBR AAA CRAFTSMANSHIP) ---
@@ -432,138 +435,6 @@ export class WorldEngine {
         tex.wrapT = THREE.RepeatWrapping;
         tex.repeat.set(2, 2);
         return tex;
-    }
-
-    createGarageDoorTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-
-        // Galvanized painted steel
-        ctx.fillStyle = '#64748b';
-        ctx.fillRect(0, 0, 1024, 1024);
-
-        const panelH = 256;
-        for (let y = 0; y < 1024; y += panelH) {
-            // Panel separation seam
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(0, y, 1024, 10);
-            ctx.fillStyle = '#94a3b8';
-            ctx.fillRect(0, y + 10, 1024, 3);
-
-            // Horizontal corrugations (embossed ridges)
-            for (let r = 40; r < panelH - 40; r += 45) {
-                ctx.fillStyle = '#475569';
-                ctx.fillRect(30, y + r, 964, 18);
-                ctx.fillStyle = '#94a3b8';
-                ctx.fillRect(30, y + r, 964, 3);
-                ctx.fillStyle = '#1e293b';
-                ctx.fillRect(30, y + r + 15, 964, 3);
-            }
-
-            // Top panel frosted windows
-            if (y === 0) {
-                for (let w = 80; w < 1024; w += 230) {
-                    ctx.fillStyle = '#1e293b';
-                    ctx.fillRect(w - 6, 74, 152, 92);
-                    ctx.fillStyle = '#bae6fd';
-                    ctx.fillRect(w, 80, 140, 80);
-                    // Window cross frame
-                    ctx.fillStyle = '#1e293b';
-                    ctx.fillRect(w + 68, 80, 4, 80);
-                    ctx.fillRect(w, 118, 140, 4);
-                }
-            }
-        }
-
-        return new THREE.CanvasTexture(canvas);
-    }
-
-    createConcreteFloorTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 1024;
-        canvas.height = 1024;
-        const ctx = canvas.getContext('2d');
-
-        // Garage industrial concrete base
-        ctx.fillStyle = '#52525b';
-        ctx.fillRect(0, 0, 1024, 1024);
-
-        // Subtle concrete mottling & speckles
-        for (let i = 0; i < 3500; i++) {
-            const val = 70 + Math.floor(Math.random() * 30);
-            ctx.fillStyle = `rgba(${val}, ${val}, ${val}, 0.25)`;
-            const size = 2 + Math.random() * 6;
-            ctx.fillRect(Math.random() * 1024, Math.random() * 1024, size, size);
-        }
-
-        // Concrete expansion joint grid lines
-        ctx.strokeStyle = '#27272a';
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        ctx.moveTo(512, 0); ctx.lineTo(512, 1024);
-        ctx.moveTo(0, 512); ctx.lineTo(1024, 512);
-        ctx.stroke();
-
-        // Subtle oil smudge in one spot
-        const grad = ctx.createRadialGradient(720, 680, 10, 720, 680, 90);
-        grad.addColorStop(0, 'rgba(24, 24, 27, 0.45)');
-        grad.addColorStop(1, 'rgba(24, 24, 27, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(720, 680, 90, 0, Math.PI * 2);
-        ctx.fill();
-
-        return new THREE.CanvasTexture(canvas);
-    }
-
-    createVintageRugTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-
-        // Warm woven bohemian / Persian style pattern
-        ctx.fillStyle = '#831843'; // deep crimson border
-        ctx.fillRect(0, 0, 512, 512);
-
-        ctx.fillStyle = '#b45309'; // amber border
-        ctx.fillRect(20, 20, 472, 472);
-
-        ctx.fillStyle = '#1e3a5f'; // navy field
-        ctx.fillRect(40, 40, 432, 432);
-
-        // Center medallion
-        ctx.fillStyle = '#d97706';
-        ctx.beginPath();
-        ctx.arc(256, 256, 110, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = '#991b1b';
-        ctx.beginPath();
-        ctx.arc(256, 256, 65, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Geometric diamonds
-        ctx.fillStyle = '#fef08a';
-        for (let i = 0; i < 8; i++) {
-            const angle = (i / 8) * Math.PI * 2;
-            const x = 256 + Math.cos(angle) * 85;
-            const y = 256 + Math.sin(angle) * 85;
-            ctx.beginPath();
-            ctx.arc(x, y, 12, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        // Fringes on ends
-        ctx.fillStyle = '#fef3c7';
-        for (let x = 0; x < 512; x += 8) {
-            ctx.fillRect(x, 0, 4, 12);
-            ctx.fillRect(x, 500, 4, 12);
-        }
-
-        return new THREE.CanvasTexture(canvas);
     }
 
     createAnimatedMonitorCanvas(type) {
@@ -703,51 +574,10 @@ export class WorldEngine {
         return new THREE.CanvasTexture(canvas);
     }
 
-    createCalendarTexture() {
-        const canvas = document.createElement('canvas');
-        canvas.width = 180;
-        canvas.height = 240;
-        const ctx = canvas.getContext('2d');
-
-        ctx.fillStyle = '#fefefe';
-        ctx.fillRect(0, 0, 180, 240);
-
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(0, 0, 180, 50);
-
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 18px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('1985', 90, 32);
-
-        // Crossed days grid
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1;
-        for (let y = 60; y < 220; y += 30) {
-            ctx.beginPath();
-            ctx.moveTo(10, y); ctx.lineTo(170, y);
-            ctx.stroke();
-        }
-        for (let x = 10; x <= 170; x += 26) {
-            ctx.beginPath();
-            ctx.moveTo(x, 60); ctx.lineTo(x, 210);
-            ctx.stroke();
-        }
-
-        // Red X on launch day
-        ctx.strokeStyle = '#dc2626';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(65, 125); ctx.lineTo(85, 145);
-        ctx.moveTo(85, 125); ctx.lineTo(65, 145);
-        ctx.stroke();
-
-        return new THREE.CanvasTexture(canvas);
-    }
-
     // --- PROCEDURAL 3D ARCHITECTURE & STORYTELLING PROPS ---
 
     buildOffice(era) {
+        const eraChanged = era !== this.currentEra;
         this.currentEra = era;
 
         // All props and maps in this group belong to the previous office.
@@ -758,7 +588,9 @@ export class WorldEngine {
             for (const material of materials) {
                 if (!material) continue;
                 resources.add(material);
-                if (material.map) resources.add(material.map);
+                for (const value of Object.values(material)) {
+                    if (value?.isTexture) resources.add(value);
+                }
             }
         });
         for (const resource of resources) resource.dispose();
@@ -777,110 +609,17 @@ export class WorldEngine {
             this.buildCyberCampusEra();
         }
 
+        applyOfficeLighting(this);
+        if (era === 1) this.cameraOfficePos.set(11, 7.3, 8);
+        else this.cameraOfficePos.set(16, 9, -7);
+        if (eraChanged && this.viewMode === 'office') {
+            this.targetCamPos = this.cameraOfficePos.clone();
+        }
         this.updateCharacterPositions();
     }
 
     buildGarageEra() {
-        const roomW = 12;
-        const roomD = 12;
-
-        // 1. Concrete Floor
-        const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
-        const floorMat = new THREE.MeshStandardMaterial({
-            map: this.createConcreteFloorTexture(),
-            roughness: 0.65,
-            metalness: 0.15
-        });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        this.officeGroup.add(floor);
-
-        // 2. Vintage Persian / Bohemian Rug under the workstations
-        const rugGeo = new THREE.PlaneGeometry(6.5, 5.0);
-        const rugMat = new THREE.MeshStandardMaterial({
-            map: this.createVintageRugTexture(),
-            roughness: 0.9,
-            metalness: 0.05
-        });
-        const rug = new THREE.Mesh(rugGeo, rugMat);
-        rug.rotation.x = -Math.PI / 2;
-        rug.position.set(0, 0.015, -1.0);
-        rug.receiveShadow = true;
-        this.officeGroup.add(rug);
-
-        // 3. Back Wall = Exposed Brick
-        const brickMat = new THREE.MeshStandardMaterial({
-            map: this.createBrickWallTexture(),
-            roughness: 0.85,
-            metalness: 0.08
-        });
-        const backWall = new THREE.Mesh(new THREE.BoxGeometry(roomW, 5.5, 0.4), brickMat);
-        backWall.position.set(0, 2.75, -roomD / 2);
-        backWall.receiveShadow = true;
-        this.officeGroup.add(backWall);
-
-        // 4. Left Wall = Industrial Sectional Overhead Garage Door
-        const doorMat = new THREE.MeshStandardMaterial({
-            map: this.createGarageDoorTexture(),
-            roughness: 0.45,
-            metalness: 0.55
-        });
-        const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.3, 5.5, roomD), doorMat);
-        leftWall.position.set(-roomW / 2, 2.75, 0);
-        leftWall.receiveShadow = true;
-        this.officeGroup.add(leftWall);
-
-        // Overhead garage door ceiling guide tracks
-        const trackMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8 });
-        [-3.5, 3.5].forEach(zPos => {
-            const track = new THREE.Mesh(new THREE.BoxGeometry(7, 0.08, 0.08), trackMat);
-            track.position.set(-2.5, 5.2, zPos);
-            this.officeGroup.add(track);
-        });
-
-        // 5. Wooden Baseboards & Ceiling Beam
-        const timberMat = new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.7 });
-        const baseboard = new THREE.Mesh(new THREE.BoxGeometry(roomW, 0.25, 0.45), timberMat);
-        baseboard.position.set(0, 0.125, -roomD / 2 + 0.15);
-        this.officeGroup.add(baseboard);
-
-        const ceilingBeam = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.35, roomD), timberMat);
-        ceilingBeam.position.set(0, 5.3, 0);
-        this.officeGroup.add(ceilingBeam);
-
-        // 6. Pegboard with Hanging Workshop Tools
-        this.createPegboard(4.2, 3.2, -roomD / 2 + 0.25);
-
-        // 7. Posters & 1985 Calendar
-        const posterMat = new THREE.MeshBasicMaterial({ map: this.createArcadePosterTexture() });
-        const poster = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.5), posterMat);
-        poster.position.set(-3.2, 3.4, -roomD / 2 + 0.22);
-        this.officeGroup.add(poster);
-
-        const calMat = new THREE.MeshBasicMaterial({ map: this.createCalendarTexture() });
-        const cal = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.2), calMat);
-        cal.position.set(-1.4, 3.6, -roomD / 2 + 0.22);
-        this.officeGroup.add(cal);
-
-        // 8. Whiteboard with System Architecture
-        const wbMat = new THREE.MeshStandardMaterial({ map: this.createWhiteboardTexture(), roughness: 0.2 });
-        const wb = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.9, 0.08), wbMat);
-        wb.position.set(1.2, 3.4, -roomD / 2 + 0.25);
-        this.officeGroup.add(wb);
-
-        // 9. Workstations: 2 Solid Timber Sawhorse Desks
-        this.createDesk(-1.8, 0, -1.2, 'retro', 0);
-        this.createDesk(1.8, 0, -1.2, 'retro', 1);
-
-        // 10. Narrative Props (Pizza Box, Soda Cans, Cardboard Boxes, Power Strip, Boombox, Trash Can)
-        this.createPizzaBox(-1.8, 0, 0.6); // Pizza on stool next to coder
-        this.createCardboardBoxStack(-4.8, 0, -4.8); // Stack of 3 boxes in corner
-        this.createPowerStrip(0, 0.02, -1.2); // Power strip on floor with red LED
-        this.createTrashCan(3.2, 0, 0.2); // Wire bin with crumpled papers
-        this.createBoombox(-4.6, 1.2, -1.5); // 80s boombox on workshop table
-        this.createCoffeeStation(4.6, 0, -3.2); // Drip coffee brewer
-        this.coffeeMugPos = new THREE.Vector3(5.0, 1.35, -3.1);
+        buildGarageLayout(this, THREE);
     }
 
     buildLoftEra() {
@@ -967,17 +706,25 @@ export class WorldEngine {
     }
 
     createDesk(x, y, z, style, index) {
+        if (style === 'retro') {
+            const chair = this.createChair(index === 0 ? 0x8d624b : 0x536d62);
+            const screenTexture = this.createAnimatedMonitorCanvas('retro');
+            const { group, screen } = createRetroWorkstation(THREE, { index, screenTexture, chair });
+            group.position.set(x, y, z);
+            this.registerDesk(group, index);
+            this.monitors.push({ mesh: screen, lightPos: screen.getWorldPosition(new THREE.Vector3()) });
+            return;
+        }
+
         const deskGroup = new THREE.Group();
         deskGroup.position.set(x, y, z);
-
-        const isRetro = style === 'retro';
         const isCyber = style === 'cyber';
 
         // Heavy solid timber tabletop
         const topGeo = new THREE.BoxGeometry(2.3, 0.1, 1.2);
         const topMat = new THREE.MeshStandardMaterial({
-            color: isRetro ? 0x6d4c41 : (isCyber ? 0x1f2937 : 0xf8fafc),
-            roughness: isRetro ? 0.7 : 0.3,
+            color: isCyber ? 0x1f2937 : 0xf8fafc,
+            roughness: 0.3,
             metalness: isCyber ? 0.6 : 0.1
         });
         const tableTop = new THREE.Mesh(topGeo, topMat);
@@ -986,420 +733,74 @@ export class WorldEngine {
         tableTop.receiveShadow = true;
         deskGroup.add(tableTop);
 
-        // Wooden Sawhorse legs for Retro Garage
-        if (isRetro) {
-            const legMat = new THREE.MeshStandardMaterial({ color: 0x4e342e, roughness: 0.8 });
-            [-0.85, 0.85].forEach(xOff => {
-                const beamTop = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 1.0), legMat);
-                beamTop.position.set(xOff, 1.28, 0);
-                deskGroup.add(beamTop);
+        const steelMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8, roughness: 0.3 });
+        [[-1.0, -0.48], [1.0, -0.48], [-1.0, 0.48], [1.0, 0.48]].forEach(pos => {
+            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.35, 8), steelMat);
+            leg.position.set(pos[0], 0.675, pos[1]);
+            leg.castShadow = true;
+            deskGroup.add(leg);
+        });
 
-                // A-frame angled legs
-                [-0.4, 0.4].forEach(zOff => {
-                    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.35, 0.08), legMat);
-                    leg.position.set(xOff, 0.65, zOff);
-                    leg.rotation.z = (xOff > 0 ? -1 : 1) * 0.12;
-                    leg.castShadow = true;
-                    deskGroup.add(leg);
-                });
-            });
-        } else {
-            const steelMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.8, roughness: 0.3 });
-            [[-1.0, -0.48], [1.0, -0.48], [-1.0, 0.48], [1.0, 0.48]].forEach(pos => {
-                const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 1.35, 8), steelMat);
-                leg.position.set(pos[0], 0.675, pos[1]);
-                leg.castShadow = true;
-                deskGroup.add(leg);
-            });
-        }
-
-        // Chunky CRT Computer & Screen
-        if (isRetro) {
-            const crtGroup = new THREE.Group();
-            crtGroup.position.set(0, 1.82, -0.2);
-
-            // Beige computer case
-            const crtCase = new THREE.Mesh(
-                new THREE.BoxGeometry(0.95, 0.78, 0.75),
-                new THREE.MeshStandardMaterial({ color: 0xd8cca3, roughness: 0.65 })
+        // Modern / Cyber Dual Monitors
+        [-0.45, 0.45].forEach((offset, idx) => {
+            const mon = new THREE.Mesh(
+                new THREE.BoxGeometry(0.75, 0.5, 0.04),
+                new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.7 })
             );
-            crtCase.castShadow = true;
-            crtGroup.add(crtCase);
+            mon.position.set(offset, 1.8, -0.25);
+            mon.rotation.y = idx === 0 ? 0.12 : -0.12;
+            deskGroup.add(mon);
 
-            // Screen frame bevel
-            const screenTex = this.createAnimatedMonitorCanvas('retro');
+            const screenTex = this.createAnimatedMonitorCanvas('code');
             const screen = new THREE.Mesh(
-                new THREE.PlaneGeometry(0.72, 0.54),
+                new THREE.PlaneGeometry(0.7, 0.45),
                 new THREE.MeshBasicMaterial({ map: screenTex })
             );
-            screen.position.set(0, 0.02, 0.38);
-            crtGroup.add(screen);
+            screen.position.set(offset, 1.8, -0.225);
+            screen.rotation.y = idx === 0 ? 0.12 : -0.12;
+            deskGroup.add(screen);
 
-            // Floppy drive slot
-            const driveSlot = new THREE.Mesh(
-                new THREE.BoxGeometry(0.3, 0.03, 0.05),
-                new THREE.MeshStandardMaterial({ color: 0x111111 })
-            );
-            driveSlot.position.set(0.2, -0.28, 0.38);
-            crtGroup.add(driveSlot);
+            if (idx === 0) {
+                this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.8, z) });
+            }
+        });
 
-            deskGroup.add(crtGroup);
+        // Alfombrilla y ratón modernos.
+        const modernPad = new THREE.Mesh(
+            new THREE.BoxGeometry(0.25, 0.005, 0.25),
+            new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 })
+        );
+        modernPad.position.set(0.46, 1.353, 0.22);
+        deskGroup.add(modernPad);
 
-            // CRT Screen Phosphor Glow Light (Greenish-cyan spotlight onto keyboard and dev)
-            const crtLight = new THREE.PointLight(0x34d399, 0.85, 2.2);
-            crtLight.position.set(0, 1.85, 0.1);
-            deskGroup.add(crtLight);
-            this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.85, z + 0.2), pointLight: crtLight });
-
-            // Joystick retro on side
-            const joyBase = new THREE.Mesh(
-                new THREE.BoxGeometry(0.18, 0.06, 0.18),
-                new THREE.MeshStandardMaterial({ color: 0x111111 })
-            );
-            joyBase.position.set(0.86, 1.38, -0.25);
-            deskGroup.add(joyBase);
-
-            const joyStick = new THREE.Mesh(
-                new THREE.CylinderGeometry(0.018, 0.018, 0.22),
-                new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.2 })
-            );
-            joyStick.position.set(0.86, 1.49, -0.25);
-            joyStick.rotation.z = 0.15;
-            deskGroup.add(joyStick);
-
-            // Anglepoise Retro Desk Lamp (Tungsten Warm Light Cone)
-            this.createAnglepoiseLamp(deskGroup, 0.88, 1.4, -0.3);
-
-            // Soda Can on desk
-            this.createSodaCan(deskGroup, -0.85, 1.4, 0.25);
-
-        } else {
-            // Modern / Cyber Dual Monitors
-            [-0.45, 0.45].forEach((offset, idx) => {
-                const mon = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.75, 0.5, 0.04),
-                    new THREE.MeshStandardMaterial({ color: 0x1f2937, metalness: 0.7 })
-                );
-                mon.position.set(offset, 1.8, -0.25);
-                mon.rotation.y = idx === 0 ? 0.12 : -0.12;
-                deskGroup.add(mon);
-
-                const screenTex = this.createAnimatedMonitorCanvas('code');
-                const screen = new THREE.Mesh(
-                    new THREE.PlaneGeometry(0.7, 0.45),
-                    new THREE.MeshBasicMaterial({ map: screenTex })
-                );
-                screen.position.set(offset, 1.8, -0.225);
-                screen.rotation.y = idx === 0 ? 0.12 : -0.12;
-                deskGroup.add(screen);
-
-                if (idx === 0) {
-                    this.monitors.push({ mesh: screen, lightPos: new THREE.Vector3(x, 1.8, z) });
-                }
-            });
-
-            // Alfombrilla y ratón modernos.
-            const modernPad = new THREE.Mesh(
-                new THREE.BoxGeometry(0.25, 0.005, 0.25),
-                new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 })
-            );
-            modernPad.position.set(0.46, 1.353, 0.22);
-            deskGroup.add(modernPad);
-
-            const modernMouse = new THREE.Mesh(
-                new THREE.BoxGeometry(0.075, 0.028, 0.11),
-                new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6 })
-            );
-            modernMouse.position.set(0.46, 1.37, 0.22);
-            deskGroup.add(modernMouse);
-        }
+        const modernMouse = new THREE.Mesh(
+            new THREE.BoxGeometry(0.075, 0.028, 0.11),
+            new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6 })
+        );
+        modernMouse.position.set(0.46, 1.37, 0.22);
+        deskGroup.add(modernMouse);
 
         // Keep the keyboard under the seated rig's wrist targets in every office.
         const keyboard = new THREE.Mesh(
             new THREE.BoxGeometry(0.76, 0.04, 0.30),
-            new THREE.MeshStandardMaterial({ color: isRetro ? 0xd1c7a7 : 0x293448, roughness: 0.7 })
+            new THREE.MeshStandardMaterial({ color: 0x293448, roughness: 0.7 })
         );
         keyboard.position.set(0, 1.42, 0.42);
         keyboard.receiveShadow = true;
         deskGroup.add(keyboard);
 
         // Office Chair
-        const chair = this.createChair(isRetro ? 0x8d6e63 : 0x0284c7);
+        const chair = this.createChair(0x0284c7);
         chair.position.set(0, 0, 0.85);
         deskGroup.add(chair);
 
-        deskGroup.userData = { type: 'desk', index };
-        this.officeGroup.add(deskGroup);
-        this.desks.push({ index: index, group: deskGroup, worldPos: new THREE.Vector3(x, y, z) });
+        this.registerDesk(deskGroup, index);
     }
 
-    createAnglepoiseLamp(parent, x, y, z) {
-        const lamp = new THREE.Group();
-        lamp.position.set(x, y, z);
-
-        const metalMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, metalness: 0.7, roughness: 0.3 }); // Amber-orange enamel
-
-        // Base
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.14, 0.03, 16), metalMat);
-        lamp.add(base);
-
-        // Lower arm
-        const arm1 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.35), metalMat);
-        arm1.position.set(-0.06, 0.18, 0.06);
-        arm1.rotation.z = 0.35;
-        lamp.add(arm1);
-
-        // Upper arm
-        const arm2 = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.35), metalMat);
-        arm2.position.set(-0.16, 0.45, 0.12);
-        arm2.rotation.z = -0.45;
-        lamp.add(arm2);
-
-        // Shade cone
-        const shade = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.18, 16, 1, true), metalMat);
-        shade.position.set(-0.25, 0.52, 0.16);
-        shade.rotation.z = -Math.PI / 2.8;
-        lamp.add(shade);
-
-        // Glowing tungsten bulb inside
-        const bulb = new THREE.Mesh(
-            new THREE.SphereGeometry(0.04, 8, 8),
-            new THREE.MeshBasicMaterial({ color: 0xfffbeb })
-        );
-        bulb.position.set(-0.25, 0.52, 0.16);
-        lamp.add(bulb);
-
-        parent.add(lamp);
-
-        // The sun supplies soft shadows. A point light shadow would redraw
-        // the scene in six directions for every desk lamp.
-        const lampLight = new THREE.PointLight(0xffa733, 1.4, 4.5);
-        lampLight.position.copy(bulb.position);
-        lamp.add(lampLight);
-    }
-
-    createPizzaBox(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        // Wooden stool
-        const stoolMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
-        const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.35, 0.05, 16), stoolMat);
-        seat.position.y = 0.8;
-        group.add(seat);
-        for (let l = 0; l < 4; l++) {
-            const angle = (l / 4) * Math.PI * 2;
-            const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8), stoolMat);
-            leg.position.set(Math.cos(angle) * 0.25, 0.4, Math.sin(angle) * 0.25);
-            group.add(leg);
-        }
-
-        // Cardboard Pizza Box
-        const cardMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.85 }); // cardboard brown
-        const boxBase = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.06, 0.55), cardMat);
-        boxBase.position.y = 0.86;
-        boxBase.castShadow = true;
-        group.add(boxBase);
-
-        // Open Lid leaning back
-        const boxLid = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.02, 0.55), cardMat);
-        boxLid.position.set(0, 1.1, -0.25);
-        boxLid.rotation.x = -Math.PI / 3;
-        group.add(boxLid);
-
-        // Pizza with slice cut out
-        const crustMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.9 });
-        const pizza = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.02, 16, 1, false, 0, Math.PI * 1.6), crustMat);
-        pizza.position.set(0, 0.9, 0);
-        group.add(pizza);
-
-        // Red pepperoni dots
-        const pepMat = new THREE.MeshStandardMaterial({ color: 0xb91c1c });
-        for (let p = 0; p < 5; p++) {
-            const angle = (p / 5) * Math.PI * 1.5;
-            const pep = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.022, 8), pepMat);
-            pep.position.set(Math.cos(angle) * 0.12, 0.91, Math.sin(angle) * 0.12);
-            group.add(pep);
-        }
-
+    registerDesk(group, index) {
+        group.userData = { type: 'desk', index };
         this.officeGroup.add(group);
-    }
-
-    createSodaCan(parent, x, y, z) {
-        const canGroup = new THREE.Group();
-        canGroup.position.set(x, y, z);
-
-        // Retro Red Cola Can
-        const canMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, metalness: 0.7, roughness: 0.3 });
-        const can = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.14, 12), canMat);
-        can.position.y = 0.07;
-        canGroup.add(can);
-
-        // Silver rim & pull tab
-        const rimMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, metalness: 0.9, roughness: 0.2 });
-        const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.043, 0.043, 0.015, 12), rimMat);
-        rim.position.y = 0.145;
-        canGroup.add(rim);
-
-        parent.add(canGroup);
-    }
-
-    createPowerStrip(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const stripMat = new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.4 });
-        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.04, 0.6), stripMat);
-        group.add(strip);
-
-        // Illuminated red rocker switch
-        const switchMesh = new THREE.Mesh(
-            new THREE.BoxGeometry(0.06, 0.02, 0.08),
-            new THREE.MeshBasicMaterial({ color: 0xef4444 })
-        );
-        switchMesh.position.set(0, 0.025, -0.22);
-        group.add(switchMesh);
-
-        // Sockets
-        const socketMat = new THREE.MeshBasicMaterial({ color: 0x334155 });
-        [-0.08, 0.06, 0.2].forEach(zOff => {
-            const sock = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.01, 0.08), socketMat);
-            sock.position.set(0, 0.022, zOff);
-            group.add(sock);
-        });
-
-        this.officeGroup.add(group);
-    }
-
-    createCardboardBoxStack(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const boxMat = new THREE.MeshStandardMaterial({ color: 0xb45309, roughness: 0.9 });
-        const tapeMat = new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.6 });
-
-        // Bottom Box 1
-        const b1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.9, 1.2), boxMat);
-        b1.position.y = 0.45;
-        b1.castShadow = true;
-        group.add(b1);
-        const tape1 = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.91, 1.22), tapeMat);
-        tape1.position.y = 0.45;
-        group.add(tape1);
-
-        // Middle Box 2
-        const b2 = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 1.0), boxMat);
-        b2.position.set(0.05, 1.3, 0.05);
-        b2.rotation.y = 0.15;
-        b2.castShadow = true;
-        group.add(b2);
-
-        // Top Box 3
-        const b3 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.8), boxMat);
-        b3.position.set(-0.05, 2.0, -0.05);
-        b3.rotation.y = -0.2;
-        b3.castShadow = true;
-        group.add(b3);
-
-        this.officeGroup.add(group);
-    }
-
-    createPegboard(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        // Perforated Board
-        const boardMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.6, roughness: 0.4 });
-        const board = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.8, 0.04), boardMat);
-        group.add(board);
-
-        // Hanging Wrench
-        const wrenchMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.9, roughness: 0.2 });
-        const wrench = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.65, 0.02), wrenchMat);
-        wrench.position.set(-0.6, 0.2, 0.04);
-        wrench.rotation.z = 0.2;
-        group.add(wrench);
-
-        // Hanging Hammer
-        const handleMat = new THREE.MeshStandardMaterial({ color: 0x854d0e });
-        const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6), handleMat);
-        handle.position.set(0.1, 0.1, 0.04);
-        group.add(handle);
-        const head = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.08, 0.06), wrenchMat);
-        head.position.set(0.1, 0.4, 0.04);
-        group.add(head);
-
-        // Screwdrivers
-        [-0.2, 0.5, 0.7].forEach((xOff, i) => {
-            const sdHandle = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18), new THREE.MeshStandardMaterial({ color: i === 0 ? 0xef4444 : 0x3b82f6 }));
-            sdHandle.position.set(xOff, 0.3, 0.04);
-            group.add(sdHandle);
-            const sdShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.35), wrenchMat);
-            sdShaft.position.set(xOff, 0.05, 0.04);
-            group.add(sdShaft);
-        });
-
-        this.officeGroup.add(group);
-    }
-
-    createTrashCan(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        // Wire mesh cylinder
-        const meshMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.8, roughness: 0.3, wireframe: true });
-        const can = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.24, 0.6, 12, 6, true), meshMat);
-        can.position.y = 0.3;
-        group.add(can);
-
-        // Crumpled white paper balls inside
-        const paperMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.9 });
-        for (let i = 0; i < 7; i++) {
-            const paper = new THREE.Mesh(new THREE.DodecahedronGeometry(0.07 + Math.random() * 0.03), paperMat);
-            paper.position.set(
-                (Math.random() - 0.5) * 0.25,
-                0.15 + (i * 0.06),
-                (Math.random() - 0.5) * 0.25
-            );
-            group.add(paper);
-        }
-
-        this.officeGroup.add(group);
-    }
-
-    createBoombox(x, y, z) {
-        const group = new THREE.Group();
-        group.position.set(x, y, z);
-
-        const bodyMat = new THREE.MeshStandardMaterial({ color: 0x475569, metalness: 0.6, roughness: 0.4 });
-        const body = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.45, 0.25), bodyMat);
-        body.position.y = 0.225;
-        group.add(body);
-
-        // Twin Speakers
-        const spkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
-        [-0.26, 0.26].forEach(xOff => {
-            const spk = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.14, 0.02, 16), spkMat);
-            spk.rotation.x = Math.PI / 2;
-            spk.position.set(xOff, 0.225, 0.13);
-            group.add(spk);
-        });
-
-        // Cassette Deck door in center
-        const deck = new THREE.Mesh(
-            new THREE.BoxGeometry(0.22, 0.16, 0.02),
-            new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.3 })
-        );
-        deck.position.set(0, 0.225, 0.13);
-        group.add(deck);
-
-        // Chrome Handle
-        const handleMat = new THREE.MeshStandardMaterial({ color: 0xd1d5db, metalness: 0.95 });
-        const handle = new THREE.Mesh(new THREE.BoxGeometry(0.65, 0.08, 0.04), handleMat);
-        handle.position.set(0, 0.52, 0);
-        group.add(handle);
-
-        this.officeGroup.add(group);
+        this.desks.push({ index, group, worldPos: group.getWorldPosition(new THREE.Vector3()) });
     }
 
     createChair(color) {
@@ -1407,19 +808,22 @@ export class WorldEngine {
         const seatMat = new THREE.MeshStandardMaterial({ color: color || 0x4a3b32, roughness: 0.7 });
         const blackMat = new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.7, roughness: 0.4 });
 
-        // Base & 5 casters
-        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 0.04, 5), blackMat);
-        base.position.y = 0.15;
+        // Weighted pedestal resting on the floor
+        const base = new THREE.Mesh(new THREE.CylinderGeometry(0.27, 0.32, 0.09, 10), blackMat);
+        base.position.y = 0.045;
+        base.receiveShadow = true;
         chair.add(base);
 
-        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.5), blackMat);
-        stem.position.y = 0.45;
+        const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.58), blackMat);
+        stem.position.y = 0.37;
+        stem.receiveShadow = true;
         chair.add(stem);
 
         // Thick seat cushion
         const seat = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.12, 0.6), seatMat);
         seat.position.y = 0.72;
         seat.receiveShadow = true;
+        seat.castShadow = true;
         chair.add(seat);
 
         // Backrest with curve
@@ -1427,6 +831,7 @@ export class WorldEngine {
         back.position.set(0, 1.15, 0.28);
         back.rotation.x = 0.08;
         back.receiveShadow = true;
+        back.castShadow = true;
         chair.add(back);
 
         return chair;
@@ -2886,17 +2291,12 @@ export class WorldEngine {
             this.scopeDagGroup.visible = true;
             this.targetCamPos = this.cameraDagPos.clone();
             this.targetLookAt = this.cameraDagTarget.clone();
-
-            if (this.ambientLight) this.ambientLight.intensity = 0.35;
-            if (this.sunLight) this.sunLight.intensity = 0.35;
         } else {
             this.scopeDagGroup.visible = false;
             this.targetCamPos = this.cameraOfficePos.clone();
             this.targetLookAt = this.cameraOfficeTarget.clone();
-
-            if (this.ambientLight) this.ambientLight.intensity = 0.55;
-            if (this.sunLight) this.sunLight.intensity = 1.25;
         }
+        applyOfficeLighting(this);
         return this.viewMode;
     }
 
