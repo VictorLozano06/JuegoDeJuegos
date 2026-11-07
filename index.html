@@ -104,6 +104,7 @@
                     <span id="proj-tag-genre" class="tag-badge">RPG</span>
                     <span id="proj-tag-platform" class="tag-badge">PC</span>
                     <span id="proj-tag-pipeline" class="tag-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Titan Engine</span>
+                    <span id="proj-tag-business" class="tag-badge">Premium</span>
                 </div>
             </div>
 
@@ -138,6 +139,18 @@
                 </div>
             </div>
         </section>
+
+        <div id="project-offers-container" style="display:none"></div>
+
+        <div id="modal-contract-negotiation" class="modal-backdrop">
+            <div class="modal-window contract-negotiation-window">
+                <div class="modal-header">
+                    <h2 class="modal-title"><span>🤝</span> Negociación de acuerdo</h2>
+                    <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+                </div>
+                <div id="contract-negotiation-content"></div>
+            </div>
+        </div>
 
         <!-- Game Dev Tycoon Radial / Contextual Floating Menu (Punto 2) -->
         <div id="developer-context-menu" class="gdt-context-menu" style="display: none;">
@@ -176,15 +189,15 @@
                 <button type="button" class="gdt-menu-btn" id="gdt-btn-engine">
                     <span class="gdt-btn-icon">🛠️</span>
                     <div class="gdt-btn-text">
-                        <strong>Motor Propio</strong>
-                        <small>Desarrollar / Mantener Tecnología</small>
+                        <strong>Proyecto: I+D de Motor</strong>
+                        <small>Crear, actualizar o licenciar tecnología</small>
                     </div>
                 </button>
                 <button type="button" class="gdt-menu-btn btn-action-rest" id="gdt-btn-rest">
                     <span class="gdt-btn-icon">☕</span>
                     <div class="gdt-btn-text">
-                        <strong>Tomar Descanso</strong>
-                        <small>Recuperar +100% de Energía</small>
+                        <strong>Enviar a descanso pagado</strong>
+                        <small>Vacaciones y recuperación completa · $2.000</small>
                     </div>
                 </button>
                 <button type="button" class="gdt-menu-btn" id="gdt-btn-stats">
@@ -194,6 +207,10 @@
                         <small>Ver Perfil y Personal</small>
                     </div>
                 </button>
+                <div class="gdt-menu-hr-actions">
+                    <button type="button" onclick="window.adjustSelectedEmployeeSalary(0.1)">💵 +10% sueldo</button>
+                    <button type="button" onclick="window.assignSelectedEmployeeLead()">⭐ Asignar liderazgo</button>
+                </div>
             </div>
         </div>
 
@@ -211,6 +228,12 @@
             </div>
             <button id="btn-history" class="dock-btn" title="Top 10 & Historial de Ventas (C)">
                 <span>📈</span> Top 10 & Ventas
+            </button>
+            <button id="btn-liveops" class="dock-btn" title="Live-Ops, usuarios activos y costes de servicio">
+                <span>📡</span> Live-Ops
+            </button>
+            <button id="btn-marketing" class="dock-btn" title="Campañas, creadores y comunidad">
+                <span>📣</span> Marketing
             </button>
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
                 <span>🎨</span> Tu Estudio
@@ -426,6 +449,26 @@
                         </select>
                     </div>
                 </div>
+
+                <section class="creator-section" style="margin-top:16px">
+                    <h3 class="creator-subtitle">💼 Modelo de negocio</h3>
+                    <p id="business-model-year-note" style="font-size:12px;color:var(--text-secondary)"></p>
+                    <div id="business-model-options" class="business-model-grid"></div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+                        <div class="form-group">
+                            <label class="form-label" for="select-post-launch-content">Contenido posterior al lanzamiento</label>
+                            <select id="select-post-launch-content" class="form-select"></select>
+                        </div>
+                        <div id="f2p-monetization-options" class="form-group" style="display:none">
+                            <label class="form-label" for="select-monetization-style">Agresividad de monetización</label>
+                            <select id="select-monetization-style" class="form-select">
+                                <option value="cosmetic">Solo cosméticos · satisfacción alta</option>
+                                <option value="aggressive">Mecánicas P2W · ingresos x3, fuga y reputación</option>
+                            </select>
+                        </div>
+                    </div>
+                    <label style="font-size:12px;color:var(--text-secondary)"><input id="toggle-postlaunch-patches" type="checkbox" checked> Mantener soporte post-lanzamiento con parches</label>
+                </section>
 
                 <!-- PIPELINE SELECTION: MOTOR COMERCIAL VS PROPIO -->
                 <div class="creator-section" style="margin-top: 18px;">
@@ -874,6 +917,27 @@
         </div>
     </div>
 
+    <div id="modal-liveops" class="modal-backdrop">
+        <div class="modal-window" style="max-width:980px;max-height:90vh;overflow-y:auto">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>📡</span> Panel Live-Ops y Recaudación</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary)">MAU, retención, ingresos recurrentes y coste real de servidores/soporte. Las pérdidas se descuentan del balance.</p>
+            <div id="liveops-games-container"></div>
+        </div>
+    </div>
+
+    <div id="modal-marketing" class="modal-backdrop">
+        <div class="modal-window marketing-window">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>📣</span> Marketing y Comunidad</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+            <div id="marketing-hub-content"></div>
+        </div>
+    </div>
+
     <!-- MODAL: GESTIÓN DE EQUIPO, FATIGA Y CONTRATACIÓN -->
     <div id="modal-hire" class="modal-backdrop">
         <div class="modal-window" style="max-width: 820px;">
@@ -889,11 +953,32 @@
                     <button class="staff-action-btn" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante">
                         ☕ Café Express ($500)
                     </button>
-                    <button class="staff-action-btn" onclick="refreshCandidates()" title="Buscar 4 nuevos candidatos en el mercado">
-                        🔄 Buscar Nuevos Talentos ($2,500)
+                    <label class="hr-budget-label">Presupuesto de contratación $<input id="recruitment-budget" type="number" min="500" step="500" value="2500"></label>
+                    <button class="staff-action-btn" onclick="refreshCandidates()" title="Genera candidatos según reputación y presupuesto">
+                        🔄 Buscar Nuevos Talentos
                     </button>
                 </div>
             </div>
+
+            <section class="hr-control-panel">
+                <div><strong>Ritmo de trabajo</strong><small>El modo afecta avance, energía y moral de todo el equipo.</small></div>
+                <div class="hr-mode-buttons">
+                    <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('normal')">🕒 Normal · 40 h</button>
+                    <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('relaxed')">🌿 Relajado · 30 h</button>
+                    <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('crunch')">⚡ Crunch · +40%</button>
+                </div>
+                <div id="work-mode-status" class="hr-mode-status"></div>
+            </section>
+
+            <section id="headhunt-notices" class="hr-headhunt-list" style="display:none"></section>
+
+            <section class="hr-control-panel hr-training-panel">
+                <div><strong>🎓 Formación interna</strong><small>Asigna un mentor senior a un junior cuando el estudio esté inactivo.</small></div>
+                <label>Mentor <select id="mentor-select" class="form-select"></select></label>
+                <label>Aprendiz <select id="mentee-select" class="form-select"></select></label>
+                <label>Coste <select id="mentoring-currency" class="form-select"><option value="funds">$4.000</option><option value="researchPoints">18 puntos I+D</option></select></label>
+                <button type="button" class="staff-action-btn" onclick="startEmployeeMentoring()">Iniciar formación</button>
+            </section>
 
             <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">Desarrolladores en Nómina Activa</h3>
             <div id="current-team-list" class="cards-list" style="margin-bottom: 24px;"></div>
@@ -945,6 +1030,7 @@
 
             <!-- Active Research Countdown Card -->
             <div id="active-research-container" style="margin-bottom: 20px;"></div>
+            <div id="engine-management-container" style="margin-bottom:20px"></div>
 
             <!-- Competitor Hardware Reverse Engineering Section -->
             <div class="reverse-engineering-section" style="margin-bottom: 24px;">
@@ -988,18 +1074,21 @@
             <!-- Branches Content Container -->
             <div id="tech-tree-branches-container" style="margin-bottom: 28px;"></div>
 
-            <!-- Legacy Engine Compilation Form (Optional In-House Engine Build) -->
+            <!-- In-house engine R&D -->
             <div class="inhouse-engine-builder-box" style="margin-top: 18px; border-top: 1px solid rgba(255,255,255,0.08); padding-top: 16px;">
-                <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">🔨 Compilar Motor Propietario In-House ($22,000 + módulos)</h3>
+                <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">🛠️ Proyecto: I+D de Motor Propio</h3>
+                <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px">Coste de creación: $18.000 + $2.000 por módulo y 10 RP + 3 RP por módulo. El motor nuevo queda disponible al completar el proyecto.</p>
                 <form id="form-custom-engine" style="background: rgba(0,0,0,0.25); padding: 16px; border-radius: 12px;">
                     <div class="form-group" style="margin-bottom: 12px;">
                         <label class="form-label">Nombre del Motor In-House</label>
                         <input type="text" id="input-engine-name" class="form-input" placeholder="Ej: Titan Forge Engine v1.0" required>
                     </div>
+                    <label class="form-label">Especialidades de género</label>
+                    <div id="engine-specialty-genres" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px"></div>
                     <label class="form-label">Módulos Desbloqueados a Integrar:</label>
                     <div id="engine-features-checkboxes" style="margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
                     <button type="submit" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center;">
-                        🔨 Compilar y Registrar Motor en la Empresa
+                        🛠️ Financiar I+D y Registrar Motor
                     </button>
                 </form>
             </div>

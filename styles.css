@@ -302,6 +302,94 @@ body, html {
     font-weight: 600;
 }
 
+.business-model-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 10px;
+}
+.business-model-card {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 12px;
+    border: 1px solid rgba(148, 163, 184, .24);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, .55);
+    cursor: pointer;
+}
+.business-model-card.selected { border-color: var(--accent-cyan); box-shadow: 0 0 16px rgba(56, 189, 248, .16); }
+.business-model-card.locked { opacity: .58; cursor: not-allowed; }
+.business-model-title { color: #fff; font-weight: 800; font-size: 13px; }
+.business-model-description, .business-model-lock { color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
+.business-model-lock { color: var(--accent-gold); font-weight: 700; }
+.business-offer-panel, .liveops-game-card {
+    margin: 12px 0;
+    padding: 14px;
+    border: 1px solid rgba(56, 189, 248, .28);
+    border-radius: 12px;
+    background: rgba(8, 47, 73, .32);
+    color: #e2e8f0;
+}
+.contract-negotiation-window { max-width: 760px; }
+#project-offers-container { position: relative; z-index: 20; pointer-events: auto; }
+#modal-contract-negotiation, #modal-contract-negotiation .modal-window { pointer-events: auto; }
+#modal-marketing, #modal-marketing .modal-window, #marketing-hub-content { pointer-events: auto; }
+.marketing-window { max-width: 1040px; max-height: 88vh; overflow-y: auto; }
+.marketing-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
+.marketing-summary span { padding: 8px 11px; border-radius: 9px; background: rgba(15,23,42,.78); color: #cbd5e1; font-size: 12px; }
+.marketing-summary b { color: #fff; }
+.marketing-section { margin: 16px 0; padding: 14px; border: 1px solid rgba(56,189,248,.2); border-radius: 12px; background: rgba(8,20,36,.62); }
+.marketing-section h3 { margin: 0 0 8px; color: #e0f2fe; font-size: 15px; }
+.marketing-section-note, .marketing-empty { color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.marketing-actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 9px; margin-top: 12px; }
+.marketing-action-card, .marketing-creator-card { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid rgba(148,163,184,.2); border-radius: 10px; background: rgba(15,23,42,.66); }
+.marketing-action-card p, .marketing-creator-card span, .marketing-creator-card small { display: block; margin-top: 5px; color: var(--text-secondary); font-size: 11px; line-height: 1.45; }
+.marketing-action-card small { display: block; margin-top: 5px; color: var(--accent-gold); font-size: 11px; }
+.marketing-creator-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 9px; margin-top: 10px; }
+.marketing-key-target { display: flex; align-items: center; gap: 10px; margin-top: 12px; color: var(--text-secondary); font-size: 12px; }
+.marketing-key-target .form-select { max-width: 360px; }
+.marketing-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.marketing-feed-list { display: grid; gap: 9px; list-style: none; }
+.marketing-feed-list li { display: flex; align-items: flex-start; gap: 10px; padding: 8px; border-radius: 8px; background: rgba(15,23,42,.58); color: #e2e8f0; font-size: 12px; }
+.marketing-feed-list p { margin: 3px 0; color: #cbd5e1; line-height: 1.4; }
+.marketing-feed-list small { color: var(--text-secondary); font-size: 10px; }
+.marketing-review-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 2px; border-bottom: 1px solid rgba(148,163,184,.13); font-size: 12px; }
+.marketing-review-row span { color: var(--text-secondary); }
+.marketing-action-card .dock-btn, .marketing-creator-card .dock-btn { pointer-events: auto; flex: none; }
+@media (max-width: 700px) { .marketing-columns { grid-template-columns: 1fr; } .marketing-creator-card, .marketing-action-card { align-items: flex-start; flex-direction: column; } .marketing-review-row { flex-direction: column; } }
+.contract-offer-list { display: grid; gap: 10px; margin-top: 12px; }
+.contract-offer-card { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid rgba(148,163,184,.22); border-radius: 10px; background: rgba(15,23,42,.65); }
+.contract-offer-card p { margin: 5px 0 0; color: var(--text-secondary); font-size: 12px; }
+.contract-issuer { color: var(--accent-cyan); font-weight: 800; font-size: 16px; }
+.contract-description { color: var(--text-secondary); line-height: 1.5; }
+.contract-terms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 18px 0; }
+.contract-terms div { padding: 12px; border-radius: 9px; background: rgba(15,23,42,.7); border: 1px solid rgba(148,163,184,.18); }
+.contract-terms dt { color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.contract-terms dd { margin: 5px 0 0; color: #fff; font-weight: 700; }
+.contract-negotiation-actions { display: flex; flex-wrap: wrap; gap: 9px; }
+.contract-reject { border-color: rgba(248,113,113,.4); color: #fecaca; }
+.contract-risk-note { display: block; margin-top: 10px; color: #fbbf24; }
+.business-offer-row, .liveops-card-header, .liveops-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+.liveops-card-header h3 { margin: 0 0 4px; color: #fff; }
+.liveops-card-header span, .liveops-metrics { color: var(--text-secondary); font-size: 12px; }
+.liveops-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin: 12px 0; }
+.liveops-metrics b { color: var(--accent-cyan); }
+.liveops-chart { width: 100%; height: 120px; margin: 8px 0; border-radius: 8px; background: rgba(2, 6, 23, .5); }
+.liveops-chart-empty { padding: 25px; text-align: center; color: var(--text-secondary); font-size: 12px; }
+@media (max-width: 650px) {
+    .business-model-grid { grid-template-columns: 1fr; }
+    .business-offer-row { align-items: flex-start; }
+    .contract-offer-card { align-items: flex-start; flex-direction: column; }
+    .contract-terms { grid-template-columns: 1fr; }
+}
+
 .release-btn {
     pointer-events: auto;
     border: none;
@@ -1514,6 +1602,34 @@ body, html {
     background: rgba(255, 255, 255, 0.2);
     transform: translateY(-1px);
 }
+
+#modal-hire, #modal-hire .modal-window { pointer-events: auto; }
+.hr-control-panel { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin: 12px 0 18px; padding: 14px 16px; border: 1px solid rgba(56,189,248,.22); border-radius: 12px; background: rgba(8,47,73,.25); }
+.hr-control-panel > div:first-child { display: flex; flex-direction: column; gap: 4px; }
+.hr-control-panel small { color: var(--text-secondary); font-size: 11px; }
+.hr-mode-buttons { display: flex; flex-wrap: wrap; gap: 7px; }
+.hr-mode-buttons .active { background: linear-gradient(135deg, rgba(0,210,255,.38), rgba(59,130,246,.35)); outline: 1px solid var(--accent-cyan); }
+.hr-mode-status { width: 100%; color: var(--accent-cyan); font-size: 12px; }
+.hr-training-panel label { display: grid; gap: 5px; color: var(--text-secondary); font-size: 11px; }
+.hr-training-panel .form-select { min-width: 140px; }
+.hr-budget-label { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-secondary); }
+.hr-budget-label input { width: 100px; padding: 6px; border: 1px solid var(--card-border); border-radius: 6px; color: #fff; background: #0f172a; }
+.hr-headhunt-list { gap: 8px; margin: 12px 0; }
+.hr-headhunt-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; border: 1px solid rgba(248,113,113,.45); border-radius: 10px; background: rgba(127,29,29,.18); }
+.hr-headhunt-card > div:first-child { display: grid; gap: 5px; }
+.hr-headhunt-card small { color: var(--text-secondary); }
+.hr-headhunt-card > div:last-child { display: flex; gap: 6px; flex-wrap: wrap; }
+.hr-danger-btn { color: #fecaca; }
+.hr-employee-metrics { display: flex; flex-wrap: wrap; gap: 10px; color: var(--text-secondary); font-size: 11px; margin-top: 5px; }
+.hr-salary-controls { display: flex; align-items: center; gap: 4px; }
+.hr-salary-controls .staff-action-btn { padding: 4px 7px; font-size: 10px; }
+.hr-lead-badge { color: var(--accent-gold); font-size: 11px; }
+.hr-status-icon { font-size: 16px; margin-left: 5px; }
+.hr-selected-employee { border-color: var(--accent-cyan) !important; box-shadow: 0 0 16px rgba(0,210,255,.24); }
+.gdt-menu-hr-actions { display: flex; gap: 6px; padding: 5px 0; }
+.gdt-menu-hr-actions button { flex: 1; padding: 7px 5px; border: 1px solid rgba(255,255,255,.12); border-radius: 8px; color: #e2e8f0; background: rgba(255,255,255,.06); cursor: pointer; font-size: 10px; font-weight: 700; }
+.gdt-menu-hr-actions button:hover { background: rgba(56,189,248,.18); }
+@media (max-width: 680px) { .hr-control-panel { align-items: stretch; } .hr-mode-buttons { display: grid; grid-template-columns: 1fr; } .hr-headhunt-card { align-items: stretch; } }
 
 /* Leaderboard Table */
 .leaderboard-table {
