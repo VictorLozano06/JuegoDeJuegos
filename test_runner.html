@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Unit & Integration Test Runner - Subsistema 6</title>
+</head>
+<body>
+    <h1>Ejecutando Test Suite de Eventos Dinámicos, Crisis y Modding...</h1>
+    <div id="log"></div>
+
+    <script type="module">
+        import { game, GENRES, PLATFORMS } from './src/simulation.js';
+        import REAL_BRANDS_MOD_PACK from './src/data/mod_sample_real_brands.json';
+
+        const logs = [];
+        function assert(cond, msg) {
+            if (cond) {
+                logs.push(`[PASS] ${msg}`);
+                console.log(`[PASS] ${msg}`);
+            } else {
+                logs.push(`[FAIL] ${msg}`);
+                console.error(`[FAIL] ${msg}`);
+                throw new Error(msg);
+            }
+        }
+
+        async function runTests() {
+            try {
+                logs.push("--- 1. TEST SUBAGENTE 4: DATOS DESACOPLADOS Y MODDING DEL SIMULADOR ---");
+                assert(Array.isArray(game.platforms) && game.platforms.length >= 8, "game.platforms inicializado dinámicamente");
+                assert(Array.isArray(game.creatorProfiles) && game.creatorProfiles.length >= 6, "game.creatorProfiles inicializado");
+                assert(Array.isArray(game.industryEventsCatalog) && game.industryEventsCatalog.length >= 4, "game.industryEventsCatalog inicializado");
+
+                // Cargar mod de marcas reales
+                const modResult = game.loadModPackage(REAL_BRANDS_MOD_PACK);
+                assert(modResult.success === true, "game.loadModPackage(REAL_BRANDS_MOD_PACK) exitoso");
+                assert(game.platforms.some(p => p.id === 'megadrive' && p.isModded), "Mega Drive inyectada en plataformas");
+                assert(game.platforms.some(p => p.id === 'ps5pro' && p.isModded), "PS5 Pro inyectada en plataformas");
+                assert(game.creatorProfiles.some(c => c.id === 'ibai' && c.isModded), "Ibai Llanos inyectado en creadores");
+                assert(game.installedSimulatorMods.length >= 1, "Mod registrado en installedSimulatorMods");
+
+                logs.push("--- 2. TEST SUBAGENTE 1: MOTOR DE CRISIS Y EVENTOS DINÁMICOS ---");
+                // Crisis de Chips
+                const chipEvent = game.createIndustryEvent('chip_shortage', {
+                    platformId: 'pc',
+                    platformName: 'PC (Ordenador)',
+                    durationWeeks: 16,
+                    baseSalesMultiplier: 0.60
+                });
+                assert(chipEvent && chipEvent.type === 'platform_supply_shock', "Evento chip_shortage creado");
+                assert(game.pendingIndustryEvents.length >= 1, "Evento pendiente en cola");
+
+                // Resolver con 'wait_supply'
+                const resolveWait = game.resolveIndustryEvent(chipEvent.id, 'wait_supply');
+                assert(resolveWait.success === true, "chip_shortage resuelto con wait_supply");
+                const multWait = game.getIndustrySalesMultiplier('pc');
+                assert(multWait <= 0.65 && multWait >= 0.55, `Multiplicador de ventas en PC reducido por escasez de chips: ${multWait}`);
+
+                // Resolver con 'reserve_stock' en snes
+                const chipEvent2 = game.createIndustryEvent('chip_shortage', {
+                    platformId: 'snes',
+                    platformName: 'Super 16-Bit',
+                    durationWeeks: 16,
+                    baseSalesMultiplier: 0.50
+                });
+                game.funds = 100000;
+                const resolveReserve = game.resolveIndustryEvent(chipEvent2.id, 'reserve_stock');
+                assert(resolveReserve.success === true, "chip_shortage resuelto con reserve_stock");
+                const multReserve = game.getIndustrySalesMultiplier('snes');
+                assert(multReserve >= 0.88, `Multiplicador amortiguado al 90% con reserva de inventario: ${multReserve}`);
+
+                // Fuga de Código Fuente (Data Breach)
+                game.funds = 100000;
+                game.startNewGameProject({ name: 'CyberBlade', platformId: 'pc', topicId: 'cyberpunk', genreId: 'Action' });
+                game.currentProject.overallProgress = 65;
+                game.currentProject.marketingHype = 50;
+                const leakEvent = game.createIndustryEvent('source_leak', { projectName: 'CyberBlade' });
+                assert(leakEvent && leakEvent.type === 'code_breach', "Evento source_leak creado");
+
+                // Opción B: Auditoría legal (+8 semanas / 2 meses)
+                const resolveAudit = game.resolveIndustryEvent(leakEvent.id, 'legal_audit');
+                assert(resolveAudit.success === true, "source_leak resuelto con legal_audit");
+                assert(game.currentProject.developmentDelayWeeks >= 8, "Retraso de 2 meses (+8 semanas) aplicado");
+                assert(game.currentProject.leakAudited === true, "Proyecto marcado con leakAudited");
+
+                // Demanda por patentes
+                const patentEvent = game.createIndustryEvent('patent_lawsuit', { referenceBudget: 50000 });
+                const resolvePatent = game.resolveIndustryEvent(patentEvent.id, 'settle');
+                assert(resolvePatent.success === true, "patent_lawsuit resuelto con settle extrajudicial");
+
+                // Caída de tendencias
+                const trendEvent = game.createIndustryEvent('genre_collapse', { projectGenreId: 'Action', projectGenreName: 'Acción' });
+                const resolvePivot = game.resolveIndustryEvent(trendEvent.id, 'pivot');
+                assert(resolvePivot.success === true, "genre_collapse resuelto con pivot");
+
+                logs.push("--- 3. TEST SUBAGENTE 2: MOTOR DE COMUNIDAD Y WORKSHOP ---");
+                // Avanzar a 2005 y publicar juego moderno con soporte de parches
+                game.year = 24; // 1981 + 24 = 2005
+                game.funds = 100000;
+                const released = game.finishAndReleaseGame({ forcedLaunch: true });
+                released.supportsPatches = true;
+                assert(released && released.id, "Juego CyberBlade publicado con éxito");
+
+                // Desbloquear sys_modding y verificar elegibilidad
+                game.techTreeManager.unlockTech('sys_modding');
+                const modStatus = game.getModdingStatus(released.id);
+                assert(modStatus.eligible === true, "Juego elegible para Workshop con sys_modding investigado en 2005");
+
+                // Activar Workshop
+                game.funds = 100000;
+                const enableWorkshopRes = game.enableCommunityWorkshop(released.id);
+                assert(enableWorkshopRes.success === true, "enableCommunityWorkshop activado");
+                assert(released.workshop.enabled === true, "Workshop habilitado en el juego");
+                assert(released.workshop.weeksRemaining === 156, "156 semanas (3 años de juego) de soporte otorgadas");
+
+                // Simular mods populares
+                released.workshop.popularMods = 2;
+                const workshopWeek = game.processCommunityWorkshopWeek(released);
+                assert(workshopWeek.multiplier === 2.5, `Multiplicador de mods populares es 2.5x (+150% ventas residuales): ${workshopWeek.multiplier}`);
+
+                // Rotura de compatibilidad con parche oficial
+                const patchRes = game.deployContentPatch(released.id, { breaksMods: true });
+                assert(patchRes.success === true, "Parche desplegado");
+                assert(released.workshop.compatibilityBroken === true, "Compatibilidad rota por el parche");
+                const brokenWeek = game.processCommunityWorkshopWeek(released);
+                assert(brokenWeek.multiplier === 1.0, "Multiplicador de mods suspendido a 1.0 mientras esté rota la compatibilidad");
+
+                // Publicar herramientas de actualización
+                game.funds = 100000;
+                const updateToolsRes = game.publishModToolsUpdate(released.id);
+                assert(updateToolsRes.success === true, "publishModToolsUpdate publicado");
+                assert(released.workshop.compatibilityBroken === false, "Compatibilidad restaurada");
+                const fixedWeek = game.processCommunityWorkshopWeek(released);
+                assert(fixedWeek.multiplier === 2.5, "Multiplicador 2.5x (+150%) reactivado tras publicar herramientas");
+
+                logs.push("--- TODAS LAS PRUEBAS PASARON EXITOSAMENTE (100% OK) ---");
+                document.getElementById('log').innerHTML = logs.map(l => `<p>${l}</p>`).join('');
+
+                await fetch('/api/save_test_result', {
+                    method: 'POST',
+                    body: logs.join('\n')
+                });
+            } catch (e) {
+                logs.push(`[ERROR EXCEPCIÓN]: ${e.message}`);
+                console.error(e);
+                document.getElementById('log').innerHTML = logs.map(l => `<p style="color:red;">${l}</p>`).join('');
+                await fetch('/api/save_test_result', {
+                    method: 'POST',
+                    body: logs.join('\n')
+                });
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

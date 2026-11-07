@@ -47,10 +47,18 @@ try {
             if (Test-Path $filePath -PathType Leaf) {
                 $ext = [System.IO.Path]::GetExtension($filePath).ToLower()
                 $mime = if ($mimeTypes.ContainsKey($ext)) { $mimeTypes[$ext] } else { "application/octet-stream" }
-                $response.ContentType = $mime
                 $response.AddHeader("Access-Control-Allow-Origin", "*")
 
-                $bytes = [System.IO.File]::ReadAllBytes($filePath)
+                if ($ext -eq ".json" -and ($request.Headers["Accept"] -like "*javascript*" -or $request.Headers["Sec-Fetch-Dest"] -eq "script")) {
+                    $response.ContentType = "application/javascript; charset=utf-8"
+                    $rawContent = [System.IO.File]::ReadAllText($filePath, [System.Text.Encoding]::UTF8)
+                    $jsContent = "export default " + $rawContent + ";"
+                    $bytes = [System.Text.Encoding]::UTF8.GetBytes($jsContent)
+                } else {
+                    $response.ContentType = $mime
+                    $bytes = [System.IO.File]::ReadAllBytes($filePath)
+                }
+
                 $response.ContentLength64 = $bytes.Length
                 $response.OutputStream.Write($bytes, 0, $bytes.Length)
             } else {

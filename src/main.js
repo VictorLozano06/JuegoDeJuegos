@@ -1,6 +1,7 @@
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, PLATFORMS, TOPICS } from './simulation.js';
+import REAL_BRANDS_MOD_PACK from './data/mod_sample_real_brands.json';
 import { WorldEngine } from './world.js';
 
 /**
@@ -73,6 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         const marketingModal = document.getElementById('modal-marketing');
         if (marketingModal?.classList.contains('active')) renderMarketingHub();
+        const workshopModal = document.getElementById('modal-community-workshop');
+        if (workshopModal?.classList.contains('active')) renderCommunityWorkshop();
+        renderIndustryNews(state);
         const hireModal = document.getElementById('modal-hire');
         if (hireModal?.classList.contains('active')) renderRecruitment();
     });
@@ -317,6 +321,11 @@ function setupUIControls() {
     document.getElementById('btn-marketing').addEventListener('click', () => {
         renderMarketingHub();
         openModal('modal-marketing');
+    });
+
+    document.getElementById('btn-community-workshop').addEventListener('click', () => {
+        renderCommunityWorkshop();
+        openModal('modal-community-workshop');
     });
 
     const businessOptions = document.getElementById('business-model-options');
@@ -1357,10 +1366,13 @@ function updatePlatformOptions() {
     const platformSelect = document.getElementById('select-platform');
     if (!platformSelect) return;
     platformSelect.innerHTML = '';
-    PLATFORMS.filter(p => p.eraUnlocked <= game.era).forEach(p => {
+    const platforms = typeof game.getPlatforms === 'function'
+        ? game.getPlatforms(game.era)
+        : (game.platforms || PLATFORMS).filter(p => (p.eraUnlocked || 1) <= game.era);
+    platforms.forEach(p => {
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.innerText = `${p.icon} ${p.name} ($${p.devCost.toLocaleString()})`;
+        opt.innerText = `${p.icon || '🎮'} ${p.name} ($${p.devCost.toLocaleString()})${p.isModded ? ' 🧩[MOD]' : ''}`;
         platformSelect.appendChild(opt);
     });
 }
@@ -1808,6 +1820,389 @@ function renderMarketingHub() {
     const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · ⚠️ Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
 
     container.innerHTML = `<div class="marketing-summary"><span>📅 Era ${year}</span><span>Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span>Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span>Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>📢 Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>🎥 Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>🔴 En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>💬 Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div><section class="marketing-section"><h3>⭐ Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
+}
+
+function renderIndustryNews(state = game) {
+    const modal = document.getElementById('modal-industry-news');
+    const windowEl = document.getElementById('industry-news-window');
+    const content = document.getElementById('industry-news-content');
+    if (!modal || !content) return;
+    const event = (state.pendingIndustryEvents || [])[0];
+    if (!event) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+        return;
+    }
+
+    // Auto-pausa la simulación para que el jugador tome su decisión táctica sin presión de tiempo
+    if (game.gameSpeed > 0 && !window._pausedSpeedForNews) {
+        window._pausedSpeedForNews = game.gameSpeed;
+        if (typeof game.setGameSpeed === 'function') game.setGameSpeed(0);
+        else game.gameSpeed = 0;
+        updateSpeedButtonsUI(0);
+    }
+
+    const year = Number(event.createdYear) || state.getHistoricalYear();
+    const isRetro = year <= 2004;
+    windowEl?.classList.toggle('retro-news', isRetro);
+    windowEl?.classList.toggle('modern-news', !isRetro);
+
+    const choices = (event.choices || []).map(choice => {
+        const cost = choice.cost !== undefined
+            ? (typeof choice.cost === 'number' ? `$${Number(choice.cost).toLocaleString()}` : choice.cost)
+            : '';
+        const risks = Array.isArray(choice.risks) && choice.risks.length
+            ? choice.risks.map(r => `<span class="choice-risk-tag">⚠️ ${r}</span>`).join(' ')
+            : '';
+        const time = choice.timeWeeks ? `<span class="choice-time-tag">⏱️ +${choice.timeWeeks} sem</span>` : '';
+        const costTag = cost ? `<span class="choice-cost-tag">💰 ${cost}</span>` : '<span class="choice-cost-tag gratis">💰 Sin coste</span>';
+
+        return `
+            <article class="industry-choice-card">
+                <div class="choice-main-info">
+                    <div class="choice-header-row">
+                        <h3>${choice.label || choice.title || 'Opción táctica'}</h3>
+                        <div class="choice-badges">${costTag} ${time}</div>
+                    </div>
+                    <p>${choice.detail || choice.description || ''}</p>
+                    ${risks ? `<div class="choice-risks-row">${risks}</div>` : ''}
+                </div>
+                <div class="choice-action-col">
+                    <button type="button" class="dock-btn btn-primary-action" onclick="resolveIndustryChoice('${event.id}','${choice.id}')">
+                        ${isRetro ? '✍️ Firmar Decisión' : '⚡ Ejecutar Orden'}
+                    </button>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    const kicker = isRetro
+        ? `📰 THE GAMING GAZETTE · EDICIÓN EXTRAORDINARIA DE PRENSA · AÑO ${year}`
+        : `🔴 BREAKING NEWS WIRE · MERCADOS GLOBALES EN VIVO · AÑO ${year}`;
+
+    content.innerHTML = `
+        <div class="industry-news-kicker">${kicker}</div>
+        <h2 class="industry-news-headline">${event.headline || event.title || 'La industria afronta una noticia urgente'}</h2>
+        <p class="industry-news-body">${event.body || event.description || 'Una noticia inesperada puede afectar al proyecto y al mercado.'}</p>
+        ${event.platformName ? `<div class="industry-news-context">Plataforma directamente afectada: <b>${event.platformName}</b></div>` : ''}
+        <div class="industry-choice-list">${choices || '<p class="marketing-empty">No hay opciones disponibles.</p>'}</div>
+    `;
+
+    const anotherModalOpen = Array.from(document.querySelectorAll('.modal-backdrop.active')).some(item => item !== modal);
+    if (!modal.classList.contains('active') && !anotherModalOpen) openModal('modal-industry-news');
+}
+
+window.resolveIndustryChoice = function(eventId, choiceId) {
+    const result = typeof game.resolveIndustryEvent === 'function'
+        ? game.resolveIndustryEvent(eventId, choiceId)
+        : { success: false, message: 'La resolución de crisis todavía no está disponible.' };
+    
+    showToast(result.message || 'Decisión registrada.', result.success === false ? 'warn' : 'success');
+    
+    // Si la simulación fue auto-pausada por la noticia, restaurar la velocidad
+    if (window._pausedSpeedForNews) {
+        const resumeSpeed = window._pausedSpeedForNews;
+        window._pausedSpeedForNews = 0;
+        if (typeof game.setGameSpeed === 'function') game.setGameSpeed(resumeSpeed);
+        else game.gameSpeed = resumeSpeed;
+        updateSpeedButtonsUI(resumeSpeed);
+    }
+
+    renderIndustryNews();
+    if (typeof updatePlatformOptions === 'function') updatePlatformOptions();
+};
+
+function renderCommunityWorkshop() {
+    const gamesContainer = document.getElementById('community-workshop-games');
+    if (!gamesContainer) return;
+    const titles = game.gamesHistory || [];
+    if (!titles.length) {
+        gamesContainer.innerHTML = `
+            <div class="business-offer-panel" style="text-align: center; padding: 30px;">
+                <span style="font-size: 38px;">🧩</span>
+                <h3 style="margin: 10px 0;">Aún no has publicado ningún videojuego</h3>
+                <p style="color: var(--text-secondary); font-size: 13px;">Lanza tu primer juego en el mercado para poder integrar la API oficial de modding y activar su Workshop comunitario.</p>
+            </div>
+        `;
+        renderSimulatorMods();
+        return;
+    }
+
+    const cards = titles.map(title => {
+        const result = typeof game.getModdingStatus === 'function'
+            ? game.getModdingStatus(title.id)
+            : { available: false, eligible: false, enabled: Boolean(title.workshop?.enabled), workshop: title.workshop || {} };
+        const workshop = result.workshop || title.workshop || {};
+        const mods = Array.isArray(workshop.mods) ? workshop.mods : [];
+        const popularMods = Number(workshop.popularMods ?? 0);
+        const enabled = Boolean(result.enabled ?? workshop.enabled);
+        const eligible = Boolean(result.eligible);
+        const canEnable = Boolean(result.available && eligible && !enabled);
+
+        let statusBadge = '';
+        if (enabled) {
+            statusBadge = workshop.compatibilityBroken
+                ? '<span class="workshop-badge badge-broken">⚠️ Compatibilidad rota por parche</span>'
+                : '<span class="workshop-badge badge-active">✓ API y mods compatibles</span>';
+        } else if (eligible) {
+            statusBadge = '<span class="workshop-badge badge-ready">⚡ API Investigada · Listo para activar</span>';
+        } else {
+            statusBadge = `<span class="workshop-badge badge-locked">🔒 ${result.status}</span>`;
+        }
+
+        const engagementVal = Number(workshop.engagement || 0);
+        const engagementBar = `
+            <div class="workshop-engagement-bar-container">
+                <div class="workshop-engagement-bar" style="width: ${Math.min(100, engagementVal)}%;"></div>
+            </div>
+        `;
+
+        const modList = mods.length
+            ? `<ul class="workshop-mod-list">${mods.slice(0, 4).map(mod => `
+                <li class="${mod.popular ? 'popular-mod-item' : ''}">
+                    <div>
+                        <b>${mod.popular ? '🌟 ' : '🧩 '}${mod.name || 'Mod comunitario'}</b>
+                        <small style="display:block; color:var(--text-secondary);">Creador: @${mod.creator || 'Modder'} · ${mod.compatible ? '✓ Compatible' : '⚠️ Roto'}</small>
+                    </div>
+                    <span>${Number(mod.downloads || 0).toLocaleString()} descargas</span>
+                </li>`).join('')}</ul>`
+            : '<p class="workshop-empty">La comunidad empezará a publicar mods y expansiones cuando el Workshop esté en marcha.</p>';
+
+        const action = !enabled
+            ? `<button type="button" class="dock-btn btn-primary-action" onclick="enableGameWorkshop('${title.id}')" ${!canEnable ? 'disabled' : ''}>
+                🧩 Activar Soporte Workshop (${title.moddingApiIncluded ? '$8,000+' : '$15,000+'})
+               </button>`
+            : (workshop.compatibilityBroken
+                ? `<button type="button" class="dock-btn btn-primary-action btn-danger" onclick="updateGameModTools('${title.id}')">
+                    🛠️ Publicar Herramientas de Actualización (Restaurar compatibilidad)
+                   </button>`
+                : '<span class="workshop-compatible">✓ Ecosistema Comunitario Óptimo</span>');
+
+        return `
+            <article class="workshop-game-card ${workshop.compatibilityBroken ? 'card-warning' : ''}">
+                <div class="workshop-game-heading">
+                    <div>
+                        <h3>${title.name}</h3>
+                        <p>${title.genre || 'Juego'} · Plataforma: ${title.platform || 'PC'}</p>
+                    </div>
+                    <div>${statusBadge}</div>
+                </div>
+                <div class="workshop-metrics">
+                    <div class="metric-box">
+                        <small>Engagement Comunitario</small>
+                        <strong>${engagementVal}%</strong>
+                        ${engagementBar}
+                    </div>
+                    <div class="metric-box">
+                        <small>Mods Populares (+150% Ventas)</small>
+                        <strong style="color: var(--accent-gold);">${popularMods}</strong>
+                    </div>
+                    <div class="metric-box">
+                        <small>Conversiones Totales</small>
+                        <strong style="color: var(--accent-cyan);">${Number(workshop.totalConversions || 0)}</strong>
+                    </div>
+                    <div class="metric-box">
+                        <small>Vida Útil Extendida</small>
+                        <strong style="color: var(--accent-green);">+${Number(workshop.weeksRemaining || 0)} sem</strong>
+                    </div>
+                </div>
+                <div class="workshop-mods-section">
+                    <h4 style="margin: 8px 0; font-size: 13px; color: #cbd5e1;">Mods Destacados de la Comunidad</h4>
+                    ${modList}
+                </div>
+                <div class="workshop-actions">${action}</div>
+            </article>
+        `;
+    }).join('');
+
+    gamesContainer.innerHTML = cards;
+    renderSimulatorMods();
+}
+
+function renderSimulatorMods() {
+    const container = document.getElementById('community-simulator-mods');
+    if (!container) return;
+
+    const platforms = game.platforms || PLATFORMS;
+    const streamers = game.creatorProfiles || [];
+    const events = game.industryEventsCatalog || [];
+    const installed = game.installedSimulatorMods || [];
+
+    const moddedPlatforms = platforms.filter(p => p.isModded);
+    const moddedStreamers = streamers.filter(s => s.isModded);
+
+    container.innerHTML = `
+        <div class="simulator-mods-dashboard">
+            <div class="sim-stats-grid">
+                <div class="sim-stat-card">
+                    <span class="stat-icon">🎮</span>
+                    <div>
+                        <strong>${platforms.length}</strong> Consolas Activas
+                        <small style="display:block;color:var(--text-secondary);">${moddedPlatforms.length} consolas por mods</small>
+                    </div>
+                </div>
+                <div class="sim-stat-card">
+                    <span class="stat-icon">🎥</span>
+                    <div>
+                        <strong>${streamers.length}</strong> Creadores de Contenido
+                        <small style="display:block;color:var(--text-secondary);">${moddedStreamers.length} creadores por mods</small>
+                    </div>
+                </div>
+                <div class="sim-stat-card">
+                    <span class="stat-icon">📰</span>
+                    <div>
+                        <strong>${events.length}</strong> Crisis y Eventos Dinámicos
+                        <small style="display:block;color:var(--text-secondary);">Catálogo Data-Driven JSON</small>
+                    </div>
+                </div>
+                <div class="sim-stat-card">
+                    <span class="stat-icon">📦</span>
+                    <div>
+                        <strong>${installed.length}</strong> Paquetes Instalados
+                        <small style="display:block;color:var(--text-secondary);">Ecosistema de modding vivo</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sim-mod-actions-toolbar">
+                <button type="button" class="dock-btn btn-primary-action" onclick="window.loadSimulatorModSample()">
+                    ⚡ Cargar Pack Oficial: Marcas Reales & Creadores Famosos
+                </button>
+                <button type="button" class="dock-btn" onclick="document.getElementById('sim-mod-file-input').click()">
+                    📂 Importar Mod Personalizado (.JSON)
+                </button>
+                <button type="button" class="dock-btn" onclick="window.exportSimulatorModTemplate()">
+                    💾 Exportar Plantilla JSON de Modding
+                </button>
+                <input type="file" id="sim-mod-file-input" accept=".json" style="display:none;" onchange="window.importSimulatorModFile(event)">
+            </div>
+
+            <div class="installed-packages-section">
+                <h3 style="margin: 14px 0 8px; font-size: 15px; color: #e2e8f0;">📦 Paquetes de Comunidad Instalados</h3>
+                ${installed.length ? `
+                    <div class="installed-mod-list">
+                        ${installed.map(pkg => `
+                            <div class="installed-mod-card">
+                                <div>
+                                    <b style="color:var(--accent-cyan); font-size:14px;">${pkg.name}</b> <small style="color:var(--text-secondary);">v${pkg.version} por ${pkg.author}</small>
+                                    <p style="margin:4px 0 0; color:#cbd5e1; font-size:12px;">${pkg.description}</p>
+                                </div>
+                                <div style="text-align:right;">
+                                    <span class="workshop-badge badge-active">+${pkg.platformsCount} consolas · +${pkg.streamersCount} streamers</span>
+                                    <small style="display:block;color:var(--text-secondary);margin-top:4px;">Instalado: ${pkg.installedAt}</small>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <p class="workshop-empty">No hay paquetes externos instalados todavía. Pulsa <b>"Cargar Pack Oficial"</b> o importa tu propio archivo JSON para expandir consolas reales (Sega Genesis, GBC, PS5 Pro, Switch 2, Steam Deck) y streamers (Ibai, Auronplay, Rubius).</p>
+                `}
+            </div>
+
+            <div class="active-catalog-preview">
+                <h3 style="margin: 16px 0 8px; font-size: 15px; color: #e2e8f0;">🕹️ Plataformas y Consolas Disponibles en el Motor</h3>
+                <div class="platforms-pill-grid">
+                    ${platforms.map(p => `
+                        <span class="platform-chip ${p.isModded ? 'chip-mod' : ''}">
+                            ${p.icon || '🎮'} ${p.name} (Era ${p.eraUnlocked}) ${p.isModded ? '<b>[MOD]</b>' : ''}
+                        </span>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+window.switchWorkshopTab = function(tabName) {
+    const gamesView = document.getElementById('workshop-games-view');
+    const simView = document.getElementById('workshop-simulator-view');
+    const tabGames = document.getElementById('tab-workshop-games');
+    const tabSim = document.getElementById('tab-workshop-simulator');
+
+    if (tabName === 'simulator') {
+        if (gamesView) gamesView.style.display = 'none';
+        if (simView) simView.style.display = 'block';
+        tabGames?.classList.remove('active');
+        tabSim?.classList.add('active');
+        renderSimulatorMods();
+    } else {
+        if (gamesView) gamesView.style.display = 'block';
+        if (simView) simView.style.display = 'none';
+        tabGames?.classList.add('active');
+        tabSim?.classList.remove('active');
+    }
+};
+
+window.loadSimulatorModSample = function() {
+    if (typeof game.loadModPackage !== 'function') return showToast('El motor de mods no está disponible.', 'warn');
+    const res = game.loadModPackage(REAL_BRANDS_MOD_PACK);
+    showToast(res.message, res.success ? 'success' : 'warn');
+    renderSimulatorMods();
+    updatePlatformOptions();
+    if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+};
+
+window.importSimulatorModFile = function(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const json = JSON.parse(e.target.result);
+            const res = game.loadModPackage(json);
+            showToast(res.message, res.success ? 'success' : 'warn');
+            renderSimulatorMods();
+            updatePlatformOptions();
+            if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        } catch (err) {
+            showToast(`Error al leer el archivo JSON: ${err.message}`, 'error');
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+};
+
+window.exportSimulatorModTemplate = function() {
+    if (typeof game.exportModPackageTemplate !== 'function') return showToast('Función de exportación no disponible.', 'warn');
+    const template = game.exportModPackageTemplate();
+    const blob = new Blob([template], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'community_mod_template.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Plantilla oficial de modding descargada como "community_mod_template.json".', 'success');
+};
+
+window.enableGameWorkshop = function(gameId) {
+    const result = typeof game.enableCommunityWorkshop === 'function'
+        ? game.enableCommunityWorkshop(gameId)
+        : { success: false, message: 'La API de Workshop todavía no está disponible.' };
+    showToast(result.message || 'Workshop actualizado.', result.success === false ? 'warn' : 'success');
+    renderCommunityWorkshop();
+};
+
+window.updateGameModTools = function(gameId) {
+    const result = typeof game.publishModToolsUpdate === 'function'
+        ? game.publishModToolsUpdate(gameId)
+        : { success: false, message: 'Las herramientas de actualización todavía no están disponibles.' };
+    showToast(result.message || 'Herramientas publicadas.', result.success === false ? 'warn' : 'success');
+    renderCommunityWorkshop();
+};
+
+function updateSpeedButtonsUI(speed) {
+    const btnPause = document.getElementById('btn-speed-pause');
+    const btn1x = document.getElementById('btn-speed-1x');
+    const btn2x = document.getElementById('btn-speed-2x');
+    const btn3x = document.getElementById('btn-speed-3x');
+    [btnPause, btn1x, btn2x, btn3x].forEach(btn => btn?.classList.remove('active'));
+    if (speed === 0) btnPause?.classList.add('active');
+    else if (speed === 1) btn1x?.classList.add('active');
+    else if (speed === 2) btn2x?.classList.add('active');
+    else if (speed === 3) btn3x?.classList.add('active');
 }
 
 window.refreshMarketingHub = renderMarketingHub;
@@ -2849,6 +3244,7 @@ function closeAllModals() {
     });
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
+    if (game.pendingIndustryEvents?.length) setTimeout(() => renderIndustryNews(game), 0);
 }
 
 // --- TOAST NOTIFICATIONS ---

@@ -1,0 +1,10 @@
+[
+  { "id": "pc", "name": "PC (Ordenador)", "devCost": 8000, "marketShare": 0.45, "eraUnlocked": 1, "audience": "Everyone", "icon": "💻", "audienceFit": { "Everyone": 1.1, "Young": 0.95, "Mature": 1.15 } },
+  { "id": "g64", "name": "Commodore 64", "devCost": 5000, "marketShare": 0.35, "eraUnlocked": 1, "audience": "Everyone", "icon": "📼", "audienceFit": { "Everyone": 1.05, "Young": 1.05, "Mature": 0.9 } },
+  { "id": "nes", "name": "Master System 8-Bit", "devCost": 12000, "marketShare": 0.5, "eraUnlocked": 1, "audience": "Young", "icon": "🕹️", "audienceFit": { "Everyone": 1.1, "Young": 1.25, "Mature": 0.75 } },
+  { "id": "snes", "name": "Super 16-Bit", "devCost": 22000, "marketShare": 0.65, "eraUnlocked": 2, "audience": "Everyone", "icon": "🎮", "audienceFit": { "Everyone": 1.2, "Young": 1.15, "Mature": 0.9 } },
+  { "id": "playbox", "name": "PlayStation 32-Bit", "devCost": 35000, "marketShare": 0.8, "eraUnlocked": 2, "audience": "Mature", "icon": "💿", "audienceFit": { "Everyone": 1.05, "Young": 0.85, "Mature": 1.25 } },
+  { "id": "mobile", "name": "SmartPhone OS", "devCost": 25000, "marketShare": 0.75, "eraUnlocked": 2, "audience": "Everyone", "icon": "📱", "audienceFit": { "Everyone": 1.25, "Young": 1.1, "Mature": 0.95 } },
+  { "id": "ninswitch", "name": "Hybrid Console", "devCost": 45000, "marketShare": 0.85, "eraUnlocked": 3, "audience": "Everyone", "icon": "⚡", "audienceFit": { "Everyone": 1.25, "Young": 1.2, "Mature": 0.9 } },
+  { "id": "vrhelmet", "name": "VR Matrix Headset", "devCost": 65000, "marketShare": 0.6, "eraUnlocked": 3, "audience": "Mature", "icon": "🥽", "audienceFit": { "Everyone": 0.95, "Young": 0.75, "Mature": 1.3 } }
+]

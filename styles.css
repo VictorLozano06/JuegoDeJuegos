@@ -334,6 +334,377 @@ body, html {
 #project-offers-container { position: relative; z-index: 20; pointer-events: auto; }
 #modal-contract-negotiation, #modal-contract-negotiation .modal-window { pointer-events: auto; }
 #modal-marketing, #modal-marketing .modal-window, #marketing-hub-content { pointer-events: auto; }
+#modal-industry-news, #modal-industry-news .modal-window, #industry-news-content,
+#modal-community-workshop, #modal-community-workshop .modal-window, #community-workshop-games { pointer-events: auto; }
+.industry-news-window, .workshop-window { max-width: 920px; max-height: 90vh; overflow-y: auto; }
+.industry-news-window { border-color: rgba(248, 189, 74, .45); }
+.industry-news-window.retro-news {
+    background: #f4ebd0 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" opacity="0.03"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.8"/></filter><rect width="100" height="100" filter="url(%23n)"/></svg>');
+    color: #241c13;
+    border: 6px double #5c3a1e;
+    box-shadow: 0 25px 70px rgba(0,0,0,.9), inset 0 0 40px rgba(110,70,30,.15);
+    font-family: "Georgia", "Times New Roman", serif;
+}
+.retro-news .modal-title, .retro-news .modal-close, .retro-news .industry-news-headline {
+    color: #1a120b;
+    font-family: "Georgia", "Times New Roman", serif;
+    font-weight: 900;
+}
+.industry-news-kicker {
+    color: var(--accent-gold);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.retro-news .industry-news-kicker {
+    color: #6e2e0e;
+    border-bottom: 2px solid #5c3a1e;
+    padding-bottom: 8px;
+    font-size: 12px;
+}
+.industry-news-headline {
+    margin: 12px 0 10px;
+    color: #fff;
+    font-size: clamp(22px, 3.8vw, 32px);
+    line-height: 1.18;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.industry-news-body {
+    margin: 10px 0 18px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 14px;
+}
+.retro-news .industry-news-body, .retro-news .industry-news-context {
+    color: #2c1e13;
+    font-size: 15px;
+    line-height: 1.55;
+}
+.industry-news-context {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.1);
+    border-left: 3px solid var(--accent-cyan);
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.retro-news .industry-news-context {
+    background: rgba(92, 58, 30, 0.08);
+    border-left: 3px solid #5c3a1e;
+    color: #3f2b1c;
+}
+
+/* Modal Moderno Wire Feed */
+.industry-news-window.modern-news {
+    background: linear-gradient(135deg, rgba(10, 18, 32, 0.96), rgba(15, 23, 42, 0.98));
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 45px rgba(56, 189, 248, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.modern-news .industry-news-kicker {
+    color: #38bdf8;
+    animation: newsTickerPulse 2s infinite ease-in-out;
+}
+@keyframes newsTickerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+}
+
+.industry-choice-list { display: grid; gap: 12px; margin-top: 18px; }
+.industry-choice-card {
+    padding: 16px;
+    border: 1px solid rgba(148,163,184,.24);
+    border-radius: 12px;
+    background: rgba(15,23,42,.68);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.industry-choice-card:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    transform: translateY(-2px);
+}
+.retro-news .industry-choice-card {
+    background: #fffcf4;
+    border: 2px solid #9c724e;
+    color: #1a120b;
+    box-shadow: 3px 3px 0 #5c3a1e;
+}
+.retro-news .industry-choice-card:hover {
+    transform: none;
+    background: #fbf5e6;
+}
+.choice-main-info { flex: 1; min-width: 0; }
+.choice-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.industry-choice-card h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+}
+.retro-news .industry-choice-card h3 { color: #1f140a; }
+.industry-choice-card p {
+    margin: 4px 0 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+.retro-news .industry-choice-card p { color: #423020; font-size: 13.5px; }
+
+.choice-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.choice-cost-tag {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(234, 179, 8, 0.18);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 12px;
+}
+.choice-cost-tag.gratis {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--accent-green);
+}
+.retro-news .choice-cost-tag {
+    background: #edd5bd;
+    color: #6e2e0e;
+    border: 1px solid #aa6f3e;
+}
+.choice-time-tag {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(148, 163, 184, 0.16);
+    color: #cbd5e1;
+    font-size: 12px;
+}
+.retro-news .choice-time-tag {
+    background: #e2ceb8;
+    color: #3b2615;
+}
+.choice-risks-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.choice-risk-tag {
+    font-size: 11px;
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.14);
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.retro-news .choice-risk-tag {
+    color: #7f1d1d;
+    background: #f8d7da;
+    border-color: #f5c6cb;
+}
+.choice-action-col { flex: none; }
+
+/* Workshop Navegación por Pestañas */
+.workshop-nav-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding-bottom: 8px;
+}
+.workshop-tab-btn {
+    padding: 9px 16px;
+    border-radius: 9px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.6);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.workshop-tab-btn:hover {
+    color: #fff;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+.workshop-tab-btn.active {
+    background: var(--accent-cyan);
+    color: #030712;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+}
+
+.workshop-intro { margin: 0 0 16px; color: var(--text-secondary); font-size: 13.5px; line-height: 1.5; }
+.workshop-game-card {
+    padding: 16px;
+    border: 1px solid rgba(148,163,184,.24);
+    border-radius: 12px;
+    background: rgba(15,23,42,.65);
+    margin: 12px 0;
+}
+.workshop-game-card.card-warning {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(30, 15, 20, 0.65);
+}
+.workshop-game-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.workshop-game-heading h3 { margin: 0 0 4px; color: #fff; font-size: 17px; }
+.workshop-game-heading p { margin: 0; color: var(--text-secondary); font-size: 12px; }
+
+.workshop-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+.badge-active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid rgba(34, 197, 94, 0.4); }
+.badge-broken { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.badge-ready { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); }
+.badge-locked { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.25); }
+
+.workshop-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+    margin: 14px 0;
+}
+.metric-box {
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+.metric-box small { display: block; color: var(--text-secondary); font-size: 11px; margin-bottom: 4px; }
+.metric-box strong { font-size: 16px; color: #fff; }
+
+.workshop-engagement-bar-container {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+.workshop-engagement-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.workshop-mod-list {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    margin: 10px 0;
+    padding: 0;
+}
+.workshop-mod-list li {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(2,6,23,.5);
+    color: #fff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(148,163,184,.12);
+}
+.workshop-mod-list li.popular-mod-item {
+    border-color: rgba(234, 179, 8, 0.4);
+    background: rgba(234, 179, 8, 0.08);
+}
+.workshop-mod-list li span, .workshop-empty { color: var(--text-secondary); font-size: 11.5px; }
+.workshop-compatible { color: var(--accent-green); font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
+.workshop-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+/* Dashboard de Modding del Simulador */
+.simulator-mods-dashboard { display: grid; gap: 16px; }
+.sim-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+.sim-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+.sim-stat-card .stat-icon { font-size: 26px; }
+.sim-stat-card strong { font-size: 18px; color: #fff; }
+
+.sim-mod-actions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(8, 20, 36, 0.65);
+    border: 1px dashed rgba(56, 189, 248, 0.35);
+}
+.installed-mod-list { display: grid; gap: 8px; margin-top: 8px; }
+.installed-mod-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.platforms-pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.platform-chip {
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    font-size: 12px;
+}
+.platform-chip.chip-mod {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    font-weight: 700;
+}
+.btn-danger {
+    background: #dc2626 !important;
+    border-color: #ef4444 !important;
+    color: #fff !important;
+}
+
+@media (max-width: 650px) {
+    .industry-choice-card { align-items: flex-start; flex-direction: column; }
+    .workshop-game-heading { align-items: flex-start; }
+    .choice-header-row { flex-direction: column; align-items: flex-start; }
+}
 .marketing-window { max-width: 1040px; max-height: 88vh; overflow-y: auto; }
 .marketing-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
 .marketing-summary span { padding: 8px 11px; border-radius: 9px; background: rgba(15,23,42,.78); color: #cbd5e1; font-size: 12px; }

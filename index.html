@@ -235,6 +235,9 @@
             <button id="btn-marketing" class="dock-btn" title="Campañas, creadores y comunidad">
                 <span>📣</span> Marketing
             </button>
+            <button id="btn-community-workshop" class="dock-btn" title="Mods, conversiones y vida útil de tus juegos">
+                <span>🧩</span> Workshop
+            </button>
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
                 <span>🎨</span> Tu Estudio
             </button>
@@ -935,6 +938,37 @@
                 <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
             </div>
             <div id="marketing-hub-content"></div>
+        </div>
+    </div>
+
+    <div id="modal-industry-news" class="modal-backdrop">
+        <div id="industry-news-window" class="modal-window industry-news-window">
+            <div class="modal-header">
+                <h2 class="modal-title" id="industry-news-modal-title"><span>📰</span> Noticia Urgente de la Industria</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+            <div id="industry-news-content"></div>
+        </div>
+    </div>
+
+    <div id="modal-community-workshop" class="modal-backdrop">
+        <div class="modal-window workshop-window">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🧩</span> Workshop de la Comunidad & Ecosistema de Mods</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+            <div class="workshop-nav-tabs">
+                <button type="button" id="tab-workshop-games" class="workshop-tab-btn active" onclick="switchWorkshopTab('games')">🎮 Mods de tus Juegos</button>
+                <button type="button" id="tab-workshop-simulator" class="workshop-tab-btn" onclick="switchWorkshopTab('simulator')">🌐 Mods del Simulador (Editor & Datos)</button>
+            </div>
+            <div id="workshop-games-view">
+                <p class="workshop-intro">Activa APIs de modding en juegos compatibles para desatar mods populares (+150% ventas residuales), conversiones totales virales y engagement de la comunidad.</p>
+                <div id="community-workshop-games"></div>
+            </div>
+            <div id="workshop-simulator-view" style="display: none;">
+                <p class="workshop-intro">El simulador está desacoplado mediante arquitectura orientada a datos (JSON). Puedes inyectar consolas reales, creadores célebres y eventos contextuales.</p>
+                <div id="community-simulator-mods"></div>
+            </div>
         </div>
     </div>
 
