@@ -308,3 +308,4 @@ export function findGenre(idOrName) {
         (g.aliases && g.aliases.some(a => a.toLowerCase() === query))
     ) || GENRES_DATABASE[0];
 }
+

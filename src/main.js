@@ -862,9 +862,17 @@ function updateWizardSynergyBadge() {
     const syn = calculateSynergy(genreId, topicId);
 
     // Tech requirement check
+    const activeNodeIds = scopeDAG
+        ? (typeof scopeDAG.getActiveNodeIds === 'function'
+            ? scopeDAG.getActiveNodeIds()
+            : (typeof scopeDAG.getActiveNodes === 'function'
+                ? scopeDAG.getActiveNodes().map(n => n.id)
+                : Array.from(scopeDAG.nodes ? scopeDAG.nodes.keys() : [])))
+        : [];
+
     const techCheck = typeof game.validateGenreTechRequirements === 'function' ? game.validateGenreTechRequirements(genreId, {
         dagConfig: pipelineManager?.getActivePipeline ? { pipeline: pipelineManager.getActivePipeline() } : null,
-        selectedNodeIds: scopeDAG ? scopeDAG.getActiveNodeIds() : []
+        selectedNodeIds: activeNodeIds
     }) : { valid: true };
 
     let pillClass = 'pill-normal';

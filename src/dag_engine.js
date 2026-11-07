@@ -936,6 +936,10 @@ class ScopeDAG {
         return Array.from(this.nodes.values());
     }
 
+    getActiveNodeIds() {
+        return Array.from(this.nodes.keys());
+    }
+
     hasNode(nodeId) {
         return this.nodes.has(nodeId);
     }
