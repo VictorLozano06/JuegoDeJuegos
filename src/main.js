@@ -13,6 +13,9 @@ let world = null;
 let devInterval = null;
 let calendarInterval = null;
 let lastExpoYearTriggered = 0;
+let lastNotifiedProjectOfferKey = null;
+let lastRenderedEmployeeCount = null;
+const notifiedHeadhuntEmployeeIds = new Set();
 
 const techTreeManager = game.techTreeManager;
 const scopeDAG = new ScopeDAG(null, { techTreeManager });
@@ -23,6 +26,9 @@ game.onResearchCompleted = (name) => {
     showToast(`🎉 ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
     renderDAGNodes();
     renderTechTree();
+};
+game.onEmployeeEvent = (event) => {
+    if (event?.message) showToast(event.message, event.type === 'returned' ? 'success' : 'warn');
 };
 game.onEngineRDCompleted = (engine) => {
     renderPipelineSelector();
@@ -56,6 +62,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Bind Game State Listeners
     game.onStateChange((state) => {
         renderHUD(state);
+        if (world && state.employees.length !== lastRenderedEmployeeCount) {
+            lastRenderedEmployeeCount = state.employees.length;
+            world.syncEmployees(state.employees);
+        }
+        (state.pendingHeadhunts || []).forEach(offer => {
+            if (notifiedHeadhuntEmployeeIds.has(offer.employeeId)) return;
+            notifiedHeadhuntEmployeeIds.add(offer.employeeId);
+            showToast(`🧠 ${offer.rivalStudio} quiere fichar a ${offer.employeeName}. Responde en ${offer.deadlineWeeksRemaining ?? 3} semanas desde Gestión de Personal.`, 'warn');
+        });
+        const marketingModal = document.getElementById('modal-marketing');
+        if (marketingModal?.classList.contains('active')) renderMarketingHub();
+        const hireModal = document.getElementById('modal-hire');
+        if (hireModal?.classList.contains('active')) renderRecruitment();
     });
 
     // 5. Initial Render
@@ -103,6 +122,8 @@ function startSimulationLoops() {
     calendarInterval = setInterval(() => {
         if (game.gameSpeed > 0) {
             game.advanceCalendar();
+            const liveOpsModal = document.getElementById('modal-liveops');
+            if (liveOpsModal?.classList.contains('active')) renderLiveOps();
             checkCalendarEvents();
         }
     }, 2800 / (game.gameSpeed || 1));
@@ -288,6 +309,24 @@ function setupUIControls() {
         openModal('modal-history');
     });
 
+    document.getElementById('btn-liveops').addEventListener('click', () => {
+        renderLiveOps();
+        openModal('modal-liveops');
+    });
+
+    document.getElementById('btn-marketing').addEventListener('click', () => {
+        renderMarketingHub();
+        openModal('modal-marketing');
+    });
+
+    const businessOptions = document.getElementById('business-model-options');
+    if (businessOptions) businessOptions.addEventListener('change', renderBusinessModelSelector);
+    const projectGenre = document.getElementById('select-genre');
+    if (projectGenre) projectGenre.addEventListener('change', () => {
+        renderPipelineSelector();
+        renderBusinessModelSelector();
+    });
+
     const studioInfoBtn = document.getElementById('studio-info-btn');
     if (studioInfoBtn) {
         studioInfoBtn.addEventListener('click', () => {
@@ -373,7 +412,23 @@ function setupUIControls() {
         }
         const holoHud = document.getElementById('hologram-overlay-bar');
         if (holoHud) holoHud.style.display = 'none';
-        const releasedGame = game.finishAndReleaseGame();
+        let releasedGame;
+        if (game.currentProject?.businessModel === 'early_access') {
+            if (game.currentProject.launchPhase === 'beta_live') {
+                const result = game.launchOfficialVersion(game.currentProject.earlyAccessGameId);
+                if (!result.success) { showToast(result.message, 'warn'); return; }
+                releasedGame = result.game;
+            } else if (game.currentProject.overallProgress >= 50 && game.currentProject.overallProgress <= 80) {
+                const result = game.launchEarlyAccess();
+                if (!result.success) { showToast(result.message, 'warn'); return; }
+                releasedGame = result.game;
+            } else if (game.currentProject.stage === 4) {
+                game.currentProject.businessModel = 'premium';
+                releasedGame = game.finishAndReleaseGame();
+            }
+        } else {
+            releasedGame = game.finishAndReleaseGame();
+        }
         if (releasedGame) {
             world.triggerLaunchConfetti();
             showReviewModal(releasedGame);
@@ -484,7 +539,7 @@ function setupDeveloperContextMenu() {
 
         // Clamp menu coordinates into viewport bounds
         const menuWidth = 270;
-        const menuHeight = 310;
+        const menuHeight = 370;
         let left = screenX - (menuWidth / 2);
         let top = screenY - menuHeight - 14; // Float slightly above character
 
@@ -568,7 +623,11 @@ function setupDeveloperContextMenu() {
             contextMenu.style.display = 'none';
             const emp = (game.employees && game.employees[selectedDevIndex]) ? game.employees[selectedDevIndex] : (game.employees ? game.employees[0] : null);
             if (emp) {
-                emp.stamina = emp.maxStamina || 100;
+                const restResult = game.sendOnVacation(emp.id);
+                if (!restResult.success) {
+                    showToast(restResult.message, 'warn');
+                    return;
+                }
                 emp.crunchActive = false;
 
                 if (world && world.characters && world.characters[selectedDevIndex]) {
@@ -584,7 +643,7 @@ function setupDeveloperContextMenu() {
                     soundEngine.playLevelUp();
                 }
 
-                showToast(`☕ ¡${emp.name} ha descansado y recuperó el 100% de energía!`, 'success');
+                showToast(restResult.message, 'success');
                 renderHUD(game);
             }
         });
@@ -597,6 +656,10 @@ function setupDeveloperContextMenu() {
             contextMenu.style.display = 'none';
             renderRecruitment();
             openModal('modal-hire');
+            const selectedEmployeeId = game.employees[selectedDevIndex]?.id;
+            const selectedCard = selectedEmployeeId ? document.querySelector(`#current-team-list [data-employee-id="${selectedEmployeeId}"]`) : null;
+            selectedCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            selectedCard?.classList.add('hr-selected-employee');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
@@ -828,6 +891,53 @@ function renderPipelineSelector() {
     }
 }
 
+function renderBusinessModelSelector() {
+    const container = document.getElementById('business-model-options');
+    if (!container || !game || !scopeDAG) return;
+    let selectedModel = document.querySelector('input[name="business-model"]:checked')?.value || 'premium';
+    const selectedNodes = Array.from(scopeDAG.selectedNodeIds);
+    const options = game.getBusinessModelOptions(selectedNodes);
+    if (!options.some(option => option.id === selectedModel && option.available)) selectedModel = 'premium';
+    const year = game.getHistoricalYear();
+    const note = document.getElementById('business-model-year-note');
+    if (note) note.textContent = `Año ${year}. Las opciones futuras muestran su fecha de desbloqueo; F2P exige nodo de red online investigado y seleccionado.`;
+    container.innerHTML = options.map(option => {
+        const selected = selectedModel === option.id;
+        const unavailable = !option.available;
+        const lock = unavailable ? (option.lockedYear ? `🔒 Disponible en ${option.year}` : `🔒 ${option.requirement || `Disponible en ${option.year}`}`) : 'Disponible';
+        return `<label class="business-model-card ${selected ? 'selected' : ''} ${unavailable ? 'locked' : ''}"><input type="radio" name="business-model" value="${option.id}" ${selected ? 'checked' : ''} ${unavailable ? 'disabled' : ''}><span class="business-model-title">${option.label}</span><span class="business-model-description">${option.detail}</span><span class="business-model-lock">${lock}</span></label>`;
+    }).join('');
+
+    const contentSelect = document.getElementById('select-post-launch-content');
+    if (contentSelect) {
+        const prior = contentSelect.value || 'none';
+        const allContentOptions = [
+            { id: 'none', title: 'Sin contenido de pago', year: 1982 },
+            { id: 'expansion', title: 'Expansión grande en disco', year: 1995 },
+            { id: 'dlc', title: 'DLC digital menor', year: 2005 },
+            { id: 'season_pass', title: 'Pase de Temporada', year: 2005 }
+        ];
+        const contentOptions = ['f2p', 'live_service'].includes(selectedModel) ? [allContentOptions[0]] : allContentOptions;
+        contentSelect.innerHTML = contentOptions.map(item => {
+            const locked = year < item.year;
+            return `<option value="${item.id}" ${locked ? 'disabled' : ''}>${locked ? '🔒 ' : ''}${item.title}${item.year > 1982 ? ` · ${item.year}` : ''}</option>`;
+        }).join('');
+        const priorOption = contentOptions.find(item => item.id === prior);
+        contentSelect.value = priorOption && priorOption.year <= year ? prior : 'none';
+    }
+    const monetization = document.getElementById('f2p-monetization-options');
+    if (monetization) monetization.style.display = ['f2p', 'live_service'].includes(selectedModel) ? 'block' : 'none';
+    const patchSupport = document.getElementById('toggle-postlaunch-patches');
+    if (patchSupport) {
+        patchSupport.disabled = year < 1995;
+        if (year < 1995) patchSupport.checked = false;
+        const patchLabel = patchSupport.closest('label');
+        if (patchLabel) patchLabel.lastChild.textContent = year < 1995
+            ? ' 🔒 Parches rudimentarios disponibles desde 1995'
+            : ' Mantener soporte post-lanzamiento con parches';
+    }
+}
+
 function applyDAGPreset(presetId) {
     let targetNodes = [];
     if (presetId === 'indie') {
@@ -901,6 +1011,8 @@ function renderDAGNodes() {
         }
     });
 
+    renderBusinessModelSelector();
+
     const pipe = pipelineManager.getActivePipeline();
     const mgr = techTreeManager || (game && game.techTreeManager);
 
@@ -916,6 +1028,7 @@ function renderDAGNodes() {
 
     // Filter strictly: In the game creation wizard ONLY nodes with state DESBLOQUEADO may appear!
     const availableNodes = SCOPE_NODES_CATALOG.filter(node => {
+        if (game && game.getHistoricalYear() < 1995 && ['net_p2p', 'net_dedicated'].includes(node.id)) return false;
         if (mgr && typeof mgr.isUnlocked === 'function') {
             return mgr.isUnlocked(node.id);
         }
@@ -1262,6 +1375,10 @@ function startProjectFromWizard() {
     const genreId = document.getElementById('select-genre').value;
     const platformId = document.getElementById('select-platform').value;
     const targetAudience = document.getElementById('select-audience').value;
+    const businessModel = document.querySelector('input[name="business-model"]:checked')?.value || 'premium';
+    const postLaunchContent = document.getElementById('select-post-launch-content').value || 'none';
+    const monetizationStyle = document.getElementById('select-monetization-style').value || 'cosmetic';
+    const supportsPatches = document.getElementById('toggle-postlaunch-patches').checked;
 
     renderPipelineSelector();
     const activePipeline = pipelineManager.getActivePipeline();
@@ -1290,7 +1407,8 @@ function startProjectFromWizard() {
     debtManager.setBaseDebt(activePipeline.baseDebtFloor);
 
     const result = game.startNewGameProject({
-        name, topicId, genreId, platformId, targetAudience, dagConfig
+        name, topicId, genreId, platformId, targetAudience, dagConfig,
+        businessModel, postLaunchContent, monetizationStyle, supportsPatches
     });
 
     if (result.success) {
@@ -1310,6 +1428,17 @@ function startProjectFromWizard() {
 // --- HUD & STATUS BAR RENDERING ---
 
 function renderHUD(state) {
+    const pendingOffers = state.currentProject?.offers || [];
+    if (pendingOffers.length) {
+        const offerKey = `${state.currentProject.name}:${pendingOffers.map(offer => offer.id).join(',')}`;
+        if (offerKey !== lastNotifiedProjectOfferKey) {
+            lastNotifiedProjectOfferKey = offerKey;
+            showToast(`📨 Nueva propuesta comercial para "${state.currentProject.name}". Revisa sus términos en el panel del proyecto.`, 'info');
+        }
+    } else {
+        lastNotifiedProjectOfferKey = null;
+    }
+
     // Studio Title & Logo
     const titleEl = document.getElementById('studio-title');
     if (titleEl) titleEl.innerHTML = `${state.companyName} <span class="studio-edit-hint">✏️</span>`;
@@ -1349,6 +1478,8 @@ function renderHUD(state) {
         document.getElementById('proj-tag-topic').innerText = proj.topic.name;
         document.getElementById('proj-tag-genre').innerText = proj.genre.name;
         document.getElementById('proj-tag-platform').innerText = proj.platform.name;
+        const businessTag = document.getElementById('proj-tag-business');
+        if (businessTag) businessTag.innerText = ({ premium: 'Premium', early_access: 'Acceso Anticipado', f2p: 'Free-to-Play', live_service: 'Live-Service' })[proj.businessModel] || 'Premium';
 
         const pipeTag = document.getElementById('proj-tag-pipeline');
         if (pipeTag) {
@@ -1466,9 +1597,24 @@ function renderHUD(state) {
         document.getElementById('stage-label').innerText = stageNames[proj.stage];
 
         const releaseBtn = document.getElementById('btn-release-game');
-        if (proj.stage === 4) {
+        const canLaunchBeta = proj.businessModel === 'early_access' && proj.overallProgress >= 50 && proj.overallProgress <= 80;
+        if (proj.stage === 4 || canLaunchBeta) {
             releaseBtn.style.display = 'block';
-            if (healthStatus === 'clean') {
+            releaseBtn.disabled = false;
+            if (canLaunchBeta) {
+                releaseBtn.innerText = '🚀 Publicar en Acceso Anticipado (50–80%)';
+                releaseBtn.style.background = 'linear-gradient(135deg, #38bdf8, #2563eb)';
+            } else if (proj.businessModel === 'early_access') {
+                if (proj.launchPhase === 'beta_live') {
+                    const betaGame = state.gamesHistory.find(item => item.id === proj.earlyAccessGameId);
+                    const weeksLeft = Math.max(0, 8 - (betaGame?.weeksOnMarket || 0));
+                    releaseBtn.innerText = weeksLeft ? `🚀 Lanzamiento 1.0 Oficial · ${weeksLeft} sem de beta` : '🚀 Lanzamiento 1.0 Oficial';
+                    releaseBtn.disabled = weeksLeft > 0;
+                } else {
+                    releaseBtn.innerText = '🚀 Lanzar 1.0 (sin beta pública)';
+                }
+                releaseBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            } else if (healthStatus === 'clean') {
                 releaseBtn.innerText = `🚀 Lanzar Videojuego (Código Limpio: ${visibleDebt} pts)`;
                 releaseBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
             } else if (healthStatus === 'moderate') {
@@ -1485,6 +1631,19 @@ function renderHUD(state) {
         projBar.style.display = 'none';
     }
 
+    const offersContainer = document.getElementById('project-offers-container');
+    if (offersContainer) {
+        const project = state.currentProject;
+        if (project?.offers?.length) {
+            offersContainer.style.display = 'block';
+            offersContainer.innerHTML = `<div class="business-offer-panel"><strong>📨 Propuestas comerciales (${state.getHistoricalYear()})</strong><p>Revisa el anticipo, las comisiones y las restricciones antes de firmar. Solo puedes aceptar un acuerdo por proyecto.</p><div class="contract-offer-list">${project.offers.map(offer => `<article class="contract-offer-card"><div><b>${offer.title}</b><p>${offer.detail}</p></div><button class="dock-btn btn-primary-action" onclick="reviewBusinessOffer('${offer.id}')">Revisar términos</button></article>`).join('')}</div></div>`;
+        } else if (project?.acceptedOffer) {
+            offersContainer.style.display = 'block';
+            offersContainer.innerHTML = `<div class="business-offer-panel">✅ Acuerdo aceptado: ${project.acceptedOffer.title} · Anticipo $${project.acceptedOffer.amount.toLocaleString()}</div>`;
+        } else {
+            offersContainer.style.display = 'none';
+        }
+    }
     // Post-Launch Emergency Patch Crisis Banner (Punto 5)
     const patchBanner = document.getElementById('emergency-patch-banner');
     if (patchBanner) {
@@ -1511,6 +1670,162 @@ function renderHUD(state) {
         upgradeBtn.style.display = 'none';
     }
 }
+
+window.acceptBusinessOffer = function(offerId) {
+    const result = game.acceptProjectOffer(offerId);
+    if (result.success) closeAllModals();
+    showToast(result.message, result.success ? 'success' : 'warn');
+};
+
+window.reviewBusinessOffer = function(offerId) {
+    const project = game.currentProject;
+    const offer = project?.offers?.find(item => item.id === offerId);
+    if (!offer) return showToast('Esta oferta ya no está disponible.', 'warn');
+    const content = document.getElementById('contract-negotiation-content');
+    const money = Number(offer.amount || 0).toLocaleString();
+    const allowed = offer.allowedPlatforms || offer.platforms || (offer.type === 'console_exclusive' ? [offer.platform || 'Plataforma ofertante'] : ['Todas las plataformas']);
+    const restrictions = offer.restriction || offer.restrictions || offer.detail || 'Sin restricciones adicionales.';
+    const deliveryDeadline = offer.deliveryDeadline || (offer.deadlineWeeks ? `${offer.deadlineWeeks} semanas desde la firma` : 'Sin fecha límite');
+    const delayPenalty = offer.delayPenalty || offer.latePenaltyPerWeek;
+    const upfrontLabel = offer.type === 'publisher_advance' ? 'Anticipo de producción' : 'Pago garantizado';
+    const royalty = Math.round((offer.revenueShare || offer.royaltyRate || 0) * 100);
+    content.innerHTML = `<div class="contract-issuer">${offer.company || offer.publisher || offer.platformName || 'Socio comercial'} · ${offer.typeLabel || offer.title}</div><p class="contract-description">${offer.detail || 'Propuesta de financiación para este proyecto.'}</p><dl class="contract-terms"><div><dt>${upfrontLabel}</dt><dd>$${money}</dd></div><div><dt>Parte de ingresos retenida</dt><dd>${royalty}%</dd></div><div><dt>Plataformas permitidas</dt><dd>${allowed.join(', ')}</dd></div><div><dt>Plazo y restricciones</dt><dd>${restrictions}</dd></div>${offer.type === 'publisher_advance' ? `<div><dt>Fecha de entrega</dt><dd>${deliveryDeadline}</dd></div><div><dt>Penalización por retraso</dt><dd>$${Number(delayPenalty || 0).toLocaleString()} por semana (con tope)</dd></div>` : ''}</dl><div class="contract-negotiation-actions"><button class="dock-btn btn-primary-action" onclick="acceptBusinessOffer('${offer.id}')">Aceptar Acuerdo</button><button class="dock-btn" onclick="negotiateBusinessOffer('${offer.id}')">Negociar Mejores Términos</button><button class="dock-btn contract-reject" onclick="rejectBusinessOffer('${offer.id}')">Rechazar y Mantener Independencia</button></div><small class="contract-risk-note">La negociación puede hacer que el ofertante retire la propuesta.</small>`;
+    openModal('modal-contract-negotiation');
+};
+
+window.negotiateBusinessOffer = function(offerId) {
+    const result = typeof game.negotiateProjectOffer === 'function'
+        ? game.negotiateProjectOffer(offerId)
+        : { success: false, message: 'La negociación de contraofertas aún no está disponible.' };
+    closeAllModals();
+    showToast(result.message, result.success ? 'success' : 'warn');
+};
+
+window.rejectBusinessOffer = function(offerId) {
+    const result = typeof game.rejectProjectOffer === 'function'
+        ? game.rejectProjectOffer(offerId)
+        : { success: false, message: 'El rechazo de ofertas aún no está disponible.' };
+    closeAllModals();
+    showToast(result.message, result.success ? 'success' : 'warn');
+};
+
+window.launchOfficialGameVersion = function(gameId) {
+    const result = game.launchOfficialVersion(gameId);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderLiveOps();
+};
+
+window.deployGameContentPatch = function(gameId) {
+    const result = game.deployContentPatch(gameId);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderLiveOps();
+};
+
+window.launchGameBattlePass = function(gameId) {
+    const input = document.getElementById(`season-programmers-${gameId}`);
+    const result = game.launchBattlePass(gameId, input ? Number(input.value) : 1);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderLiveOps();
+};
+
+window.closeGameLiveServers = function(gameId) {
+    const result = game.closeGameServers(gameId);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderLiveOps();
+};
+
+function renderLiveOps() {
+    const container = document.getElementById('liveops-games-container');
+    if (!container) return;
+    const activeGames = game.gamesHistory.filter(item => ['f2p', 'live_service', 'early_access'].includes(item.businessModel) || (item.businessModel === 'premium' && item.supportsPatches));
+    if (!activeGames.length) {
+        container.innerHTML = '<div class="business-offer-panel">Aún no hay juegos F2P, Live-Service o en Acceso Anticipado. Estarán disponibles según la línea temporal y los nodos de red investigados.</div>';
+        return;
+    }
+    const previousAssignments = new Map(Array.from(container.querySelectorAll('select[id^="season-programmers-"]')).map(select => [select.id, select.value]));
+    container.innerHTML = activeGames.map(item => {
+        const values = item.dailyActiveUsers || [];
+        const maxMau = Math.max(1, ...values);
+        const points = values.map((value, index) => `${values.length <= 1 ? 300 : index * (600 / (values.length - 1))},${105 - (value / maxMau) * 90}`).join(' ');
+        const graph = values.length > 1
+            ? `<svg viewBox="0 0 600 120" class="liveops-chart" role="img" aria-label="Usuarios activos diarios"><polyline points="${points}" fill="none" stroke="#38bdf8" stroke-width="3"/><line x1="0" y1="106" x2="600" y2="106" stroke="rgba(255,255,255,.18)"/></svg>`
+            : '<div class="liveops-chart-empty">El gráfico de retención se poblará durante las próximas semanas.</div>';
+        const modelName = item.businessModel === 'f2p' ? 'Free-to-Play' : (item.businessModel === 'live_service' ? 'Live-Service' : (item.businessModel === 'early_access' ? 'Acceso Anticipado' : 'Premium con parches'));
+        const eaProject = game.currentProject?.earlyAccessGameId === item.id ? game.currentProject : null;
+        const officialReady = item.weeksOnMarket >= 8 && eaProject?.stage >= 4;
+        const officialButton = item.isEarlyAccess && !item.officialReleased
+            ? `<button class="dock-btn btn-primary-action" onclick="launchOfficialGameVersion('${item.id}')" ${!officialReady ? 'disabled' : ''}>🚀 Lanzamiento 1.0 Oficial${item.weeksOnMarket < 8 ? ` · ${8 - item.weeksOnMarket} sem de beta` : (eaProject?.stage < 4 ? ' · termina el pulido' : '')}</button>` : '';
+        const priorAssignment = previousAssignments.get(`season-programmers-${item.id}`) || '1';
+        const seasonButton = item.businessModel === 'live_service' && !item.serversClosed
+            ? `<div class="liveops-actions"><label>Programadores para la temporada <select id="season-programmers-${item.id}" class="form-select" style="width:auto;display:inline-block">${Array.from({ length: Math.max(1, game.employees.length) }, (_, i) => `<option value="${i + 1}" ${Number(priorAssignment) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label><button class="dock-btn" onclick="launchGameBattlePass('${item.id}')" ${item.weeksOnMarket < item.nextSeasonWeek ? 'disabled' : ''}>🎟️ Pase de Batalla ${item.weeksOnMarket >= item.nextSeasonWeek ? 'disponible' : `en ${item.nextSeasonWeek - item.weeksOnMarket} sem`}</button></div>` : '';
+        return `<article class="liveops-game-card"><div class="liveops-card-header"><div><h3>${item.name}</h3><span>${modelName} · Estado: ${item.lifecycleState}</span></div><strong>${(item.mau || 0).toLocaleString()} MAU</strong></div>${graph}<div class="liveops-metrics"><span>Instalaciones: ${(item.installationsTotal || 0).toLocaleString()}</span><span>Conversión: ${Math.round((item.conversionRate || 0) * 100)}%</span><span>Ingreso mensual: $${(item.monthlyServiceRevenue || 0).toLocaleString()}</span><span>Coste mensual: $${(item.monthlyServiceCosts || 0).toLocaleString()}</span><b>Balance neto: $${(item.monthlyNetBalance || 0).toLocaleString()}</b><span>Paciencia: ${item.communityPatience ?? 100}% · Sin parche: ${item.weeksWithoutContentPatch || 0} sem</span></div><div class="liveops-actions">${officialButton}<button class="dock-btn" onclick="deployGameContentPatch('${item.id}')">🧩 Publicar parche ($6.000+)</button>${seasonButton}${['f2p', 'live_service'].includes(item.businessModel) && !item.serversClosed ? `<button class="dock-btn btn-refactor" onclick="closeGameLiveServers('${item.id}')">🛑 Cerrar Servidores / Descontinuar Juego</button>` : ''}</div></article>`;
+    }).join('');
+}
+
+function renderMarketingHub() {
+    const container = document.getElementById('marketing-hub-content');
+    if (!container) return;
+    const project = game.currentProject;
+    const year = game.getHistoricalYear();
+    const options = typeof game.getMarketingOptions === 'function' ? (game.getMarketingOptions() || []) : [];
+    const priorTargetId = document.getElementById('marketing-key-game')?.value;
+    const campaigns = options.map(option => {
+        const locked = option.available === false;
+        const title = option.label || option.name || option.title || option.id;
+        const note = locked ? `🔒 Disponible en ${option.year || 'una era posterior'}` : (option.description || option.detail || 'Promoción de prelanzamiento');
+        const cost = Number(option.cost || 0);
+        return `<article class="marketing-action-card"><div><b>${title}</b><p>${note}</p>${!locked && cost ? `<small>Coste: $${cost.toLocaleString()}</small>` : ''}</div><button type="button" class="dock-btn btn-primary-action" onclick="runMarketingMethod('${option.id}')" ${locked || !project ? 'disabled' : ''}>${locked ? 'Bloqueado' : 'Lanzar campaña'}</button></article>`;
+    }).join('');
+    const targetGames = [ ...(project ? [{ id: project.id || `project:${project.name}`, name: `${project.name} (en desarrollo)`, isProject: true }] : []), ...game.gamesHistory.map(item => ({ id: item.id, name: item.name })) ];
+    const selectedTargetId = targetGames.some(item => String(item.id) === String(priorTargetId)) ? priorTargetId : targetGames[0]?.id;
+    const creators = typeof game.getCreatorProfiles === 'function'
+        ? (game.getCreatorProfiles(selectedTargetId) || [])
+        : (game.creatorProfiles || game.streamerProfiles || game.creators || []);
+    const targetSelect = targetGames.length
+        ? `<label class="marketing-key-target">Juego para las claves <select id="marketing-key-game" class="form-select" onchange="window.refreshMarketingHub()">${targetGames.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedTargetId) ? 'selected' : ''}>${item.name}</option>`).join('')}</select></label>`
+        : '<p class="marketing-empty">Crea o lanza un juego para enviar claves promocionales.</p>';
+    const creatorCards = creators.length ? creators.map(creator => {
+        const followers = Number(creator.followers || creator.audience || creator.viewers || 0);
+        const genres = creator.genres || creator.preferences || creator.genrePreferences || [];
+        const unavailable = creator.available === false || creator.alreadySent;
+        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `🔒 Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${Number(creator.fee || 0).toLocaleString()}`);
+        return `<article class="marketing-creator-card"><div><b>${creator.name || 'Creador'}</b><span>${creator.platform || 'Plataforma de streaming'} · ${followers.toLocaleString()} seguidores</span><small>Preferencias: ${Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas'}</small><small>${availability}</small></div><button type="button" class="dock-btn" onclick="sendMarketingKeys('${creator.id}')" ${!targetGames.length || unavailable ? 'disabled' : ''}>🎮 Enviar clave</button></article>`;
+    }).join('') : '<p class="marketing-empty">Los perfiles de creadores aparecerán cuando se desbloquee el streaming.</p>';
+    const recentGameFeed = game.gamesHistory.slice(0, 5).flatMap(item => [
+        ...(item.marketingFeed || []),
+        ...(item.socialFeed || [])
+    ]);
+    const feed = [
+        ...recentGameFeed,
+        ...(project?.marketingFeed || []),
+        ...(game.marketingFeed || []),
+        ...(game.socialFeed || [])
+    ].slice(-10).reverse();
+    const feedMarkup = feed.length ? feed.map(post => `<li><span>${post.icon || '💬'}</span><div><b>${post.author || post.handle || post.source || 'Comunidad'}</b><p>${post.text || post.message || post.content || ''}</p><small>${post.time || post.date || ''}</small></div></li>`).join('') : '<li class="marketing-empty">Aún no hay comentarios. El feed reaccionará a tus campañas y lanzamientos.</li>';
+    const broadcasts = game.streamerBroadcasts || [];
+    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>🔴</span><div><b>${show.creatorName || show.name || 'Creador'} está retransmitiendo</b><p>${show.gameName || 'Tu juego'} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
+    const approvalGames = game.gamesHistory.filter(item => item.userApproval !== undefined || item.reviewBombing);
+    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · ⚠️ Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
+
+    container.innerHTML = `<div class="marketing-summary"><span>📅 Era ${year}</span><span>Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span>Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span>Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>📢 Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>🎥 Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>🔴 En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>💬 Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div><section class="marketing-section"><h3>⭐ Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
+}
+
+window.refreshMarketingHub = renderMarketingHub;
+
+window.runMarketingMethod = function(methodId) {
+    if (typeof game.runProjectMarketing !== 'function') return showToast('Las campañas todavía no están disponibles.', 'warn');
+    const result = game.runProjectMarketing(methodId);
+    showToast(result?.message || 'Campaña actualizada.', result?.success === false ? 'warn' : 'success');
+    renderMarketingHub();
+};
+
+window.sendMarketingKeys = function(creatorId) {
+    if (typeof game.sendStreamerKeys !== 'function') return showToast('El envío de claves todavía no está disponible.', 'warn');
+    const targetId = document.getElementById('marketing-key-game')?.value;
+    const result = game.sendStreamerKeys(targetId, creatorId, 1);
+    showToast(result?.message || 'Clave enviada al creador.', result?.success === false ? 'warn' : 'success');
+    renderMarketingHub();
+};
 
 function handleOfficeUpgrade() {
     const res = game.upgradeOffice();
@@ -1568,22 +1883,60 @@ function renderRecruitment() {
 
     const maxStaff = game.getMaxStaffCapacity();
     document.getElementById('hire-capacity').innerText = `Capacidad del Estudio: ${game.employees.length}/${maxStaff} miembros`;
+    const modeStatus = document.getElementById('work-mode-status');
+    const workMode = game.workMode || 'normal';
+    const modeCopy = {
+        normal: 'Activo: Ritmo normal · 40 horas, recuperación equilibrada y desgaste mínimo.',
+        relaxed: 'Activo: Ritmo relajado · 30 horas, velocidad al 80% y recuperación de moral.',
+        crunch: 'Activo: Crunch · +40% de avance, desgaste acelerado y riesgo de burnout.'
+    };
+    if (modeStatus) modeStatus.innerHTML = `<span>${modeCopy[workMode] || modeCopy.normal}</span>`;
+    document.querySelectorAll('.hr-mode-buttons button').forEach(button => {
+        const selected = button.getAttribute('onclick')?.includes(`'${workMode}'`);
+        button.classList.toggle('active', Boolean(selected));
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+
+    const headhuntPanel = document.getElementById('headhunt-notices');
+    const headhunts = game.pendingHeadhunts || [];
+    if (headhuntPanel) {
+        headhuntPanel.style.display = headhunts.length ? 'grid' : 'none';
+        headhuntPanel.innerHTML = headhunts.map(offer => {
+            const employeeId = offer.employeeId || offer.id;
+            const employee = game.employees.find(item => item.id === employeeId);
+            const name = offer.employeeName || employee?.name || 'Empleado';
+            const weeksRemaining = offer.deadlineWeeksRemaining;
+            const deadlineLabel = weeksRemaining !== undefined ? `${weeksRemaining} semanas` : `${offer.deadlineDaysRemaining ?? offer.daysRemaining ?? 21} días`;
+            const proposedSalary = offer.offeredSalary || offer.counterofferSalary || 0;
+            return `<article class="hr-headhunt-card"><div><b>🧠 Oferta rival por ${name}</b><small>Salario propuesto: $${Number(proposedSalary).toLocaleString()}/mes · ${deadlineLabel} para responder</small></div><div><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','match')">Igualar oferta</button><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','bonus')">Bonus puntual</button><button class="staff-action-btn hr-danger-btn" onclick="resolveHeadhuntAction('${employeeId}','let_go')">Dejar marchar</button></div></article>`;
+        }).join('');
+    }
 
     // 1. Current Active Team with live Stamina bars
     game.employees.forEach(emp => {
-        const staminaPct = Math.round((emp.stamina / emp.maxStamina) * 100);
+        const energy = emp.energy ?? emp.stamina ?? 100;
+        const staminaPct = Math.round((energy / (emp.maxStamina || 100)) * 100);
         const staminaClass = staminaPct > 50 ? '' : (staminaPct > 25 ? 'warn' : 'crit');
-        const statusLabel = staminaPct > 50 ? 'Óptimo' : (staminaPct > 25 ? 'Cansado' : 'Fatigado');
+        const statusLabel = emp.burnoutState === 'total' ? 'Burnout total' : (emp.burnoutState === 'risk' ? 'Riesgo burnout' : (staminaPct > 50 ? 'Óptimo' : (staminaPct > 25 ? 'Cansado' : 'Fatigado')));
+        const experience = emp.experience || emp.level || 'Mid';
+        const stressResistance = emp.stressResistance ?? 50;
+        const morale = emp.morale ?? 70;
+        const stress = emp.stress ?? 0;
+        const statusIcon = emp.burnoutState === 'total' ? '🔥' : (emp.burnoutState === 'risk' ? '⚡' : (staminaPct < 40 ? '☕' : (morale >= 80 ? '💡' : '')));
+        const speedRating = emp.speedRating ?? Math.round((emp.speed || 1) * 75);
 
         const card = document.createElement('div');
         card.className = 'candidate-card';
+        card.dataset.employeeId = emp.id;
         card.innerHTML = `
             <div style="flex-grow: 1;">
                 <strong style="font-size: 15px; color: #fff;">${emp.name}</strong> 
                 <span style="font-size: 11px; color: var(--accent-cyan);">[${emp.trait}]</span>
+                <span class="hr-status-icon">${statusIcon}</span>
                 <div style="font-size: 12px; color: var(--text-secondary); margin: 3px 0;">
-                    ${emp.role} • 💻 Tech: <strong>${emp.tech}</strong> | 🎨 Design: <strong>${emp.design}</strong> | ⚡ Vel: <strong>${emp.speed}x</strong>
+                    ${emp.role} · ${experience} • 💻 Tech: <strong>${emp.tech}</strong> | 🎨 Design: <strong>${emp.design}</strong> | ⚡ Vel: <strong>${speedRating}</strong>
                 </div>
+                <div class="hr-employee-metrics"><span>🙂 Moral: ${Math.round(morale)}%</span><span>⚡ Estrés: ${Math.round(stress)}%</span><span>🛡️ Resistencia: ${stressResistance}</span><span>🤒 Baja: ${emp.sickWeeksRemaining || 0} sem</span><span>📆 Crunch: ${emp.continuousCrunchWeeks || 0} sem</span></div>
                 <div class="stamina-container">
                     <span style="font-size: 11px; color: var(--text-secondary);">Energía:</span>
                     <div class="stamina-bar">
@@ -1596,6 +1949,7 @@ function renderRecruitment() {
             </div>
             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
                 <span style="font-weight: 700; color: var(--accent-green); font-size: 13px;">$${emp.salary.toLocaleString()}/mes</span>
+                <div class="hr-salary-controls"><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 0.9)})">−10%</button><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 1.1)})">+10%</button>${emp.isLead ? '<b class="hr-lead-badge">⭐ Líder</b>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${emp.id}')">⭐ Liderazgo</button>`}</div>
                 <div style="display: flex; gap: 6px;">
                     <button class="staff-action-btn" onclick="sendOnVacation('${emp.id}')" title="Restaura 100% de energía">🏖️ Vacaciones ($2k)</button>
                     <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'tech')" title="+8 Tech permanentemente">💻 +8 Tech</button>
@@ -1605,6 +1959,19 @@ function renderRecruitment() {
         `;
         currentList.appendChild(card);
     });
+
+    const mentorSelect = document.getElementById('mentor-select');
+    const menteeSelect = document.getElementById('mentee-select');
+    const seniorStaff = game.employees.filter(emp => ['senior', 'lead'].includes(String(emp.experience || emp.level || '').toLowerCase()));
+    const juniorStaff = game.employees.filter(emp => ['junior', 'entry'].includes(String(emp.experience || emp.level || '').toLowerCase()));
+    if (mentorSelect) mentorSelect.innerHTML = (seniorStaff.length ? seniorStaff : []).map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role}</option>`).join('') || '<option value="">No hay mentor senior disponible</option>';
+    if (menteeSelect) menteeSelect.innerHTML = (juniorStaff.length ? juniorStaff : []).map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role}</option>`).join('') || '<option value="">No hay aprendiz junior disponible</option>';
+    const trainingButton = document.querySelector('.hr-training-panel button[onclick="startEmployeeMentoring()"]');
+    if (trainingButton) trainingButton.disabled = !seniorStaff.length || !juniorStaff.length || game.currentProject !== null;
+    const trainingHint = document.querySelector('.hr-training-panel small');
+    if (trainingHint) trainingHint.textContent = game.currentProject
+        ? 'Disponible cuando el estudio esté inactivo, sin un juego en producción.'
+        : 'Asigna un mentor senior a un junior durante el tiempo inactivo del estudio.';
 
     // 2. Available Candidates Pool
     const candidatesList = document.getElementById('candidates-list');
@@ -1623,7 +1990,7 @@ function renderRecruitment() {
                 <strong style="font-size: 15px; color: #fff;">${c.name}</strong> 
                 <span style="font-size: 12px; color: var(--accent-cyan);">[${c.trait}]</span>
                 <div style="font-size: 13px; color: var(--text-secondary); margin-top: 3px;">
-                    ${c.role} • 💻 Tech: <strong>${c.tech}</strong> | 🎨 Design: <strong>${c.design}</strong> | ⚡ Vel: <strong>${c.speed}x</strong>
+                    ${c.role} · ${c.experience || c.level || 'Mid'} • 💻 Tech: <strong>${c.tech}</strong> | 🎨 Design: <strong>${c.design}</strong> | ⚡ Vel: <strong>${c.speedRating ?? Math.round((c.speed || 1) * 75)}</strong> | 🛡️ Estrés: <strong>${c.stressResistance ?? 50}</strong>
                 </div>
                 <div style="font-size: 11px; color: var(--text-secondary); font-style: italic; margin-top: 2px;">
                     ${c.desc || ''}
@@ -1662,14 +2029,71 @@ window.orderTeamCoffee = function() {
     }
 };
 
+window.setTeamWorkMode = function(mode) {
+    const result = typeof game.setWorkMode === 'function'
+        ? game.setWorkMode(mode)
+        : { success: false, message: 'El selector de ritmo todavía no está disponible.' };
+    showToast(result.message || `Ritmo de trabajo: ${mode}.`, result.success === false ? 'warn' : 'success');
+    renderRecruitment();
+};
+
 window.refreshCandidates = function() {
-    const res = game.refreshCandidatePool();
+    const budget = Number(document.getElementById('recruitment-budget')?.value || 2500);
+    const res = typeof game.refreshCandidatePool === 'function'
+        ? game.refreshCandidatePool(budget)
+        : game.refreshCandidates(budget);
     if (res.success) {
         renderRecruitment();
         showToast("🔄 Bolsa de empleo actualizada con nuevos candidatos.", 'info');
     } else {
         showToast(res.message, 'warn');
     }
+};
+
+window.adjustEmployeeSalary = function(empId, change) {
+    const result = typeof game.adjustEmployeeSalary === 'function'
+        ? game.adjustEmployeeSalary(empId, change)
+        : { success: false, message: 'El ajuste salarial todavía no está disponible.' };
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderRecruitment();
+};
+
+window.adjustSelectedEmployeeSalary = function(change) {
+    const employee = game.employees[selectedDevIndex];
+    if (!employee) return;
+    window.adjustEmployeeSalary(employee.id, Math.round(employee.salary * (1 + Number(change || 0))));
+};
+
+window.assignEmployeeLead = function(empId) {
+    const result = typeof game.assignLeadership === 'function'
+        ? game.assignLeadership(empId)
+        : { success: false, message: 'La asignación de liderazgo todavía no está disponible.' };
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderRecruitment();
+};
+
+window.assignSelectedEmployeeLead = function() {
+    const employee = game.employees[selectedDevIndex];
+    if (employee) window.assignEmployeeLead(employee.id);
+};
+
+window.resolveHeadhuntAction = function(empId, action) {
+    const result = typeof game.resolveHeadhunt === 'function'
+        ? game.resolveHeadhunt(empId, action)
+        : { success: false, message: 'La respuesta a headhunters todavía no está disponible.' };
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderRecruitment();
+};
+
+window.startEmployeeMentoring = function() {
+    const mentorId = document.getElementById('mentor-select')?.value;
+    const menteeId = document.getElementById('mentee-select')?.value;
+    const currency = document.getElementById('mentoring-currency')?.value || 'funds';
+    const result = typeof game.mentorEmployee === 'function'
+        ? game.mentorEmployee(mentorId, menteeId, currency)
+        : { success: false, message: 'La mentoría estará disponible cuando el estudio esté inactivo.' };
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderRecruitment();
 };
 
 window.sendOnVacation = function(empId) {
@@ -2108,7 +2532,7 @@ function renderHistoryAndCharts() {
             </div>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div style="text-align: right;">
-                    <div style="font-weight: 700; color: #fff;">${g.unitsSoldTotal.toLocaleString()} copias</div>
+                    <div style="font-weight: 700; color: #fff;">${g.businessModel === 'f2p' || g.businessModel === 'live_service' ? `${(g.installationsTotal || 0).toLocaleString()} instalaciones` : `${g.unitsSoldTotal.toLocaleString()} copias`}</div>
                     <div style="font-size: 13px; font-weight: 700; color: ${isProfitable ? 'var(--accent-green)' : 'var(--accent-red)'};">
                         ${isProfitable ? '+' : ''}$${Math.floor(g.profit).toLocaleString()}
                     </div>
@@ -2406,6 +2830,10 @@ function openCompanyCreatorModal() {
 
 function openModal(id) {
     closeAllModals();
+    if (id === 'modal-new-game') {
+        renderPipelineSelector();
+        renderBusinessModelSelector();
+    }
     const modal = document.getElementById(id);
     if (modal) {
         modal.style.display = 'flex';

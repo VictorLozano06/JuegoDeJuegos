@@ -1503,13 +1503,27 @@ export class WorldEngine {
         bulbGroup.add(bulb);
         model.group.add(bulbGroup);
 
+        const statusBubbleCanvas = document.createElement('canvas');
+        statusBubbleCanvas.width = 128;
+        statusBubbleCanvas.height = 96;
+        const statusBubbleContext = statusBubbleCanvas.getContext('2d');
+        const statusBubbleTexture = new THREE.CanvasTexture(statusBubbleCanvas);
+        const statusBubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: statusBubbleTexture, transparent: true, depthTest: false }));
+        statusBubble.position.set(0, 2.65, 0);
+        statusBubble.scale.set(0.72, 0.54, 1);
+        statusBubble.renderOrder = 20;
+        statusBubble.visible = false;
+        model.group.add(statusBubble);
+
         const character = {
-            ...model, employee, index, face, bulbGroup, state: 'typing', stateUntil: 0,
+            ...model, employee, index, face, bulbGroup, statusBubble, statusBubbleCanvas, statusBubbleContext, statusBubbleTexture, statusBubbleIcon: '', state: 'typing', stateUntil: 0,
             dispose() {
                 face.dispose();
                 model.dispose();
                 bulb.geometry.dispose();
                 bulb.material.dispose();
+                statusBubbleTexture.dispose();
+                statusBubble.material.dispose();
             },
         };
         initializeEmployeeAnimation(character);
@@ -1676,6 +1690,38 @@ export class WorldEngine {
             if (!character.group.visible) continue;
             if (time >= character.stateUntil) character.state = 'typing';
             character.bulbGroup.visible = character.state === 'thinking';
+            const employee = character.employee || {};
+            const energy = employee.energy ?? employee.stamina ?? 100;
+            const morale = employee.morale ?? 70;
+            const stress = employee.stress ?? 0;
+            const statusIcon = employee.burnoutState === 'total' ? '🔥'
+                : ((employee.burnoutState === 'risk' || employee.crunchActive || game.workMode === 'crunch') ? '⚡'
+                    : (energy < 35 ? '☕' : (morale >= 80 && stress < 40 ? '💡' : '')));
+            if (statusIcon !== character.statusBubbleIcon) {
+                character.statusBubbleIcon = statusIcon;
+                const ctx = character.statusBubbleContext;
+                ctx.clearRect(0, 0, 128, 96);
+                if (statusIcon) {
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                    ctx.beginPath();
+                    ctx.roundRect(8, 4, 112, 76, 22);
+                    ctx.fill();
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '54px "Segoe UI Emoji", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(statusIcon, 64, 42);
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                    ctx.beginPath();
+                    ctx.moveTo(53, 78);
+                    ctx.lineTo(75, 78);
+                    ctx.lineTo(64, 94);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                character.statusBubbleTexture.needsUpdate = true;
+                character.statusBubble.visible = Boolean(statusIcon);
+            }
             animateEmployee(character, time);
             character.face.update(time, character.state);
         }
