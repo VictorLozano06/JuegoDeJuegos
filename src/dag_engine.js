@@ -530,7 +530,7 @@ const DAG_CATALOG = [
     },
     {
         id: 'sys_modding',
-        name: 'API de Modding para la Comunidad',
+        name: 'Herramientas de Modding / SDK Comunitario',
         category: 'systems',
         group: 'sys_modding',
         tier: 3,
@@ -547,9 +547,9 @@ const DAG_CATALOG = [
         genreAffinities: { Action: 1.15, RPG: 1.4, Strategy: 1.45, Simulation: 1.5, Adventure: 1.1, Casual: 1.2 },
         requiresEngineTier: 3,
         commercialUnlocked: false,
-        minYear: 2004,
+        minYear: 2000,
         eraName: 'Era 2000+ (2000-2014)',
-        costRP: 120,
+        costRP: 80,
         unlockedByDefault: false
     }
 ];

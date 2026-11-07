@@ -269,6 +269,7 @@ export class WorldEngine {
         this.serverLeds = [];
         this.confettiParticles = [];
         this.activeParticles = [];
+        this.floatingRPs = [];
         this.steamParticles = [];
 
         this.currentEra = 1;
@@ -920,8 +921,23 @@ export class WorldEngine {
         statusBubble.visible = false;
         model.group.add(statusBubble);
 
+        // 3D Engine R&D Progress Bar Sprite
+        const engineProgressCanvas = document.createElement('canvas');
+        engineProgressCanvas.width = 256;
+        engineProgressCanvas.height = 72;
+        const engineProgressContext = engineProgressCanvas.getContext('2d');
+        const engineProgressTexture = new THREE.CanvasTexture(engineProgressCanvas);
+        const engineProgressSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: engineProgressTexture, transparent: true, depthTest: false }));
+        engineProgressSprite.position.set(0, 3.25, 0);
+        engineProgressSprite.scale.set(1.4, 0.40, 1);
+        engineProgressSprite.renderOrder = 25;
+        engineProgressSprite.visible = false;
+        model.group.add(engineProgressSprite);
+
         const character = {
-            ...model, employee, index, face, bulbGroup, statusBubble, statusBubbleCanvas, statusBubbleContext, statusBubbleTexture, statusBubbleIcon: '', state: 'typing', stateUntil: 0,
+            ...model, employee, index, face, bulbGroup, statusBubble, statusBubbleCanvas, statusBubbleContext, statusBubbleTexture, statusBubbleIcon: '',
+            engineProgressSprite, engineProgressCanvas, engineProgressContext, engineProgressTexture, engineProgressVal: -1,
+            state: 'typing', stateUntil: 0,
             dispose() {
                 face.dispose();
                 model.dispose();
@@ -929,6 +945,8 @@ export class WorldEngine {
                 bulb.material.dispose();
                 statusBubbleTexture.dispose();
                 statusBubble.material.dispose();
+                engineProgressTexture.dispose();
+                engineProgressSprite.material.dispose();
             },
         };
         initializeEmployeeAnimation(character);
@@ -997,6 +1015,74 @@ export class WorldEngine {
             mesh, velocity, life: 1.0, decay: 0.032,
             rotSpeed: new THREE.Vector3(Math.random() * 6, Math.random() * 6, Math.random() * 6)
         });
+    }
+
+    spawnParticle(arg1, arg2) {
+        if (typeof this.spawnCodeParticle === 'function') {
+            if (typeof arg1 === 'string') {
+                this.spawnCodeParticle(arg1, arg2 || 0);
+            } else {
+                this.spawnCodeParticle(arg2 || 'tech', arg1 || 0);
+            }
+        }
+    }
+
+    spawnFloatingRP(empIndex = 0, amount = 3) {
+        if (!this.particlesGroup || !this.floatingRPs) return;
+        try {
+            const origin = new THREE.Vector3(0, 2.8, 0);
+            if (this.characters && this.characters[empIndex]) {
+                origin.copy(this.characters[empIndex].group.position);
+                origin.y += 2.9;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 56;
+            const ctx = canvas.getContext('2d');
+
+            // Dark pill background with neon purple/gold border
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(4, 4, 152, 48, 14);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.font = 'bold 22px "Segoe UI", sans-serif';
+            ctx.fillStyle = '#facc15';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`+${amount} RP 💡`, 80, 28);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+            const sprite = new THREE.Sprite(mat);
+            sprite.position.copy(origin);
+            sprite.position.x += (Math.random() - 0.5) * 0.4;
+            sprite.scale.set(1.05, 0.38, 1);
+            sprite.renderOrder = 30;
+            this.particlesGroup.add(sprite);
+
+            this.floatingRPs.push({
+                sprite,
+                mat,
+                texture,
+                velocity: new THREE.Vector3((Math.random() - 0.5) * 0.25, 1.2 + Math.random() * 0.4, (Math.random() - 0.5) * 0.25),
+                life: 1.0,
+                decay: 0.016
+            });
+
+            // Also emit small purple research particle cubes
+            for (let p = 0; p < 3; p++) {
+                if (typeof this.spawnCodeParticle === 'function') {
+                    this.spawnCodeParticle('research', empIndex);
+                }
+            }
+        } catch (e) {
+            console.warn('[spawnFloatingRP] Failed to render floating RP:', e);
+        }
     }
 
     triggerLaunchConfetti() {
@@ -1127,6 +1213,64 @@ export class WorldEngine {
                 character.statusBubbleTexture.needsUpdate = true;
                 character.statusBubble.visible = Boolean(statusIcon);
             }
+
+            // Floating 3D Engine R&D Progress Bar (Apartado 1)
+            const isEngineLead = game?.activeEngineRD && (game.activeEngineRD.leadProgrammerIndex === character.index || (character.index === 0 && game.activeEngineRD.leadProgrammerIndex === undefined));
+            if (isEngineLead && character.engineProgressSprite) {
+                const prog = game.activeEngineRD.progress || 0;
+                if (prog !== character.engineProgressVal) {
+                    character.engineProgressVal = prog;
+                    const ctx = character.engineProgressContext;
+                    ctx.clearRect(0, 0, 256, 72);
+
+                    // Background card
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.94)';
+                    ctx.strokeStyle = '#38bdf8';
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.roundRect(6, 4, 244, 62, 12);
+                    ctx.fill();
+                    ctx.stroke();
+
+                    // Text: ⚙️ Motor: Name (X%)
+                    ctx.font = 'bold 15px "Segoe UI", sans-serif';
+                    ctx.fillStyle = '#38bdf8';
+                    ctx.textAlign = 'left';
+                    ctx.textBaseline = 'top';
+                    const engineShort = (game.activeEngineRD.name || 'Proprietary Core').substring(0, 16);
+                    ctx.fillText(`⚙️ ${engineShort}`, 14, 10);
+
+                    ctx.font = 'bold 15px "Segoe UI", sans-serif';
+                    ctx.fillStyle = '#c084fc';
+                    ctx.textAlign = 'right';
+                    ctx.fillText(`${prog}%`, 240, 10);
+
+                    // Mini Progress Track
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    ctx.beginPath();
+                    ctx.roundRect(14, 38, 228, 16, 8);
+                    ctx.fill();
+
+                    // Progress Fill (Gradient Cyan -> Violet)
+                    if (prog > 0) {
+                        const fillWidth = Math.max(10, Math.floor((228 * prog) / 100));
+                        const grad = ctx.createLinearGradient(14, 0, 242, 0);
+                        grad.addColorStop(0, '#00d2ff');
+                        grad.addColorStop(1, '#a855f7');
+                        ctx.fillStyle = grad;
+                        ctx.beginPath();
+                        ctx.roundRect(14, 38, fillWidth, 16, 8);
+                        ctx.fill();
+                    }
+
+                    character.engineProgressTexture.needsUpdate = true;
+                }
+                character.engineProgressSprite.visible = true;
+            } else if (character.engineProgressSprite && character.engineProgressSprite.visible) {
+                character.engineProgressSprite.visible = false;
+                character.engineProgressVal = -1;
+            }
+
             animateEmployee(character, time);
             character.face.update(time, character.state);
         }
@@ -1146,6 +1290,21 @@ export class WorldEngine {
                 p.mesh.geometry.dispose();
                 p.mesh.material.dispose();
                 this.activeParticles.splice(i, 1);
+            }
+        }
+
+        // Animate Floating RP Numbers & Orbs
+        for (let r = this.floatingRPs.length - 1; r >= 0; r--) {
+            const frp = this.floatingRPs[r];
+            frp.sprite.position.addScaledVector(frp.velocity, delta);
+            frp.life -= frp.decay;
+            frp.mat.opacity = Math.max(0, frp.life);
+            frp.sprite.scale.multiplyScalar(1 + 0.12 * delta);
+            if (frp.life <= 0) {
+                this.particlesGroup.remove(frp.sprite);
+                frp.texture.dispose();
+                frp.mat.dispose();
+                this.floatingRPs.splice(r, 1);
             }
         }
 
