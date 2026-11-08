@@ -1,6 +1,8 @@
 import { buildGarageLayout } from './garage/layout.js';
 import { applyOfficeLighting } from './garage/lighting.js';
 import { createRetroWorkstation } from './garage/workstation.js';
+import { buildModernOffice } from './office/modern.js';
+import { OFFICE_CATALOG, STARTING_OFFICE } from './data/offices.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
 import { createEmployeeModel } from './characters/model.js';
@@ -12,7 +14,12 @@ import { game } from './simulation.js';
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
 const SHADOW_REFRESH_INTERVAL = 1 / 20;
-const OFFICE_CAMERA = { garage: [11, 7.3, 8], upgraded: [16, 9, -7] };
+const OFFICE_SCENES = {
+    garage: { build: buildGarageLayout, position: [11, 7.3, 8], target: [0, 1, 0] },
+    modern: { build: buildModernOffice, position: [13, 14, 16], target: [0, 0.95, -0.45] },
+    campus: { build: world => world.buildCyberCampusEra(), position: [16, 9, -7], target: [0, 1, 0] }
+};
+const officeAtTier = tier => OFFICE_CATALOG.find(office => office.tier === tier) ?? STARTING_OFFICE;
 const CRT_CODE = [
     '> RUN DEV_EMPIRE.BAS', '10 GOSUB INIT', '20 IF KEY$="" THEN 40',
     '30 GOSUB HANDLE_KEY', '40 GOSUB DRAW_FRAME', '50 GOTO 20',
@@ -257,8 +264,8 @@ export class WorldEngine {
         this.selectedDagNode = null;
 
         // Cinematic Camera Interpolation Targets
-        this.cameraOfficePos = new THREE.Vector3(...OFFICE_CAMERA.garage);
-        this.cameraOfficeTarget = new THREE.Vector3(0, 1.0, 0);
+        this.cameraOfficePos = new THREE.Vector3(...OFFICE_SCENES[STARTING_OFFICE.sceneId].position);
+        this.cameraOfficeTarget = new THREE.Vector3(...OFFICE_SCENES[STARTING_OFFICE.sceneId].target);
         this.cameraDagPos = new THREE.Vector3(0.0, 13.5, 14.5);
         this.cameraDagTarget = new THREE.Vector3(0, 3.2, 0);
         this.targetCamPos = null;
@@ -367,8 +374,10 @@ export class WorldEngine {
         this.targetCamPos = null;
         this.targetLookAt = null;
         this.isTransitioningCamera = false;
-        const position = new THREE.Vector3(...(era === 1 ? OFFICE_CAMERA.garage : OFFICE_CAMERA.upgraded));
-        return this.menuCamera.play(position, this.cameraOfficeTarget, revealOffice);
+        const framing = OFFICE_SCENES[officeAtTier(era).sceneId];
+        return this.menuCamera.play(
+            new THREE.Vector3(...framing.position), new THREE.Vector3(...framing.target), revealOffice
+        );
     }
 
     setGraphicsSettings({ resolution = this.resolution, shadows } = {}) {
@@ -624,8 +633,9 @@ export class WorldEngine {
     // --- PROCEDURAL 3D ARCHITECTURE & STORYTELLING PROPS ---
 
     buildOffice(era) {
-        const eraChanged = era !== this.currentEra;
-        this.currentEra = era;
+        const office = officeAtTier(era);
+        const eraChanged = office.tier !== this.currentEra;
+        this.currentEra = office.tier;
 
         // All props and maps in this group belong to the previous office.
         const resources = new Set();
@@ -648,66 +658,17 @@ export class WorldEngine {
         this.monitors = [];
         this.serverLeds = [];
 
-        if (era === 1) {
-            this.buildGarageEra();
-        } else if (era === 2) {
-            this.buildLoftEra();
-        } else {
-            this.buildCyberCampusEra();
-        }
-
+        const framing = OFFICE_SCENES[office.sceneId];
+        framing.build(this, THREE);
         applyOfficeLighting(this);
-        this.cameraOfficePos.set(...(era === 1 ? OFFICE_CAMERA.garage : OFFICE_CAMERA.upgraded));
+        this.cameraOfficePos.set(...framing.position);
+        this.cameraOfficeTarget.set(...framing.target);
         if (eraChanged && this.viewMode === 'office' && !this.menuCamera.active) {
+            this.isTransitioningCamera = true;
             this.targetCamPos = this.cameraOfficePos.clone();
+            this.targetLookAt = this.cameraOfficeTarget.clone();
         }
         this.updateCharacterPositions();
-    }
-
-    buildGarageEra() {
-        buildGarageLayout(this, THREE);
-    }
-
-    buildLoftEra() {
-        const roomW = 14;
-        const roomD = 14;
-
-        // Hardwood / Polished concrete floor
-        const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
-        const floorMat = new THREE.MeshStandardMaterial({
-            color: 0x27272a,
-            roughness: 0.45,
-            metalness: 0.2
-        });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        this.officeGroup.add(floor);
-
-        // Brick loft back wall
-        const backWall = new THREE.Mesh(
-            new THREE.BoxGeometry(roomW, 6.0, 0.4),
-            new THREE.MeshStandardMaterial({ map: this.createBrickWallTexture(), roughness: 0.85 })
-        );
-        backWall.position.set(0, 3.0, -roomD / 2);
-        this.officeGroup.add(backWall);
-
-        // Left glass partition wall
-        const glassWall = new THREE.Mesh(
-            new THREE.BoxGeometry(0.2, 6.0, roomD),
-            new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.25, roughness: 0.1, metalness: 0.8 })
-        );
-        glassWall.position.set(-roomW / 2, 3.0, 0);
-        this.officeGroup.add(glassWall);
-
-        // 4 Modern Workstations
-        this.createDesk(-2.4, 0, -2.0, 'modern', 0);
-        this.createDesk(2.4, 0, -2.0, 'modern', 1);
-        this.createDesk(-2.4, 0, 1.8, 'modern', 2);
-        this.createDesk(2.4, 0, 1.8, 'modern', 3);
-
-        this.createCoffeeStation(5.2, 0, -4.5);
-        this.coffeeMugPos = new THREE.Vector3(5.6, 1.35, -4.4);
     }
 
     buildCyberCampusEra() {
@@ -849,10 +810,18 @@ export class WorldEngine {
         this.registerDesk(deskGroup, index);
     }
 
-    registerDesk(group, index) {
+    registerDesk(group, index, slot = {}, parent = this.officeGroup) {
         group.userData = { type: 'desk', index };
-        this.officeGroup.add(group);
-        this.desks.push({ index, group, worldPos: group.getWorldPosition(new THREE.Vector3()) });
+        parent.add(group);
+        this.desks.push({
+            id: slot.id ?? 'desk-' + index,
+            role: slot.role ?? (index === 0 ? 'founder' : 'employee'),
+            index,
+            group,
+            worldPos: group.getWorldPosition(new THREE.Vector3()),
+            seatPos: group.localToWorld(new THREE.Vector3(0, 0, 0.85)),
+            occupant: null
+        });
     }
 
     createChair(color) {
@@ -1028,12 +997,18 @@ export class WorldEngine {
     }
 
     updateCharacterPositions() {
+        const founderIndex = Math.max(0, this.characters.findIndex(character => character.employee.id === 'player'));
+        const staffDesks = this.desks.filter(desk => desk.role === 'employee');
+        const founderDesk = this.desks.find(desk => desk.role === 'founder');
+        this.desks.forEach(desk => { desk.occupant = null; });
+        let staffIndex = 0;
         this.characters.forEach((character, index) => {
-            const desk = this.desks[index];
+            const desk = index === founderIndex ? founderDesk : staffDesks[staffIndex++];
+            character.deskIndex = desk?.index;
             character.group.visible = Boolean(desk);
             if (!desk) return;
-            const { x, y, z } = desk.worldPos;
-            character.group.position.set(x, y, z + 0.85);
+            desk.occupant = character;
+            character.group.position.copy(desk.seatPos);
         });
     }
 
@@ -1041,8 +1016,9 @@ export class WorldEngine {
 
     spawnCodeParticle(type, empIndex) {
         let origin = new THREE.Vector3(0, 1.85, 0);
-        if (this.monitors[empIndex]) {
-            origin.copy(this.monitors[empIndex].lightPos);
+        const monitor = this.monitors[this.characters[empIndex]?.deskIndex];
+        if (monitor) {
+            origin.copy(monitor.lightPos);
         }
 
         let color = 0x00d2ff; // tech cyan
@@ -1255,7 +1231,7 @@ export class WorldEngine {
                 character.statusBubble.visible = false;
                 character.statusBubbleIcon = '';
                 character.engineProgressSprite.visible = false;
-                animateEmployee(character, time, character.index === 0 ? -0.51 : 0);
+                animateEmployee(character, time, character.deskIndex === 0 ? -0.51 : 0);
                 character.face.update(time, character.state);
                 continue;
             }
@@ -2341,14 +2317,15 @@ export class WorldEngine {
             }
 
             // 2. Raycast Characters & Workstations (Hover de personajes al estilo Game Dev Tycoon)
-            const officeTargets = [...this.charactersGroup.children, ...this.desks.map(d => d.group)];
+            const visibleCharacters = this.characters.filter(character => character.group.visible);
+            const officeTargets = [...visibleCharacters.map(character => character.group), ...this.desks.map(d => d.group)];
             const officeHits = raycaster.intersectObjects(officeTargets, true);
 
             if (officeHits.length > 0) {
                 const hitObj = officeHits[0].object;
                 let targetChar = null;
 
-                for (const char of this.characters) {
+                for (const char of visibleCharacters) {
                     if (char.group.getObjectById(hitObj.id)) {
                         targetChar = char;
                         break;
@@ -2357,7 +2334,7 @@ export class WorldEngine {
                 if (!targetChar) {
                     for (const desk of this.desks) {
                         if (desk.group.getObjectById(hitObj.id)) {
-                            targetChar = this.characters[desk.index] || this.characters[0];
+                            targetChar = desk.occupant;
                             break;
                         }
                     }
@@ -2440,7 +2417,7 @@ export class WorldEngine {
                 let character = visibleCharacters.find(item => item.group.getObjectById(hit.id));
                 if (!character) {
                     const desk = this.desks.find(item => item.group.getObjectById(hit.id));
-                    character = desk ? this.characters[desk.index] : null;
+                    character = desk?.occupant;
                 }
                 if (character) {
                     soundEngine.playKeyboardTap();

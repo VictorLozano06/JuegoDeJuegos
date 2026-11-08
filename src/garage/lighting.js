@@ -135,21 +135,24 @@ export function applyOfficeLighting(world) {
     const { ambientLight, sunLight, rimLight } = world;
     const hologram = world.viewMode === 'dag_hologram';
     const garage = world.currentEra === 1 && !hologram;
+    const modern = world.currentEra === 2 && !hologram;
 
-    ambientLight.color.setHex(garage ? 0xffd5ab : 0x2d2432);
-    ambientLight.intensity = garage ? 0.64 : hologram ? 0.35 : 0.55;
+    ambientLight.color.setHex(garage ? 0xffd5ab : modern ? 0xc0d4cf : 0x2d2432);
+    ambientLight.intensity = garage ? 0.64 : modern ? 0.60 : hologram ? 0.35 : 0.55;
 
-    sunLight.color.setHex(garage ? 0xffe6c4 : 0xffdfba);
+    sunLight.color.setHex(garage ? 0xffe6c4 : modern ? 0xfff0d8 : 0xffdfba);
     sunLight.intensity = garage ? 1.18 : hologram ? 0.35 : 1.25;
     if (garage) {
         // The high window is on the right side of the back wall.
         sunLight.position.set(5, 8, -5.5);
+    } else if (modern) {
+        sunLight.position.set(7, 12, 7);
     } else {
         sunLight.position.set(14, 18, 10);
     }
     sunLight.shadow.normalBias = garage ? 0.018 : 0;
 
-    rimLight.color.setHex(garage ? 0xffbf91 : 0x38bdf8);
+    rimLight.color.setHex(garage ? 0xffbf91 : modern ? 0x96c5c8 : 0x38bdf8);
     rimLight.intensity = garage ? 0.17 : 0.35;
     rimLight.position.set(garage ? 8 : -12, garage ? 4 : 12, garage ? 7 : -12);
     world.nextShadowRefresh = 0;

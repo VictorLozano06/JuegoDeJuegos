@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>Prueba de gestión de oficinas</title>
+</head>
+<body>
+    <h1>Prueba de gestión de oficinas</h1>
+    <pre id="result" role="status">Ejecutando…</pre>
+    <script type="module">
+        import { game } from '/src/simulation.js';
+        import { renderOfficeManager } from '/src/office-ui.js';
+
+        const result = document.getElementById('result');
+        try {
+            const response = await fetch('/index.html');
+            if (!response.ok) throw new Error('No se pudo abrir el HTML del juego.');
+            const app = new DOMParser().parseFromString(await response.text(), 'text/html');
+            const modal = app.getElementById('modal-offices');
+            document.body.append(modal);
+
+            function assert(condition, message) {
+                if (!condition) throw new Error(message);
+            }
+
+            const card = id => modal.querySelector(`[data-office-id="${id}"]`);
+            const button = id => card(id).querySelector('button');
+            const status = id => card(id).querySelector('.office-status').textContent;
+            const feedback = modal.querySelector('#office-feedback');
+            const actions = [];
+
+            function render(feedback) {
+                renderOfficeManager({
+                    offices: game.getOffices(),
+                    occupied: game.employees.length,
+                    funds: game.funds,
+                    feedback,
+                    onAction(id, action) {
+                        actions.push(action);
+                        render(action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id));
+                    }
+                });
+            }
+
+            game.funds = 499999;
+            render(null);
+            assert(status('garage') === 'Activa', 'El garaje debe aparecer activo.');
+            assert(status('modern') === 'Bloqueada', 'Falta el estado de fondos insuficientes.');
+            assert(button('modern').disabled, 'Debe bloquear la compra sin fondos.');
+            assert(card('modern').querySelector('.office-reason').textContent, 'Falta el motivo de bloqueo.');
+            assert(card('modern').textContent.includes('500.000'), 'Debe mostrar el precio de 500.000.');
+            assert(card('modern').textContent.includes('1 fundador + 4 empleados'), 'Debe mostrar el desglose de los cinco puestos.');
+
+            game.funds = 500000;
+            render();
+            assert(status('modern') === 'Disponible', 'La oficina debe aparecer disponible al alcanzar el precio.');
+            button('modern').focus();
+            render();
+            assert(document.activeElement === button('modern'), 'Una actualización debe conservar el foco de la acción.');
+            button('modern').click();
+            assert(status('modern') === 'Activa' && button('modern').disabled, 'La compra debe reflejar la nueva sede activa.');
+            assert(status('garage') === 'Comprada', 'El garaje debe seguir listado entre las sedes compradas.');
+            assert(feedback.dataset.result === 'success' && feedback.textContent, 'Falta el aviso de compra.');
+            assert(document.activeElement === card('modern').querySelector('h3'), 'Debe mover el foco al título cuando la acción se deshabilita.');
+            assert(game.funds === 0, 'El botón debe descontar exactamente 500.000.');
+
+            button('garage').click();
+            assert(status('garage') === 'Activa' && status('modern') === 'Comprada', 'El cambio entre sedes compradas debe actualizar ambas tarjetas.');
+            assert(actions.join(',') === 'purchase,activate', 'El catálogo debe distinguir compra y activación.');
+            result.textContent = 'Todas las comprobaciones de la interfaz de oficinas pasaron.';
+        } catch (error) {
+            result.textContent = `Error: ${error.message}`;
+            throw error;
+        }
+    </script>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
 import CREATOR_PROFILES from './data/streamers.json';
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
+import { OFFICE_CATALOG, STARTING_OFFICE, findOffice } from './data/offices.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
@@ -394,7 +395,9 @@ class TycoonGame {
         this.week = 1;
         this.gameSpeed = 1; // 0 = pause, 1 = normal, 2 = fast, 4 = ultra
         this.isPaused = false; // Session lifecycle pause, independent of player speed
-        this.era = 1; // 1: Garage, 2: Indie Loft, 3: Cyber Campus
+        this.activeOfficeId = STARTING_OFFICE.id;
+        this.unlockedOfficeIds = [STARTING_OFFICE.id];
+        this.era = STARTING_OFFICE.tier; // Existing simulation systems use the office tier.
         this.workMode = 'normal';
         this.employeeEvents = [];
 
@@ -3253,7 +3256,7 @@ class TycoonGame {
         // office costs weekly so long projects cannot defer their expenses.
         const totalSalaries = this.employees.reduce((acc, e) => acc + (Number(e.salary) || 0), 0);
         const year = this.getHistoricalYear();
-        const officeCost = this.era === 1 ? 300 : (this.era === 2 ? 6000 : 28000);
+        const officeCost = this.getActiveOffice().monthlyCost;
         const utilities = year < 1990 ? 100 : (year < 2000 ? 700 : 1800);
         const network = year >= 1995 ? (this.era === 3 ? 3000 : 600) : 0;
         this.lastMonthlyOperatingCosts = { salaries: totalSalaries, office: officeCost, utilities, network };
@@ -3584,57 +3587,96 @@ class TycoonGame {
         return null;
     }
 
-    // --- ERA UPGRADE SYSTEM (GARAGE -> LOFT -> CYBER CAMPUS) ---
+    // --- OFFICE OWNERSHIP AND PROGRESSION ---
+    getActiveOffice() {
+        return findOffice(this.activeOfficeId) ?? STARTING_OFFICE;
+    }
+
+    getOffices() {
+        return OFFICE_CATALOG.map(office => {
+            const isUnlocked = this.unlockedOfficeIds.includes(office.id);
+            const isActive = this.activeOfficeId === office.id;
+            const fitsStaff = this.employees.length <= office.maxEmployees;
+            const requiredFunds = Math.max(office.cost, office.minFunds ?? 0);
+            const meetsFunds = Number.isFinite(this.funds) && this.funds >= requiredFunds;
+            const meetsGames = this.gamesHistory.length >= (office.minGames ?? 0);
+            const meetsScore = !office.minScore || this.gamesHistory.some(game => game.score >= office.minScore);
+            const prerequisite = findOffice(office.requiresOffice);
+            let message = '';
+            if (!isActive) {
+                if (!isUnlocked && prerequisite && !this.unlockedOfficeIds.includes(prerequisite.id)) {
+                    message = `Compra primero la oficina ${prerequisite.name}.`;
+                } else if (!isUnlocked && !meetsFunds) {
+                    message = `Fondos insuficientes. Necesitas ${requiredFunds.toLocaleString('es-ES', { useGrouping: 'always' })} $.`;
+                } else if (!isUnlocked && !meetsGames) {
+                    message = `Publica al menos ${office.minGames} juegos antes de comprar esta oficina.`;
+                } else if (!isUnlocked && !meetsScore) {
+                    message = `Consigue una nota de ${office.minScore} o más antes de comprar esta oficina.`;
+                } else if (!fitsStaff) {
+                    message = `Tu equipo supera la capacidad de ${office.maxEmployees} puestos de esta oficina.`;
+                }
+            }
+            const canPurchase = !isUnlocked && !isActive && !message;
+            const canActivate = isUnlocked && !isActive && fitsStaff;
+            const status = isActive ? 'active' : isUnlocked ? 'owned' : canPurchase ? 'available' : 'locked';
+            return { ...office, isUnlocked, isActive, canPurchase, canActivate, status, message, meetsFunds, meetsGames, meetsScore };
+        });
+    }
+
+    purchaseOffice(id) {
+        const office = this.getOffices().find(item => item.id === id);
+        if (!office) return { success: false, message: 'Esa oficina no existe.' };
+        if (office.isUnlocked) return { success: false, message: 'Ya tienes esta oficina.' };
+        if (!office.canPurchase) return { success: false, message: office.message };
+
+        this.funds -= office.cost;
+        this.unlockedOfficeIds.push(office.id);
+        return this.#moveToOffice(office);
+    }
+
+    activateOffice(id) {
+        const office = this.getOffices().find(item => item.id === id);
+        if (!office) return { success: false, message: 'Esa oficina no existe.' };
+        if (!office.isUnlocked) return { success: false, message: 'Compra esta oficina antes de activarla.' };
+        if (office.isActive) return { success: false, message: 'Esta oficina ya está activa.' };
+        if (!office.canActivate) return { success: false, message: office.message };
+        return this.#moveToOffice(office);
+    }
+
+    #moveToOffice(office) {
+        this.activeOfficeId = office.id;
+        this.era = office.tier;
+        soundEngine.playLevelUp();
+        this.notify();
+        return {
+            success: true,
+            office: this.getActiveOffice(),
+            newEra: this.era,
+            name: office.name,
+            message: `${office.name} es ahora la sede activa del estudio.`
+        };
+    }
+
     canUpgradeOffice() {
-        if (this.era === 1) {
-            const meetsFunds = this.funds >= 150000;
-            const meetsGames = this.gamesHistory.length >= 2;
-            const meetsScore = this.gamesHistory.some(g => g.score >= 7.0);
-            return {
-                canUpgrade: meetsFunds && meetsGames && meetsScore,
-                cost: 75000,
-                targetEra: 2,
-                name: 'Loft Indie Moderno',
-                maxStaff: 4,
-                meetsFunds,
-                meetsGames,
-                meetsScore
-            };
-        } else if (this.era === 2) {
-            const meetsFunds = this.funds >= 1200000;
-            const meetsGames = this.gamesHistory.length >= 6;
-            const meetsScore = this.gamesHistory.some(g => g.score >= 8.5);
-            return {
-                canUpgrade: meetsFunds && meetsGames && meetsScore,
-                cost: 450000,
-                targetEra: 3,
-                name: 'Campus Tecnológico Cyberpunk AAA',
-                maxStaff: 8,
-                meetsFunds,
-                meetsGames,
-                meetsScore
-            };
-        }
-        return { canUpgrade: false, message: 'Ya posees el complejo tecnológico más avanzado del mundo.' };
+        const target = this.getOffices().find(office => office.requiresOffice === this.activeOfficeId);
+        if (!target) return { canUpgrade: false, message: 'Ya posees el complejo tecnológico más avanzado.' };
+        return {
+            ...target,
+            canUpgrade: target.canPurchase || target.canActivate,
+            targetEra: target.tier,
+            maxStaff: target.maxEmployees
+        };
     }
 
     upgradeOffice() {
-        const check = this.canUpgradeOffice();
-        if (!check.canUpgrade) {
-            return { success: false, message: 'No cumples con los requisitos de fondos o historial de juegos exitosos.' };
-        }
-
-        this.funds -= check.cost;
-        this.era = check.targetEra;
-
-        if (soundEngine) soundEngine.playLevelUp();
-        this.notify();
-        return { success: true, newEra: this.era, name: check.name };
+        const target = this.canUpgradeOffice();
+        if (!target.canUpgrade) return { success: false, message: target.message };
+        return target.isUnlocked ? this.activateOffice(target.id) : this.purchaseOffice(target.id);
     }
 
     // --- STAFF MANAGEMENT & PROCEDURAL RECRUITMENT ---
     getMaxStaffCapacity() {
-        return this.era === 1 ? 2 : (this.era === 2 ? 4 : 8);
+        return this.getActiveOffice().maxEmployees;
     }
 
     hireEmployee(candidate) {

@@ -5,6 +5,7 @@ import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DAT
 import REAL_BRANDS_MOD_PACK from './data/mod_sample_real_brands.json';
 import { WorldEngine } from './world.js';
 import { createMainMenu } from './main-menu.js';
+import { renderOfficeManager } from './office-ui.js';
 import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
@@ -24,6 +25,7 @@ let mainMenu;
 let creatingNewGame = false;
 let appliedSettings;
 const initialProfile = {
+    officeTier: game.getActiveOffice().tier,
     companyName: game.companyName,
     companyLogo: game.companyLogo,
     founder: { ...game.founder },
@@ -34,6 +36,7 @@ let calendarInterval = null;
 let lastExpoYearTriggered = 0;
 let lastNotifiedProjectOfferKey = null;
 let lastRenderedEmployeeCount = null;
+let lastOfficeManagerSnapshot = null;
 const notifiedHeadhuntEmployeeIds = new Set();
 
 const techTreeManager = game.techTreeManager;
@@ -129,11 +132,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 4. Bind Game State Listeners
     game.onStateChange((state) => {
         if (appState !== STATE_PLAYING) return;
+        syncStudioScene(state);
         renderHUD(state);
-        if (world && state.employees.length !== lastRenderedEmployeeCount) {
-            lastRenderedEmployeeCount = state.employees.length;
-            world.syncEmployees(state.employees);
-        }
+        if (document.getElementById('modal-offices').classList.contains('active')) refreshOfficeManager();
         (state.pendingHeadhunts || []).forEach(offer => {
             if (notifiedHeadhuntEmployeeIds.has(offer.employeeId)) return;
             notifiedHeadhuntEmployeeIds.add(offer.employeeId);
@@ -175,6 +176,7 @@ function initializeMainMenu() {
             closeAllModals();
             creatingNewGame = true;
             mainMenu.hidePanel();
+            showMenuOffice(initialProfile.officeTier, game.employees.slice(0, 1));
             openCompanyCreatorModal(true);
         },
         onSave: saveName => saveSystem.save(game, { saveName }),
@@ -202,6 +204,28 @@ function loadSavedGame(id) {
     return enterGameplay();
 }
 
+function showMenuOffice(tier, employees) {
+    if (world.currentEra !== tier) world.buildOffice(tier);
+    world.syncEmployees(employees);
+    world.enterMainMenu();
+}
+
+function syncStudioScene(state) {
+    const office = state.getActiveOffice();
+    const changedOffice = world.currentEra !== office.tier;
+    if (changedOffice) {
+        world.hideScopeDAG();
+        const holoHud = document.getElementById('hologram-overlay-bar');
+        if (holoHud) holoHud.style.display = 'none';
+        world.buildOffice(office.tier);
+        updatePlatformOptions();
+    }
+    if (changedOffice || state.employees.length !== lastRenderedEmployeeCount) {
+        world.syncEmployees(state.employees);
+        lastRenderedEmployeeCount = state.employees.length;
+    }
+}
+
 async function enterGameplay({ checkpoint = false } = {}) {
     if (appState !== STATE_MAIN_MENU) return;
     appState = STATE_TRANSITION;
@@ -219,15 +243,16 @@ async function enterGameplay({ checkpoint = false } = {}) {
     if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
 
     try {
+        const office = game.getActiveOffice();
         lastRenderedEmployeeCount = game.employees.length;
-        if (world.currentEra === game.era) {
+        if (world.currentEra === office.tier) {
             world.syncEmployees(game.employees);
             await world.transitionToGameplay();
         } else {
             await world.transitionToGameplay({
-                era: game.era,
+                era: office.tier,
                 revealOffice: () => {
-                    world.buildOffice(game.era);
+                    world.buildOffice(office.tier);
                     world.syncEmployees(game.employees);
                 }
             });
@@ -236,9 +261,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
         updateSpeedButtonsUI(game.gameSpeed);
     } catch (error) {
         appState = STATE_MAIN_MENU;
-        if (world.currentEra !== 1) world.buildOffice(1);
-        world.syncEmployees(game.employees.slice(0, 1));
-        world.enterMainMenu();
+        showMenuOffice(game.getActiveOffice().tier, game.employees);
         mainMenu.setBusy(false);
         mainMenu.show();
         mainMenu.report(error.message);
@@ -265,9 +288,7 @@ function returnToMainMenu() {
     world.hideScopeDAG();
     const holoHud = document.getElementById('hologram-overlay-bar');
     if (holoHud) holoHud.style.display = 'none';
-    if (world.currentEra !== 1) world.buildOffice(1);
-    world.syncEmployees(game.employees.slice(0, 1));
-    world.enterMainMenu();
+    showMenuOffice(game.getActiveOffice().tier, game.employees);
     mainMenu.show();
 }
 
@@ -332,6 +353,22 @@ function setGameSpeed(speed) {
 
 function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+        const officeModal = document.getElementById('modal-offices');
+        if (officeModal.classList.contains('active')) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeAllModals();
+            } else if (e.key === 'Tab') {
+                const controls = [...officeModal.querySelectorAll('button:not(:disabled)')];
+                const first = controls[0];
+                const last = controls.at(-1);
+                if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+                    e.preventDefault();
+                    (e.shiftKey ? last : first)?.focus();
+                }
+            }
+            return;
+        }
         if (appState !== STATE_PLAYING) {
             if (e.key === 'Escape' && creatingNewGame) closeAllModals();
             return;
@@ -589,7 +626,9 @@ function setupUIControls() {
     }
 
     document.getElementById('btn-upgrade-office').addEventListener('click', () => {
-        handleOfficeUpgrade();
+        openModal('modal-offices');
+        refreshOfficeManager(null);
+        document.querySelector('#modal-offices .modal-close')?.focus();
     });
 
     // Modal Close Buttons
@@ -2016,8 +2055,7 @@ function renderHUD(state) {
     }
 
     // Era Badge
-    const eraNames = { 1: 'Garaje Retro (Años 80)', 2: 'Loft Indie Moderno', 3: 'Campus Cyberpunk AAA' };
-    document.getElementById('badge-era').innerText = eraNames[state.era];
+    document.getElementById('badge-era').textContent = state.getActiveOffice().name;
 
     // Market Trend Pill
     const trendText = document.getElementById('trend-text');
@@ -2213,18 +2251,6 @@ function renderHUD(state) {
         } else {
             patchBanner.style.display = 'none';
         }
-    }
-
-    // Office Upgrade Button availability
-    const upgradeBtn = document.getElementById('btn-upgrade-office');
-    const check = state.canUpgradeOffice();
-    if (state.era < 3) {
-        upgradeBtn.style.display = 'flex';
-        upgradeBtn.innerHTML = `[[DE_ICON_035]] ${check.name} ($${check.cost.toLocaleString()})`;
-        upgradeBtn.disabled = !check.canUpgrade;
-        upgradeBtn.title = check.canUpgrade ? '¡Listo para expandirte a una sede mayor!' : 'Requiere más fondos y juegos exitosos publicados.';
-    } else {
-        upgradeBtn.style.display = 'none';
     }
 
     if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
@@ -2861,17 +2887,20 @@ window.sendMarketingKeys = function(creatorId) {
     }
 };
 
-function handleOfficeUpgrade() {
-    const res = game.upgradeOffice();
-    if (res.success) {
-        world.buildOffice(res.newEra);
-        world.syncEmployees(game.employees);
-        updatePlatformOptions();
-        showToast(`[[DE_ICON_073]] ¡ENHORABUENA! Tu empresa se ha mudado a: ${res.name}`, 'success');
-        if (soundEngine) soundEngine.playFanfare(9.5);
-    } else {
-        showToast(res.message, 'warn');
-    }
+function refreshOfficeManager(feedback) {
+    const offices = game.getOffices();
+    const funds = Math.floor(game.funds);
+    const occupied = game.employees.length;
+    const snapshot = JSON.stringify([funds, occupied, offices]);
+    if (feedback === undefined && snapshot === lastOfficeManagerSnapshot) return;
+    lastOfficeManagerSnapshot = snapshot;
+    renderOfficeManager({ offices, funds, occupied, feedback, onAction: changeOffice });
+}
+
+function changeOffice(id, action) {
+    const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
+    refreshOfficeManager(result);
+    if (result.success && appliedSettings.autosave !== 'off') autosaveCurrentGame();
 }
 
 // --- REVIEWS MODAL ---
@@ -4842,15 +4871,18 @@ function openModal(id) {
 
 function closeAllModals() {
     const cancelNewGame = creatingNewGame && document.getElementById('modal-company-creator').classList.contains('active');
+    const closedOffices = document.getElementById('modal-offices').classList.contains('active');
     document.querySelectorAll('.modal-backdrop').forEach(m => {
         m.style.display = 'none';
         m.classList.remove('active');
     });
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
+    if (closedOffices) document.getElementById('btn-upgrade-office').focus();
     if (cancelNewGame) {
         creatingNewGame = false;
         world.updateCharacterMesh(0, game.characterCustomization);
+        showMenuOffice(game.getActiveOffice().tier, game.employees);
         mainMenu.show();
     }
     if (game.pendingIndustryEvents?.length) setTimeout(() => renderIndustryNews(game), 0);

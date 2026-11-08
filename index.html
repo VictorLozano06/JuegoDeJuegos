@@ -22,6 +22,7 @@
     <div id="debug-errors" style="position:fixed;top:60px;left:20px;z-index:9999;color:#ff3333;font-size:16px;background:rgba(0,0,0,0.8);max-width:90%;"></div>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="/src/main-menu.css">
+    <link rel="stylesheet" href="/src/office-ui.css">
 </head>
 <body class="menu-active">
     <!-- WebGL Three.js Container -->
@@ -366,8 +367,8 @@
             <button id="btn-toggle-hologram" class="dock-btn" title="Alternar Vista de Mesa Holográfica 3D (G)">
                 <span>[[DE_ICON_020]]</span> Grafo 3D
             </button>
-            <button id="btn-upgrade-office" class="dock-btn" style="display: none;">
-                <span>[[DE_ICON_035]]</span> Mejorar Oficina
+            <button id="btn-upgrade-office" class="dock-btn" type="button" title="Comprar o cambiar la sede del estudio" aria-haspopup="dialog">
+                <span aria-hidden="true">[[DE_ICON_035]]</span> Oficinas
             </button>
         </footer>
 
@@ -1121,6 +1122,24 @@
                 <div id="community-simulator-mods"></div>
             </div>
         </div>
+    </div>
+
+    <div id="modal-offices" class="modal-backdrop">
+        <section class="modal-window office-window" role="dialog" aria-modal="true" aria-labelledby="office-manager-title">
+            <header class="modal-header office-header">
+                <div>
+                    <p class="office-eyebrow">Infraestructura del estudio</p>
+                    <h2 id="office-manager-title" class="modal-title"><span aria-hidden="true">[[DE_ICON_035]]</span> Oficinas</h2>
+                </div>
+                <button class="modal-close" type="button" aria-label="Cerrar oficinas">&times;</button>
+            </header>
+            <div class="office-overview">
+                <p>Elige la sede donde trabajará el equipo. Al comprar una oficina, se convierte en tu sede activa.</p>
+                <p class="office-balance">Saldo del estudio <strong id="office-balance"></strong></p>
+            </div>
+            <div id="office-catalog" class="office-catalog"></div>
+            <p id="office-feedback" class="office-feedback" role="status" aria-live="polite"></p>
+        </section>
     </div>
 
     <!-- MODAL: GESTIÓN DE EQUIPO, FATIGA Y CONTRATACIÓN -->

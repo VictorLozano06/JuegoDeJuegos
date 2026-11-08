@@ -1,4 +1,5 @@
 import { InHouseEngine, ScopeDAG, ScopeNode, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
+import { migrateOfficeState } from './data/offices.js';
 
 const VERSION = 1;
 const SLOT_PREFIX = 'dev-empire:save:';
@@ -112,6 +113,7 @@ function decodeState({ root, objects }, techTreeManager) {
     });
     const state = decode(root);
     validateState(state);
+    Object.assign(state, migrateOfficeState(state));
     // Keep references inside the hydrated project pointed at the UI's live manager.
     for (const value of decoded) {
         if (techTreeManager && value instanceof ScopeDAG && value.options?.techTreeManager === state.techTreeManager) {
@@ -126,7 +128,7 @@ function validateState(state) {
     const tree = state?.techTreeManager;
     if (!state || !Number.isFinite(state.funds) || typeof state.companyName !== 'string' ||
         !Number.isInteger(state.year) || state.year < 1 || !Number.isInteger(state.month) || state.month < 1 || state.month > 12 ||
-        !Number.isInteger(state.week) || state.week < 1 || state.week > 4 || ![1, 2, 3].includes(state.era) ||
+        !Number.isInteger(state.week) || state.week < 1 || state.week > 4 ||
         typeof state.founder?.name !== 'string' || !Array.isArray(state.employees) || !state.employees.length ||
         !state.employees.every(employee => typeof employee?.id === 'string') ||
         !Array.isArray(state.gamesHistory) || !Array.isArray(state.activeSales) ||
@@ -171,15 +173,16 @@ function readSlot(storage, id) {
     return slot;
 }
 
-function slotSummary({ state, version, ...summary }) {
-    return summary;
+function slotSummary({ state, version, ...summary }, officeState = summary) {
+    const { activeOfficeId, unlockedOfficeIds, era } = officeState;
+    return { ...summary, activeOfficeId, unlockedOfficeIds, currentOffice: era ?? summary.currentOffice };
 }
 
-function writeSlot(storage, slot) {
+function writeSlot(storage, slot, officeState) {
     // One storage write commits the complete slot. Quota errors leave the
     // previous value intact and there is no separate index to sync.
     storage.setItem(SLOT_PREFIX + slot.id, JSON.stringify(slot));
-    return slotSummary(slot);
+    return slotSummary(slot, officeState);
 }
 
 export class SaveSystem {
@@ -201,8 +204,8 @@ export class SaveSystem {
                 try {
                     const slot = readSlot(storage, key.slice(SLOT_PREFIX.length));
                     if (slot) {
-                        decodeState(slot.state);
-                        slots.push(slotSummary(slot));
+                        const state = decodeState(slot.state);
+                        slots.push(slotSummary(slot, state));
                     }
                 } catch {
                     // A damaged slot does not hide the other saves.
@@ -221,6 +224,7 @@ export class SaveSystem {
     save(game, { id = globalThis.crypto?.randomUUID?.() ?? `slot_${Date.now()}_${Math.random().toString(36).slice(2)}`, saveName } = {}) {
         const state = persistentFields(game);
         validateState(state);
+        Object.assign(state, migrateOfficeState(state));
         const slot = {
             version: VERSION,
             id,
@@ -232,7 +236,9 @@ export class SaveSystem {
             reputation: game.reputation ?? 50,
             founderData: { ...game.founder, customization: { ...game.characterCustomization } },
             gamesHistory: game.gamesHistory.map(({ id: gameId, name, score }) => ({ id: gameId, name, score })),
-            currentOffice: game.era,
+            currentOffice: state.era,
+            activeOfficeId: state.activeOfficeId,
+            unlockedOfficeIds: state.unlockedOfficeIds,
             lastGame: game.gamesHistory[0]?.name ?? null,
             state: encodeState(state)
         };
@@ -250,16 +256,17 @@ export class SaveSystem {
     archiveAutosave() {
         const storage = this.getStorage();
         let slot;
+        let state;
         try {
             slot = readSlot(storage, 'auto_save');
             if (!slot) return null;
-            decodeState(slot.state);
+            state = decodeState(slot.state);
         } catch {
             return null;
         }
         const id = `archived_${slot.timestamp}`;
         try {
-            return writeSlot(storage, { ...slot, id, saveName: slot.studioName });
+            return writeSlot(storage, { ...slot, id, saveName: slot.studioName }, state);
         } catch {
             throw new Error('No se pudo conservar el autoguardado anterior. Comprueba el espacio disponible del navegador.');
         }
@@ -275,7 +282,7 @@ export class SaveSystem {
         if (!slot) throw new Error('La partida guardada falta o usa una versión incompatible.');
         const state = decodeState(slot.state, game.techTreeManager);
         replaceGame(game, state);
-        return slotSummary(slot);
+        return slotSummary(slot, state);
     }
 
     remove(id) {
