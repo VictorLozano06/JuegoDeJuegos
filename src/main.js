@@ -1996,7 +1996,7 @@ function renderHUD(state) {
     if (titleEl) {
         const hint = document.createElement('span');
         hint.className = 'studio-edit-hint';
-        hint.textContent = '✏️';
+        hint.textContent = '[[DE_ICON_002]]';
         titleEl.replaceChildren(`${state.companyName} `, hint);
     }
     const logoEl = document.getElementById('studio-logo');

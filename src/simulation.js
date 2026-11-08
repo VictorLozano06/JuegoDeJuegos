@@ -2365,7 +2365,7 @@ class TycoonGame {
             : expectationPenalty >= 0.5 ? `El juego no supera las expectativas del mercado (-${expectationPenalty.toFixed(1)} puntos).`
             : 'La producción y el diseño necesitan más pulido para destacar.';
         const calculateReviews = () => [
-            ['GameByte Tech', '⚡'], ['Polygon Star', '⭐'], ['AllGames Hub', '🎮'], ['Digital Forge', '🔥']
+            ['GameByte Tech', '[[DE_ICON_022]]'], ['Polygon Star', '[[DE_ICON_005]]'], ['AllGames Hub', '[[DE_ICON_001]]'], ['Digital Forge', '[[DE_ICON_003]]']
         ].map(([critic, avatar]) => {
             const score = Math.max(0, Math.min(masterpiece ? 10 : 9.4, Math.round((baseScore + gaussian()) * 10) / 10));
             return { critic, avatar, score, comment: score < 7 ? weakness : score < 9.5
