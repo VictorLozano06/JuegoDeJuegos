@@ -8,6 +8,8 @@ import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
 import { OFFICE_CATALOG, STARTING_OFFICE, findOffice } from './data/offices.js';
 import { createIPState, registerIP, linkGame, recordRelease, updateIPSales, getIPBenefits, advanceIPYear, transferIP, getIPValue, setIPForSale } from './ipSystem.js';
+import { generateRivalCompanies, RIVAL_COMPANY_DEFAULTS } from './rivalCompanies.js';
+import { tickRivals } from './rivalAI.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
@@ -364,30 +366,9 @@ const BASE_CANDIDATE_POOL = [
     { name: 'Maya Lin', role: 'Artista Técnica 3D', tech: 44, design: 50, speed: 1.25, salary: 3900, trait: 'Aesthetic Guru', desc: 'Potencia el impacto visual y reduce penalizaciones.' }
 ];
 
-// --- 6. RIVAL STUDIOS & TOP 10 CHART DATA ---
-const RIVAL_STUDIOS = [
-    { name: 'Nin-Tendo', style: 'Casual/Aventura familiar', baseQuality: 9.2 },
-    { name: 'RetroSoft', style: 'Estrategia y simulación histórica', baseQuality: 8.7 },
-    { name: 'iD-Studio', style: 'Acción visceral 3D y shooters', baseQuality: 8.9 },
-    { name: 'Square-Art', style: 'Grandes epopeyas RPG cinematográficas', baseQuality: 9.0 },
-    { name: 'Max-Gaming', style: 'Simuladores y gestión urbana', baseQuality: 8.5 },
-    { name: 'Sega-Bit', style: 'Arcade frenético y velocidad', baseQuality: 8.6 },
-    { name: 'Valve-HQ', style: 'Innovación jugable y puzzles físicos', baseQuality: 9.3 },
-    { name: 'BioWare-X', style: 'Rol narrativo y decisiones complejas', baseQuality: 8.8 },
-    { name: 'Blizz-Craft', style: 'Estrategia competitiva y fantasía', baseQuality: 9.1 },
-    { name: 'RockStar-Games', style: 'Mundos abiertos y acción cinematográfica', baseQuality: 9.4 }
-];
-
-const RIVAL_GAME_NAMES = [
-    'Super Marioid 64', 'DoomCraft 3D', 'CyberQuest 2000', 'Final Chrono Fantasy', 'Simropolis 2000',
-    'Sonic Cheetah', 'Half-Counter Strike', 'Mass Galaxy Citadel', 'StarCraft Command', 'Grand Heist Auto',
-    'The Legend of Zorda', 'QuakeZone Arena', 'Dragon Quest Odyssey', 'Age of Castles IV', 'Warcraft Reign',
-    'Red Dead Outlaws', 'Portal Shift', 'Fallout Horizon', 'Baldur Fortress', 'Street Fighter Turbo'
-];
-
 // --- 7. CORE TYCOON GAME ENGINE ---
 class TycoonGame {
-    constructor() {
+    constructor(options = {}) {
         this.funds = 75000;
         this.fans = 25;
         this.researchPoints = 30;
@@ -449,8 +430,9 @@ class TycoonGame {
         this.gamesHistory = [];
         this.activeSales = [];
         this.ipState = createIPState();
-        // Future AI companies must be persistent entities with their own actual funds.
-        this.ipCompanies = [];
+        this.rivalSettings = { initialCount: options.rivalCount ?? RIVAL_COMPANY_DEFAULTS.initialCount };
+        this.rivalSystemVersion = 1;
+        this.ipCompanies = generateRivalCompanies({ count: this.rivalSettings.initialCount, year: this.getHistoricalYear() });
         this.platforms = Array.isArray(PLATFORMS) ? JSON.parse(JSON.stringify(PLATFORMS)) : [];
         // Array simple: también se puede serializar con el resto de la partida.
         this.ownedDevKits = [];
@@ -548,11 +530,15 @@ class TycoonGame {
 
     getIPValue(ipId) {
         const ip = this.ipState.properties.find(item => item.id === ipId);
-        return ip ? getIPValue(ip, this.gamesHistory, this.getHistoricalYear(), this.ipState.settings) : 0;
+        const allGames = [...this.gamesHistory, ...(this.ipCompanies || []).flatMap(company => company.games || [])];
+        return ip ? getIPValue(ip, allGames, this.getHistoricalYear(), this.ipState.settings) : 0;
     }
 
     getIPMarket() {
-        return this.ipState.properties.filter(ip => ip.ownerId !== 'player' && ip.forSale && this.getIPOwner(ip.ownerId));
+        return this.ipState.properties.filter(ip => {
+            const owner = this.getIPOwner(ip.ownerId);
+            return ip.ownerId !== 'player' && ip.forSale && owner && !owner.projects?.some(project => project.ipId === ip.id);
+        });
     }
 
     setIPForSale(ipId, askingPrice) {
@@ -566,6 +552,7 @@ class TycoonGame {
         if (!ip || !ip.forSale || ip.ownerId === 'player') return { success: false, message: 'La franquicia no está disponible para compra.' };
         const seller = this.getIPOwner(ip.ownerId);
         if (!seller) return { success: false, message: 'La empresa propietaria no dispone de una tesorería registrada.' };
+        if (seller.projects?.some(project => project.ipId === ipId)) return { success: false, message: 'La franquicia está en uso por un proyecto activo del propietario.' };
         const result = transferIP(this.ipState, ipId, seller, this.getIPOwner(), ip.askingPrice, { year: this.getHistoricalYear() });
         if (result.success) this.notify();
         return result;
@@ -1537,36 +1524,8 @@ class TycoonGame {
 
     // --- RIVAL TOP 10 LEADERBOARD SIMULATION ---
     initTop10Leaderboard() {
+        // The chart is derived from actual sales, not generated stand-ins.
         this.top10Chart = [];
-        const usedNames = new Set();
-
-        for (let i = 0; i < 10; i++) {
-            const studio = RIVAL_STUDIOS[i % RIVAL_STUDIOS.length];
-            let name = RIVAL_GAME_NAMES[i % RIVAL_GAME_NAMES.length];
-            if (usedNames.has(name)) name = `${name} II`;
-            usedNames.add(name);
-
-            const score = Math.round((studio.baseQuality - (i * 0.15) + (Math.random() * 0.4 - 0.2)) * 10) / 10;
-            const rankBase = 10 - i;
-            const weeklySales = Math.floor(3500 * rankBase + Math.random() * 2000);
-            const totalSales = Math.floor(weeklySales * (4 + Math.random() * 6));
-
-            this.top10Chart.push({
-                rank: i + 1,
-                lastRank: i + 1,
-                trend: 'same', // 'up', 'down', 'same', 'new'
-                isPlayer: false,
-                title: name,
-                dev: studio.name,
-                weeklySales: weeklySales,
-                totalSales: totalSales,
-                score: score,
-                weeksOnChart: Math.floor(Math.random() * 6) + 1,
-                decayRate: 0.82
-            });
-        }
-        this.top10Chart.sort((a, b) => b.weeklySales - a.weeklySales);
-        this.updateRanks();
     }
 
     updateRanks() {
@@ -1581,75 +1540,28 @@ class TycoonGame {
     }
 
     cycleRivalMarket() {
-        // Age rival games and simulate weekly decay
-        this.top10Chart.forEach(item => {
-            if (!item.isPlayer) {
-                item.weeksOnChart++;
-                item.weeklySales = Math.floor(item.weeklySales * item.decayRate);
-                item.totalSales += item.weeklySales;
-            }
-        });
-
-        // If an AI game decays below threshold or stays > 10 weeks, release a new challenger
-        const replaceIdx = this.top10Chart.findIndex(item => !item.isPlayer && (item.weeksOnChart > 10 || item.weeklySales < 400));
-        if (replaceIdx !== -1) {
-            const studio = RIVAL_STUDIOS[Math.floor(Math.random() * RIVAL_STUDIOS.length)];
-            const rawTitle = RIVAL_GAME_NAMES[Math.floor(Math.random() * RIVAL_GAME_NAMES.length)];
-            const releaseTitle = `${rawTitle} ${Math.floor(Math.random() * 90 + 10)}`;
-            const score = Math.round((studio.baseQuality + (Math.random() * 0.6 - 0.3)) * 10) / 10;
-            const initialSales = Math.floor(Math.pow(score / 2.2, 3.6) * 180 * (this.era === 1 ? 1 : (this.era === 2 ? 3.5 : 9)));
-
-            this.top10Chart[replaceIdx] = {
-                rank: 10,
-                lastRank: 10,
-                trend: 'new',
-                isPlayer: false,
-                title: releaseTitle,
-                dev: studio.name,
-                weeklySales: initialSales,
-                totalSales: initialSales,
-                score: score,
-                weeksOnChart: 1,
-                decayRate: 0.80 + Math.random() * 0.08
-            };
-        }
-
-        // Integrate player's active games
-        this.activeSales.forEach(playerGame => {
-            const existingEntry = this.top10Chart.find(item => item.isPlayer && item.gameId === playerGame.id);
-            if (existingEntry) {
-                existingEntry.weeklySales = playerGame.unitsSoldLastWeek || 0;
-                existingEntry.totalSales = playerGame.unitsSoldTotal;
-            } else if ((playerGame.unitsSoldLastWeek || 0) > 0) {
-                this.top10Chart.push({
-                    rank: 11,
-                    lastRank: 11,
-                    trend: 'new',
-                    isPlayer: true,
-                    gameId: playerGame.id,
-                    title: playerGame.name,
-                    dev: this.companyName,
-                    weeklySales: playerGame.unitsSoldLastWeek,
-                    totalSales: playerGame.unitsSoldTotal,
-                    score: playerGame.score,
-                    weeksOnChart: playerGame.weeksOnMarket,
-                    decayRate: playerGame.decayRate
-                });
-            }
-        });
-
-        // Remove retired player games
-        for (let i = this.top10Chart.length - 1; i >= 0; i--) {
-            if (this.top10Chart[i].isPlayer && !this.activeSales.some(g => g.id === this.top10Chart[i].gameId)) {
-                this.top10Chart.splice(i, 1);
+        const previous = new Map((this.top10Chart || []).filter(item => item.gameId).map(item => [item.gameId, item]));
+        const candidates = [];
+        for (const company of this.ipCompanies || []) {
+            for (const rivalGame of company.games || []) {
+                const sales = Number(rivalGame.weeklySales ?? rivalGame.unitsSoldLastWeek) || 0;
+                if (sales <= 0) continue;
+                const old = previous.get(rivalGame.id);
+                candidates.push({ gameId:rivalGame.id, isPlayer:false, title:rivalGame.name, dev:company.name,
+                    companyId:company.id, weeklySales:sales, totalSales:rivalGame.unitsSoldTotal || 0,
+                    score:rivalGame.score, weeksOnChart:rivalGame.weeksOnMarket || 0,
+                    lastRank:old?.rank || 11, trend:old ? 'same' : 'new' });
             }
         }
-
-        // Sort descending by weekly sales and slice top 10
-        this.top10Chart.sort((a, b) => b.weeklySales - a.weeklySales);
-        if (this.top10Chart.length > 10) {
-            this.top10Chart = this.top10Chart.slice(0, 10);
+        for (const playerGame of this.activeSales || []) {
+            const sales = Number(playerGame.unitsSoldLastWeek) || 0;
+            if (sales <= 0) continue;
+            const old = previous.get(playerGame.id);
+            candidates.push({ gameId:playerGame.id, isPlayer:true, title:playerGame.name, dev:this.companyName,
+                weeklySales:sales, totalSales:playerGame.unitsSoldTotal || 0, score:playerGame.score,
+                weeksOnChart:playerGame.weeksOnMarket || 0, lastRank:old?.rank || 11, trend:old ? 'same' : 'new' });
         }
+        this.top10Chart = candidates.sort((a,b) => b.weeklySales - a.weeklySales).slice(0,10);
         this.updateRanks();
     }
 
@@ -3655,6 +3567,7 @@ class TycoonGame {
             this.researchPoints += weeklyRP;
         }
 
+        tickRivals(this);
         this.processWeeklySales();
         this.checkIndustryEvents();
     }

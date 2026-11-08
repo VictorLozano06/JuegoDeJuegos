@@ -1,5 +1,6 @@
 import './ui-icons.js';
 import { initializeIPUI, refreshIPWizard } from './ip-ui.js';
+import { initializeRivalUI } from './rival-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -124,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupUIControls();
     setupKeyboardShortcuts();
     initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
+    initializeRivalUI({ game, openModal });
 
     // 3. Populate Modal Dropdowns & DAG Architecture
     populateProjectWizard();
