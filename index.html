@@ -140,6 +140,11 @@
             </div>
         </header>
 
+        <button type="button" id="expo-invitation" class="expo-invitation" hidden aria-label="Ver invitación a la feria anual">
+            <span aria-hidden="true">[[DE_ICON_074]]</span>
+            <span><strong>Feria anual</strong><small>Disponible · Ver opciones</small></span>
+        </button>
+
         <!-- HUD: LIVE SALES WIDGET (ON-SCREEN REAL-TIME EVOLVING SALES REPORT) -->
         <aside id="hud-live-sales-widget" class="hud-sales-widget" style="display: none;">
             <div class="hud-sales-header">
@@ -470,6 +475,15 @@
                     <div class="form-group" style="margin-bottom: 0;">
                         <label class="form-label">Emblema</label>
                         <div id="company-logo-picker" class="logo-picker"></div>
+                        <div class="studio-logo-upload">
+                            <span id="company-logo-preview" class="studio-logo-preview" aria-label="Vista previa del emblema"></span>
+                            <div class="studio-logo-upload-controls">
+                                <label for="company-logo-file" class="studio-logo-upload-label">Subir imagen</label>
+                                <input id="company-logo-file" type="file" accept="image/png,image/jpeg,image/webp" aria-describedby="company-logo-help company-logo-feedback">
+                                <small id="company-logo-help">PNG, JPG o WebP · máximo 5 MB</small>
+                            </div>
+                        </div>
+                        <p id="company-logo-feedback" class="studio-logo-feedback" role="status" aria-live="polite"></p>
                     </div>
                 </div>
 
@@ -1661,14 +1675,14 @@
     </div>
 
     <!-- MODAL: FERIA ANUAL DE VIDEOJUEGOS (MEGA GAME EXPO) -->
-    <div id="modal-expo" class="modal-backdrop">
+    <div id="modal-expo" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="expo-invitation-title">
         <div class="modal-window">
             <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_074]]</span> ¡Llega la Mega Games Expo Anual!</h2>
-                <button class="modal-close">&times;</button>
+                <h2 class="modal-title" id="expo-invitation-title"><span>[[DE_ICON_074]]</span> ¡Llega la Mega Games Expo Anual!</h2>
+                <button class="modal-close" type="button" aria-label="Cerrar feria">&times;</button>
             </div>
             <p style="font-size: 14px; color: var(--text-secondary); margin-bottom: 18px; line-height: 1.5;">
-                La mayor feria internacional de videojuegos abre sus puertas en junio. Contrata un stand para exhibir tus títulos, disparar el hype y ganar miles de seguidores.
+                La feria abre en junio. Puedes decidir hasta final de año si quieres contratar un stand para presentar tus juegos.
             </p>
             <div style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 20px;">
                 <div class="candidate-card" style="cursor: pointer;" onclick="attendExpo(1)">
@@ -1705,7 +1719,7 @@
                 </div>
             </div>
             <div style="text-align: right;">
-                <button class="staff-action-btn" onclick="closeAllModals()">Omitir este año</button>
+                <button class="staff-action-btn" type="button" onclick="dismissExpoInvitation()">Omitir este año</button>
             </div>
         </div>
     </div>

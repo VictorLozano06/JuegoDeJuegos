@@ -88,6 +88,18 @@ body:has(.modal-backdrop.active) :is(.top-bar, .action-dock) { backdrop-filter: 
 #btn-random-company-name { padding: 7px 10px !important; min-height: 38px; font-size: 13px; }
 .studio-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .studio-menu .logo-option { width: 34px; height: 34px; }
+.studio-logo-upload { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+.studio-logo-preview { display: grid; place-items: center; flex: 0 0 58px; width: 58px; height: 58px; border: 1px solid #ffffff30; border-radius: 10px; background: #0b1518; color: var(--room-accent); font-size: 28px; overflow: hidden; }
+.company-logo-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+.expo-booth-logo:has(.company-logo-image) { display: block; width: 48px; height: 48px; margin: 0 auto; }
+.studio-logo-upload-controls { display: grid; gap: 5px; min-width: 0; }
+.studio-logo-upload-label { color: #e8f4ed; font-weight: 700; font-size: 13px; }
+.studio-logo-upload input { width: 100%; max-width: 320px; color: #c3cdd6; font: inherit; font-size: 12px; }
+.studio-logo-upload input::file-selector-button { padding: 7px 10px; border: 1px solid #8db9a3; border-radius: 6px; margin-right: 8px; background: #263f35; color: #f2fff5; cursor: pointer; }
+.studio-logo-upload input:focus-visible { outline: 2px solid var(--room-accent); outline-offset: 3px; }
+.studio-logo-upload small { color: #aebdb5; font-size: 11px; }
+.studio-logo-feedback { min-height: 1.2em; margin-top: 5px; color: #fac1b8; font-size: 12px; }
+.studio-logo-feedback[data-result="success"] { color: #b7e9c9; }
 .studio-menu .color-swatch { width: 30px; height: 30px; padding: 0; box-shadow: none; transform: none; }
 .studio-menu :is(.logo-option, .pill-option, .color-swatch).active { border-color: var(--room-accent); outline: 1px solid var(--room-accent); outline-offset: 1px; box-shadow: none; }
 .studio-menu .pill-option { min-height: 32px; }

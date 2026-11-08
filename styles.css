@@ -53,11 +53,11 @@ body, html {
     justify-content: space-between;
 }
 
-/* TOP STATUS BAR: COMPACT SINGLE-ROW FLOATING ISLAND */
+/* Bottom status bar: leaves the office view clear above. */
 .top-bar {
     pointer-events: auto;
     position: fixed;
-    top: 14px;
+    bottom: max(14px, env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     display: flex;
@@ -73,7 +73,55 @@ body, html {
     z-index: 1000;
     white-space: nowrap;
     width: max-content;
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 250px);
+}
+
+.expo-invitation {
+    position: fixed;
+    left: 16px;
+    bottom: 74px;
+    z-index: 110;
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    max-width: min(230px, calc(100vw - 32px));
+    padding: 9px 12px;
+    border: 1px solid rgba(245, 188, 94, .48);
+    border-radius: 12px;
+    background: rgba(22, 27, 32, .95);
+    color: #fff2d6;
+    box-shadow: 0 6px 20px #0008;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    pointer-events: auto;
+}
+.expo-invitation[hidden] { display: none; }
+.expo-invitation > span:last-child { display: grid; gap: 2px; }
+.expo-invitation strong { font-size: 12px; }
+.expo-invitation small { color: #d8c9ab; font-size: 11px; }
+.expo-invitation:hover { border-color: #ffdb91; background: #343127; }
+.expo-invitation:focus-visible { outline: 2px solid #ffdb91; outline-offset: 2px; }
+@media (max-width: 880px) { .expo-invitation { bottom: 200px; } }
+@media (max-width: 480px) { .expo-invitation { bottom: 230px; } }
+
+@media (max-width: 880px) {
+    .top-bar {
+        bottom: max(76px, calc(env(safe-area-inset-bottom) + 62px));
+        max-width: calc(100vw - 24px);
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px 10px;
+        border-radius: 18px;
+        white-space: normal;
+    }
+}
+
+@media (max-width: 480px) {
+    .top-bar { width: calc(100vw - 24px); padding: 6px 8px; }
+    .top-bar .hud-actions > button > span:not(.hud-counter-pill) { display: none; }
+    .top-bar .hud-economy, .top-bar .hud-time { padding-right: 7px; }
+    .top-bar .speed-btn { padding-inline: 5px; }
 }
 
 .hud-pill {
@@ -2470,7 +2518,7 @@ select option:checked,
 /* Shortcut Hint Bar */
 .shortcut-bar {
     position: fixed;
-    bottom: 2px;
+    bottom: 66px;
     left: 50%;
     transform: translateX(-50%);
     font-size: 11px;
@@ -2481,6 +2529,18 @@ select option:checked,
     pointer-events: none;
     z-index: 50;
     letter-spacing: 0.3px;
+    width: max-content;
+    max-width: calc(100vw - 24px);
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+@media (max-width: 880px) {
+    .shortcut-bar { bottom: 170px; max-width: calc(100vw - 24px); overflow: hidden; }
+}
+
+@media (max-width: 480px) {
+    .shortcut-bar { bottom: 195px; }
 }
 
 .shortcut-bar kbd {

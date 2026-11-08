@@ -2,6 +2,7 @@ import { buildGarageLayout } from './garage/layout.js';
 import { applyOfficeLighting } from './garage/lighting.js';
 import { createRetroWorkstation } from './garage/workstation.js';
 import { buildModernOffice } from './office/modern.js';
+import { createModernPeripherals } from './office/peripherals.js';
 import { OFFICE_CATALOG, STARTING_OFFICE } from './data/offices.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
@@ -784,29 +785,7 @@ export class WorldEngine {
             }
         });
 
-        // Alfombrilla y ratón modernos.
-        const modernPad = new THREE.Mesh(
-            new THREE.BoxGeometry(0.25, 0.005, 0.25),
-            new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.7 })
-        );
-        modernPad.position.set(0.46, 1.353, 0.22);
-        deskGroup.add(modernPad);
-
-        const modernMouse = new THREE.Mesh(
-            new THREE.BoxGeometry(0.075, 0.028, 0.11),
-            new THREE.MeshStandardMaterial({ color: 0x111827, metalness: 0.6 })
-        );
-        modernMouse.position.set(0.46, 1.37, 0.22);
-        deskGroup.add(modernMouse);
-
-        // Keep the keyboard under the seated rig's wrist targets in every office.
-        const keyboard = new THREE.Mesh(
-            new THREE.BoxGeometry(0.76, 0.04, 0.30),
-            new THREE.MeshStandardMaterial({ color: 0x293448, roughness: 0.7 })
-        );
-        keyboard.position.set(0, 1.42, 0.42);
-        keyboard.receiveShadow = true;
-        deskGroup.add(keyboard);
+        deskGroup.add(createModernPeripherals(THREE, { tabletop: 1.40, cyber: isCyber }));
 
         // Office Chair
         const chair = this.createChair(0x0284c7);

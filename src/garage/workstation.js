@@ -137,6 +137,14 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     box([0.245, 0.008, 0.24], [0.61, 1.404, 0.393], 0x535e58);
     bevelBox([0.089, 0.047, 0.125], [0.61, 1.4315, 0.39], 0.011, ivory);
     box([0.007, 0.002, 0.047], [0.61, 1.456, 0.36], taupe);
+    box([0.009, 0.004, 0.016], [0.61, 1.458, 0.372], charcoal);
+    const mouseLead = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0.61, 1.425, 0.326),
+        new THREE.Vector3(0.62, 1.409, 0.25),
+        new THREE.Vector3(0.55, 1.409, 0.16),
+        new THREE.Vector3(0.50, 1.409, 0.07),
+    ]);
+    part(new THREE.TubeGeometry(mouseLead, 12, 0.004, 5, false), charcoal, plastic, [0, 0, 0]);
 
     // Porcelain coffee cup with a small torus handle.
     cylinder(0.067, 0.053, 0.104, [-0.78, 1.452, 0.37], 0xddd0ad, plastic, true);

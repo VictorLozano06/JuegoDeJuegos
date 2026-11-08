@@ -1,4 +1,6 @@
 import { game } from './simulation.js';
+import { syncStudioAvatars } from './company-logo.js';
+import { ensureVreadState, generateVreadFeed } from './vread-engine.js';
 
 /**
  * DEV EMPIRE 3D - UWUNTU XD OPERATING SYSTEM
@@ -712,7 +714,7 @@ export class UwuntuOS {
                     <!-- Top Studio Header -->
                     <div class="start-menu-topbar">
                         <div class="start-menu-studio">
-                            <div class="start-studio-avatar" id="start-menu-avatar">${(this.game.companyName || 'DE').slice(0, 2).toUpperCase()}</div>
+                            <div class="start-studio-avatar" id="start-menu-avatar" data-studio-avatar></div>
                             <div class="start-studio-meta">
                                 <strong class="start-studio-name" id="start-menu-studio-name">${this.game.companyName || 'PixelForge Interactive'}</strong>
                                 <div class="start-studio-tags">
@@ -1810,6 +1812,7 @@ export class UwuntuOS {
 
         const studioName = this.container.querySelector('#start-menu-studio-name');
         if (studioName) studioName.textContent = this.game.companyName || 'Dev Studio';
+        syncStudioAvatars(this.container, this.game.companyLogo);
 
         const officeName = this.container.querySelector('#start-menu-office-name');
         if (officeName) officeName.textContent = this.game.getActiveOffice?.().name || 'Garaje';
@@ -1896,6 +1899,7 @@ export class UwuntuOS {
         const handler = () => {
             if (this.isOpen) {
                 this.syncEraTheme();
+                this.container.querySelector('#body-app-vread')?._refreshVreadForWeek?.();
                 this.checkSystemNotifications();
                 // Random subtle LED blink on activity
                 const led = this.container.querySelector('#uwuntu-disk-led');
@@ -2663,11 +2667,21 @@ export function getVreadUserAvatar(author = '', handle = '') {
         hash = (hash << 5) - hash + key.charCodeAt(i);
         hash |= 0;
     }
-    const idx = Math.abs(hash) % VREAD_USER_AVATARS.length;
-    return VREAD_USER_AVATARS[idx];
+    // Synthetic profiles get stable, distinct illustrations without external assets.
+    const seed = hash >>> 0;
+    const backgrounds = ['#274958', '#5b3d59', '#665235', '#39584c', '#3a476d', '#6a3c45'];
+    const skins = ['#f2c7a3', '#c88362', '#88553f', '#e5b389', '#623e34'];
+    const hair = ['#252328', '#633b2b', '#b96b38', '#d0ad70', '#4b335c', '#243e46'];
+    const bg = backgrounds[seed % backgrounds.length];
+    const skin = skins[(seed >>> 4) % skins.length];
+    const hairColor = hair[(seed >>> 8) % hair.length];
+    const shirt = backgrounds[(seed >>> 12) % backgrounds.length];
+    const fringe = (seed & 1) ? 'M12 19 Q14 5 25 7 Q37 6 39 19 L37 24 Q30 19 27 14 Q21 20 13 22Z' : 'M12 22 Q10 7 25 7 Q40 7 39 22 L35 17 Q25 11 15 19Z';
+    const glasses = (seed & 2) ? '<path d="M15 25h8v5h-8z M27 25h8v5h-8z M23 27h4" fill="none" stroke="#1c2731" stroke-width="1.4"/>' : '';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><rect width="50" height="50" fill="${bg}"/><path d="M3 50 Q5 36 18 36h14 Q45 36 47 50" fill="${shirt}"/><ellipse cx="25" cy="25" rx="12" ry="15" fill="${skin}"/><path d="${fringe}" fill="${hairColor}"/><circle cx="20" cy="27" r="1.2" fill="#20252b"/><circle cx="30" cy="27" r="1.2" fill="#20252b"/>${glasses}<path d="M22 33 Q25 35 28 33" fill="none" stroke="#743f39" stroke-linecap="round"/></svg>`;
+    return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
-const vreadUserPosts = [];
 let currentVreadFilter = 'all';
 let currentVreadTag = null;
 let currentVreadSearch = '';
@@ -2678,238 +2692,8 @@ function formatVreadNumber(num) {
     return String(n);
 }
 
-function generateVreadFeed(gameInstance) {
-    const studioName = gameInstance.companyName || 'Tu Estudio';
-    const studioHandle = studioName.normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'estudio';
-    const year = gameInstance.getHistoricalYear ? gameInstance.getHistoricalYear() : (1981 + (gameInstance.year || 1));
-    const history = gameInstance.gamesHistory || [];
-    const activeProject = gameInstance.currentProject;
-    const trend = gameInstance.marketTrend;
-
-    const posts = [];
-
-    // 0. Prepend user-published studio tweets
-    vreadUserPosts.forEach(p => posts.push(p));
-
-    // Trend topics data
-    const trendTopicName = trend?.topicId || trend?.topicName || 'Cyberpunk';
-    const trendGenreName = trend?.genreId || trend?.genreName || 'RPG';
-
-    // 1. Posts about player's released games (praises, critiques, wishlist, bug complaints)
-    if (history.length) {
-        history.slice(0, 5).forEach((gameItem, i) => {
-            const gameName = gameItem.name || `Juego ${i + 1}`;
-            const score = Number(gameItem.score || gameItem.finalScore || 7.5);
-            const genre = gameItem.genre?.name || 'Acción';
-
-            if (score >= 8.5) {
-                posts.push({
-                    id: `post-rev-${gameItem.id || i}-1`,
-                    type: 'reviews',
-                    author: 'PixelMaster_X',
-                    handle: 'pixelmaster',
-                    verified: true,
-                    time: '12m',
-                    text: `¡Qué absoluta locura #{${gameName}} de @${studioHandle}! Llevo 18 horas seguidas enganchado. La historia y el gameplay son una maravilla. 10/10 #GOTY #${genre}`,
-                    likes: 3420 + i * 210,
-                    reposts: 580 + i * 40,
-                    replies: [
-                        { author: 'GamerVance', text: 'Opino lo mismo, la banda sonora y los gráficos son una gozada absoluta.' },
-                        { author: 'Clara_Dev', text: 'De los mejores lanzamientos de este año sin duda alguna.' }
-                    ]
-                });
-                posts.push({
-                    id: `post-rev-${gameItem.id || i}-2`,
-                    type: 'reviews',
-                    author: 'RetroNerd_99',
-                    handle: 'retronerd',
-                    verified: false,
-                    time: '1h',
-                    text: `#{${gameName}} es brutal, aunque siendo honesto... ¡me hubiese encantado que tuviese cooperativo online o editor de niveles! Ojalá @${studioHandle} prepare una expansión o secuela pronto.`,
-                    likes: 1890,
-                    reposts: 320,
-                    replies: [
-                        { author: 'Niko_Play', text: '¡Totalmente! Si tuviese multijugador le daba un 11/10.' },
-                        { author: 'ArcadeFan', text: 'Un modo arena contra oleadas sería legendario.' }
-                    ]
-                });
-            } else if (score >= 6.5) {
-                posts.push({
-                    id: `post-rev-${gameItem.id || i}-1`,
-                    type: 'reviews',
-                    author: 'Alex_Reviews',
-                    handle: 'alex_reviews',
-                    verified: true,
-                    time: '45m',
-                    text: `Probando #{${gameName}} de @${studioHandle}. Es muy divertido pero se vuelve algo repetitivo a mitad de partida. Le hubiese sentado bien más variedad de jefes y misiones secundarias. 7.5/10.`,
-                    likes: 890,
-                    reposts: 115,
-                    replies: [
-                        { author: 'Sofi_Pixel', text: 'A mí se me hizo un poco corto, pero las ideas base son buenísimas.' }
-                    ]
-                });
-                posts.push({
-                    id: `post-rev-${gameItem.id || i}-2`,
-                    type: 'reviews',
-                    author: 'KikeGamer',
-                    handle: 'kikegamer',
-                    verified: false,
-                    time: '3h',
-                    text: `Me gustó #{${gameName}}, pero la curva de dificultad está rota en el último tramo. Necesita un parche de balance urgente. Aún así buen intento de @${studioHandle}.`,
-                    likes: 620,
-                    reposts: 84,
-                    replies: [
-                        { author: 'Lara_Quest', text: 'El boss del nivel 4 es injustísimo si no vas con la build correcta.' }
-                    ]
-                });
-            } else {
-                posts.push({
-                    id: `post-rev-${gameItem.id || i}-1`,
-                    type: 'reviews',
-                    author: 'CriticoSinFiltro',
-                    handle: 'criticosinfiltro',
-                    verified: true,
-                    time: '2h',
-                    text: `Tenía muchas ganas de probar #{${gameName}} de @${studioHandle}, pero está repleto de bugs y caídas de rendimiento... La idea molaba pero se nota que les faltó optimizar la arquitectura técnica. 5/10.`,
-                    likes: 1420,
-                    reposts: 410,
-                    replies: [
-                        { author: 'Dani_Byte', text: 'Cierto, a mí se me cerró dos veces en la pantalla final.' },
-                        { author: 'CodeDoctor', text: 'Mucha deuda técnica acumulada durante el sprint de salida.' }
-                    ]
-                });
-            }
-        });
-    } else {
-        posts.push({
-            id: 'post-waiting-1',
-            type: 'reviews',
-            author: 'ComunidadGamer',
-            handle: 'comunidad_gamer',
-            verified: true,
-            time: '25m',
-            text: `Toda la comunidad de Vread pendiente del estudio de @${studioHandle}. ¡Hay rumores de que preparan un proyecto ambicioso para este año! #${studioName}`,
-            likes: 1240,
-            reposts: 280,
-            replies: [
-                { author: 'NeoGamer', text: 'Ojalá sea un RPG con buena historia, hace falta aire fresco en el sector.' }
-            ]
-        });
-        posts.push({
-            id: 'post-waiting-2',
-            type: 'reviews',
-            author: 'IndieRadar',
-            handle: 'indieradar',
-            verified: true,
-            time: '1h',
-            text: `Nuevo estudio en el radar: @${studioHandle}. Dicen las malas lenguas que tienen a programadores veteranos trabajando en un motor propietario in-house. Seguiremos de cerca sus avances. #GameDev #${year}`,
-            likes: 890,
-            reposts: 145,
-            replies: []
-        });
-    }
-
-    // 2. Active project chatter & leaks
-    if (activeProject) {
-        posts.push({
-            id: 'post-active-project',
-            type: 'reviews',
-            author: 'DevLeaks_ES',
-            handle: 'devleaks_es',
-            verified: true,
-            time: '18m',
-            text: `[FILTRACIÓN] @${studioHandle} está desarrollando en secreto #{${activeProject.name || 'su nuevo proyecto'}}. Las fuentes dicen que la arquitectura de motor y deuda técnica está bajo control. ¡Expectación máxima! #Exclusiva`,
-            likes: 3150,
-            reposts: 690,
-            replies: [
-                { author: 'FanDeLosJuegos', text: '¡Por favor que salga pronto!' },
-                { author: 'HypedGamer', text: 'Tienen mi cartera lista el día uno.' }
-            ]
-        });
-    }
-
-    // 3. Fake Twitch / Streamers ("tichw falsos")
-    const streamerNames = ['SpeedyStreamer', 'Valkiria_TV', 'ElTitoPixel', 'CharlyGaming'];
-    const fakeGames = history.length ? history.map(g => g.name) : ['Proyecto Alfa', 'CyberQuest', 'PixelWorld'];
-
-    posts.push({
-        id: 'post-stream-1',
-        type: 'live',
-        author: `${streamerNames[0]} [LIVE]`,
-        handle: 'speedy_live',
-        verified: true,
-        isLive: true,
-        time: 'AHORA',
-        text: `EN DIRECTO en Twich: Intentando pasarme #{${fakeGames[0]}} sin recibir daño en dificultad pesadilla. ¡Pasaos que ya somos más de 24.3k en el chat! twich.tv/speedy_live #TwichGaming`,
-        likes: 5890,
-        reposts: 1440,
-        replies: [
-            { author: 'ChatMod', text: '¡Ese salto final fue histórico!' },
-            { author: 'PogoStick', text: '¡¡NOOO te caíste!! Jajaja F en el chat.' }
-        ]
-    });
-
-    posts.push({
-        id: 'post-stream-2',
-        type: 'live',
-        author: streamerNames[1],
-        handle: 'valkiria_tv',
-        verified: true,
-        time: '2h',
-        text: `Clip de la retransmisión de hoy: 'No me esperaba ese giro de guión en #{${fakeGames[0]}}'. Mi cara fue un poema jajaja. Twich Highlight #Clips`,
-        likes: 2980,
-        reposts: 610,
-        replies: [
-            { author: 'Viewer12', text: 'Tu reacción al final fue lo mejor de la tarde.' }
-        ]
-    });
-
-    posts.push({
-        id: 'post-stream-3',
-        type: 'live',
-        author: streamerNames[2],
-        handle: 'eltitopixel',
-        verified: false,
-        time: '4h',
-        text: `¡Mil gracias a @${studioHandle} por la clave de prensa anticipada! Esta noche especial de 6 horas explorando cada rincón del juego. twich.tv/eltitopixel`,
-        likes: 1850,
-        reposts: 310,
-        replies: []
-    });
-
-    // 4. Industry trends & market gossip
-    posts.push({
-        id: 'post-trend-1',
-        type: 'trend',
-        author: 'AnalistaVideojuegos',
-        handle: 'industry_analyst',
-        verified: true,
-        time: '35m',
-        text: `Análisis de mercado: La combinación de temática #{${trendTopicName}} con género #{${trendGenreName}} está generando los márgenes más altos de este año. La sinergia perfecta es oro puro. #Tendencias #GamingEconomy`,
-        likes: 3120,
-        reposts: 740,
-        replies: [
-            { author: 'IndieDevHub', text: 'Totalmente de acuerdo, la demanda del público está disparada.' },
-            { author: 'MarketWatcher', text: 'Y los costes de marketing se reducen un 30% por el boca a boca.' }
-        ]
-    });
-
-    posts.push({
-        id: 'post-trend-2',
-        type: 'trend',
-        author: 'GamerSincero',
-        handle: 'gamersincero',
-        verified: false,
-        time: '5h',
-        text: `Saturación evidente: Demasiados clones genéricos en las tiendas. Si los estudios no investigan mejores motores en I+D, la industria va a sufrir un pinchazo serio. #${year}`,
-        likes: 1670,
-        reposts: 380,
-        replies: [
-            { author: 'TechNerd', text: 'Exacto, quien no implemente físicas avanzadas se queda atrás.' }
-        ]
-    });
-
-    return posts;
+function escapeVread(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
 function renderVreadAppContent(container, gameInstance) {
@@ -2922,6 +2706,7 @@ function renderVreadAppContent(container, gameInstance) {
     const trendGenreName = trend?.genreId || trend?.genreName || 'RPG';
 
     let allPosts = generateVreadFeed(gameInstance);
+    const maxFeedPosts = 500;
 
     container.innerHTML = `
         <div class="uwuntu-vread-client">
@@ -2946,14 +2731,14 @@ function renderVreadAppContent(container, gameInstance) {
 
                 <!-- Composer Box -->
                 <div class="vread-composer-box">
-                    <div class="vread-avatar vread-avatar--player" title="${studioName}">
-                        <div class="vread-studio-avatar-inner">${UWUNTU_LOGO_SVG}</div>
+                    <div class="vread-avatar vread-avatar--player" title="${escapeVread(studioName)}">
+                        <div class="vread-studio-avatar-inner" data-studio-avatar></div>
                     </div>
                     <div class="vread-composer-main">
-                        <textarea id="vread-compose-input" placeholder="¿Qué está pasando en ${studioName}? Comparte un anuncio o interactúa con la comunidad..." rows="2"></textarea>
+                        <textarea maxlength="500" id="vread-compose-input" placeholder="¿Qué está pasando en ${escapeVread(studioName)}? Comparte un anuncio o interactúa con la comunidad..." rows="2"></textarea>
                         <div class="vread-composer-toolbar">
                             <div class="vread-composer-tags">
-                                <button type="button" class="composer-tag-pill" data-insert="#${studioName.replace(/\s+/g, '')}">#${studioName.replace(/\s+/g, '')}</button>
+                                <button type="button" class="composer-tag-pill" data-insert="#${escapeVread(studioName.replace(/\s+/g, ''))}">#${escapeVread(studioName.replace(/\s+/g, ''))}</button>
                                 <button type="button" class="composer-tag-pill" data-insert="#Goty${year}">#Goty${year}</button>
                                 <button type="button" class="composer-tag-pill" data-insert="#DevUpdate">#DevUpdate</button>
                             </div>
@@ -2961,6 +2746,9 @@ function renderVreadAppContent(container, gameInstance) {
                         </div>
                     </div>
                 </div>
+
+                <p class="vread-impact-message" id="vread-impact-message" role="status" aria-live="polite"></p>
+                <p class="vread-update-notice" id="vread-update-notice" role="status" hidden>Hay publicaciones nuevas. Pulsa actualizar para verlas.</p>
 
                 <!-- Feed Navigation Tabs -->
                 <div class="vread-feed-tabs" role="tablist">
@@ -2976,8 +2764,9 @@ function renderVreadAppContent(container, gameInstance) {
                 </div>
 
                 <!-- Timeline Posts -->
-                <div class="vread-feed-timeline" id="vread-feed-timeline">
+                <div class="vread-feed-timeline" id="vread-feed-timeline" tabindex="0" aria-label="Publicaciones de Vread">
                     <div class="vread-posts-container" id="vread-posts-container"></div>
+                    <button type="button" class="vread-load-more" id="vread-load-more">Cargar más publicaciones</button>
                 </div>
             </div>
 
@@ -2988,17 +2777,19 @@ function renderVreadAppContent(container, gameInstance) {
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    <input type="text" id="vread-search-input" placeholder="Buscar en Vread..." value="${currentVreadSearch}">
+                    <input type="text" id="vread-search-input" placeholder="Buscar en Vread..." value="${escapeVread(currentVreadSearch)}">
                 </div>
 
                 <div class="vread-side-card vread-pulse-card">
                     <div class="pulse-card-header">
+                        <span class="vread-profile-avatar" data-studio-avatar aria-label="Logo del estudio"></span>
                         <strong>@${studioHandle}</strong>
                         <span class="vread-verified-badge-mini">
                             <svg viewBox="0 0 20 20" fill="#38bdf8" width="14" height="14"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
                         </span>
                         <span class="vread-studio-badge">Estudio Oficial</span>
                     </div>
+                    <div class="vread-reputation">Reputación en Vread <strong id="vread-reputation">${ensureVreadState(gameInstance).reputation}/100</strong></div>
                     <div class="pulse-metrics">
                         <div class="pulse-metric-item">
                             <span class="metric-num">${gameInstance.fans ? gameInstance.fans.toLocaleString() : '25'}</span>
@@ -3014,19 +2805,19 @@ function renderVreadAppContent(container, gameInstance) {
                 <div class="vread-side-card">
                     <h3 class="side-card-title">Tendencias de la industria</h3>
                     <div class="vread-side-trends">
-                        <div class="side-trend-item" data-tag="#${trendTopicName}">
+                        <div class="side-trend-item" data-tag="#${escapeVread(trendTopicName)}">
                             <span class="side-trend-cat">Temática en auge</span>
-                            <strong>#${trendTopicName}</strong>
+                            <strong>#${escapeVread(trendTopicName)}</strong>
                             <span class="side-trend-count">38.4k ecos</span>
                         </div>
-                        <div class="side-trend-item" data-tag="#${trendGenreName}">
+                        <div class="side-trend-item" data-tag="#${escapeVread(trendGenreName)}">
                             <span class="side-trend-cat">Género del momento</span>
-                            <strong>#${trendGenreName}</strong>
+                            <strong>#${escapeVread(trendGenreName)}</strong>
                             <span class="side-trend-count">29.1k ecos</span>
                         </div>
-                        <div class="side-trend-item" data-tag="#${studioName.replace(/\s+/g, '')}">
+                        <div class="side-trend-item" data-tag="#${escapeVread(studioName.replace(/\s+/g, ''))}">
                             <span class="side-trend-cat">En tu órbita</span>
-                            <strong>#${studioName.replace(/\s+/g, '')}</strong>
+                            <strong>#${escapeVread(studioName.replace(/\s+/g, ''))}</strong>
                             <span class="side-trend-count">14.6k ecos</span>
                         </div>
                         <div class="side-trend-item" data-tag="#TwichGaming">
@@ -3081,6 +2872,8 @@ function renderVreadAppContent(container, gameInstance) {
         </div>
     `;
 
+    syncStudioAvatars(container, gameInstance.companyLogo);
+
     // Render chips
     function renderChips() {
         const chipsContainer = container.querySelector('#vread-trends-chips');
@@ -3097,8 +2890,8 @@ function renderVreadAppContent(container, gameInstance) {
         ];
 
         chipsContainer.innerHTML = tags.map(tag => `
-            <button type="button" class="vread-chip ${currentVreadTag === tag ? 'active' : ''}" data-tag="${tag}">
-                ${tag}
+            <button type="button" class="vread-chip ${currentVreadTag === tag ? 'active' : ''}" data-tag="${escapeVread(tag)}">
+                ${escapeVread(tag)}
             </button>
         `).join('');
 
@@ -3113,11 +2906,11 @@ function renderVreadAppContent(container, gameInstance) {
     }
 
     // Render timeline posts
-    function renderTimeline() {
+    function renderTimeline(appendPosts = null) {
         const postsContainer = container.querySelector('#vread-posts-container');
         if (!postsContainer) return;
 
-        let filtered = allPosts;
+        let filtered = appendPosts ?? allPosts;
 
         // Filter by tab
         if (currentVreadFilter === 'reviews') {
@@ -3141,44 +2934,44 @@ function renderVreadAppContent(container, gameInstance) {
         }
 
         if (!filtered.length) {
-            postsContainer.innerHTML = `
-                <div class="vread-empty">
-                    <p>No se encontraron publicaciones con los filtros seleccionados.</p>
-                </div>
-            `;
+            if (!appendPosts) postsContainer.innerHTML = `
+                <div class="vread-empty"><p>No se encontraron publicaciones con los filtros seleccionados. Prueba a cargar más.</p></div>`;
             return;
         }
 
-        postsContainer.innerHTML = filtered.map((post, idx) => {
-            const isStudio = post.author === studioName;
+        if (appendPosts) postsContainer.querySelector('.vread-empty')?.remove();
+        const previousCount = appendPosts ? postsContainer.children.length : 0;
+        const markup = filtered.map((post, idx) => {
+            const isStudio = post.isStudio === true;
             const avatarUrl = isStudio ? null : getVreadUserAvatar(post.author, post.handle);
-            const highlightedText = post.text
+            const highlightedText = escapeVread(post.text)
                 .replace(/#\{([^}]+)\}/g, '<span class="vread-mention">#$1</span>')
                 .replace(/#([a-zA-Z0-9_]+)/g, '<span class="vread-hashtag">#$1</span>')
                 .replace(/@([a-zA-Z0-9_]+)/g, '<span class="vread-handle-mention">@$1</span>');
 
             return `
-                <article class="vread-post" data-post-id="${post.id}">
+                <article class="vread-post" data-post-id="${escapeVread(post.id)}">
                     <div class="vread-avatar ${isStudio ? 'vread-avatar--player' : 'vread-avatar--user'}" aria-hidden="true">
                         ${isStudio ? `
-                            <div class="vread-studio-avatar-inner">${UWUNTU_LOGO_SVG}</div>
+                            <div class="vread-studio-avatar-inner" data-studio-avatar></div>
                         ` : `
-                            <img src="${avatarUrl}" alt="${post.author}" class="vread-avatar-img" loading="lazy" />
+                            <img src="${avatarUrl}" alt="${escapeVread(post.author)}" class="vread-avatar-img" loading="lazy" />
                         `}
                     </div>
                     <div class="vread-post-main">
                         <header class="vread-post-head">
-                            <span class="vread-author-name">${post.author}</span>
+                            <span class="vread-author-name">${escapeVread(post.author)}</span>
                             ${post.verified ? `
                                 <svg class="vread-verified-badge" viewBox="0 0 20 20" fill="#38bdf8" width="14" height="14" aria-label="Verificado">
                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                                 </svg>
                             ` : ''}
-                            <span class="vread-author-handle">@${post.handle}</span>
-                            <span class="vread-post-time">· ${post.time}</span>
+                            <span class="vread-author-handle">@${escapeVread(post.handle)}</span>
+                            <span class="vread-post-time">· ${escapeVread(post.time)}</span>
                             ${post.isLive ? `<span class="vread-live-pill"><span class="live-dot"></span> EN DIRECTO</span>` : ''}
                         </header>
                         <p class="vread-post-text">${highlightedText}</p>
+                        ${post.impact ? `<p class="vread-post-impact ${post.impact.backlash ? 'is-backlash' : ''}">${post.impact.backlash ? 'Polémica · ' : ''}${post.impact.sales > 0 ? '+' : ''}${post.impact.sales}% ventas${post.impact.targetName ? ` · ${escapeVread(post.impact.targetName)}` : ' · catálogo'} · ${post.impact.reputation > 0 ? '+' : ''}${post.impact.reputation} reputación${post.impact.repeated ? ' · mensaje repetido' : ''}</p>` : ''}
                         
                         <!-- Actions bar -->
                         <div class="vread-actions-bar">
@@ -3215,17 +3008,17 @@ function renderVreadAppContent(container, gameInstance) {
                         </div>
 
                         ${post.replies?.length ? `
-                            <details class="vread-replies-accordion">
+                            <details class="vread-replies-accordion" ${isStudio ? 'open' : ''}>
                                 <summary>Ver ${post.replies.length} respuestas</summary>
                                 <div class="vread-replies-list">
                                     ${post.replies.map(r => `
                                         <div class="vread-reply-item">
                                             <div class="vread-avatar-mini">
-                                                <img src="${getVreadUserAvatar(r.author, r.author)}" alt="${r.author}" class="vread-avatar-img" loading="lazy" />
+                                                <img src="${getVreadUserAvatar(r.author, r.handle || r.author)}" alt="${escapeVread(r.author)}" class="vread-avatar-img" loading="lazy" />
                                             </div>
                                             <div class="vread-reply-body">
-                                                <strong class="vread-reply-author">@${r.author.toLowerCase().replace(/[^a-z0-9]/g, '')}:</strong>
-                                                <span class="vread-reply-text">${r.text}</span>
+                                                <strong class="vread-reply-author">@${escapeVread(r.handle || r.author.toLowerCase().replace(/[^a-z0-9]/g, ''))}:</strong>
+                                                <span class="vread-reply-text">${escapeVread(r.text)}</span>
                                             </div>
                                         </div>
                                     `).join('')}
@@ -3236,9 +3029,14 @@ function renderVreadAppContent(container, gameInstance) {
                 </article>
             `;
         }).join('');
+        if (appendPosts) postsContainer.insertAdjacentHTML('beforeend', markup);
+        else postsContainer.innerHTML = markup;
+
+        syncStudioAvatars(postsContainer, gameInstance.companyLogo);
+        const newPosts = [...postsContainer.children].slice(previousCount);
 
         // Wire likes microinteraction
-        postsContainer.querySelectorAll('.vread-action-like').forEach(likeBtn => {
+        newPosts.flatMap(post => [...post.querySelectorAll('.vread-action-like')]).forEach(likeBtn => {
             likeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isLiked = likeBtn.classList.toggle('is-liked');
@@ -3252,7 +3050,7 @@ function renderVreadAppContent(container, gameInstance) {
         });
 
         // Wire repost microinteraction
-        postsContainer.querySelectorAll('.vread-action-repost').forEach(repostBtn => {
+        newPosts.flatMap(post => [...post.querySelectorAll('.vread-action-repost')]).forEach(repostBtn => {
             repostBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const isReposted = repostBtn.classList.toggle('is-reposted');
@@ -3309,26 +3107,28 @@ function renderVreadAppContent(container, gameInstance) {
             const text = composeInput.value.trim();
             if (!text) return;
 
-            const newPost = {
-                id: `user-post-${Date.now()}`,
-                type: 'reviews',
-                author: studioName,
-                handle: studioHandle,
-                verified: true,
-                time: 'Ahora',
-                text,
-                likes: Math.floor(Math.random() * 80) + 40,
-                reposts: Math.floor(Math.random() * 30) + 10,
-                replies: [
-                    { author: 'GamerVance', text: '¡Vamoooos! Esperando con muchísimas ganas.' },
-                    { author: 'PixelFan', text: 'Tienen todo nuestro apoyo.' }
-                ]
-            };
-
-            vreadUserPosts.unshift(newPost);
-            allPosts.unshift(newPost);
+            const result = gameInstance.publishVreadPost(text);
+            const feedback = container.querySelector('#vread-impact-message');
+            if (!result.success) {
+                feedback.textContent = result.message;
+                feedback.dataset.kind = 'error';
+                return;
+            }
+            const impact = result.impact;
+            const target = impact.targetName ? ` en ${impact.targetName}` : ' en el catálogo';
+            const effect = impact.sales ? `${impact.sales > 0 ? '+' : ''}${impact.sales}% de ventas${target} durante ${impact.duration} semanas, con efecto decreciente.` : 'Sin efecto inmediato en ventas.';
+            const reputation = `${impact.reputation > 0 ? '+' : ''}${impact.reputation} de reputación.`;
+            const noSales = impact.sales && !gameInstance.activeSales?.length ? ' No hay juegos a la venta ahora mismo.' : '';
+            feedback.textContent = `${impact.backlash ? 'Polémica: ' : ''}${effect} ${reputation}${noSales}${impact.repeated ? ' Mensaje repetido: sin nuevo impacto.' : ''}`;
+            feedback.dataset.kind = impact.backlash || impact.sales < 0 ? 'negative' : 'positive';
+            container.querySelector('#vread-reputation').textContent = `${ensureVreadState(gameInstance).reputation}/100`;
+            const reactions = impact.backlash
+                ? generateVreadFeed(gameInstance).filter(post => post.id.startsWith('backlash-'))
+                : [];
+            allPosts = [result.post, ...reactions, ...allPosts].slice(0, maxFeedPosts);
             composeInput.value = '';
             renderTimeline();
+            container.querySelector('#vread-feed-timeline').scrollTop = 0;
 
             if (window.soundEngine?.playClick) window.soundEngine.playClick();
         };
@@ -3359,16 +3159,56 @@ function renderVreadAppContent(container, gameInstance) {
             refreshBtn.classList.add('spinning');
             setTimeout(() => {
                 refreshBtn.classList.remove('spinning');
-                allPosts = generateVreadFeed(gameInstance);
+                const fresh = generateVreadFeed(gameInstance).filter(post => !post.isStudio);
+                // At the memory limit, an explicit refresh starts a new browseable
+                // batch while retaining the studio's own published messages.
+                const older = allPosts.length >= maxFeedPosts ? [] : allPosts.filter(post => !post.isStudio);
+                allPosts = [...allPosts.filter(post => post.isStudio), ...fresh, ...older].slice(0, maxFeedPosts);
+                container.querySelector('#vread-update-notice').hidden = true;
+                updateLoadMore();
                 renderChips();
                 renderTimeline();
+                container.querySelector('#vread-feed-timeline').scrollTop = 0;
             }, 300);
         });
     }
 
+    let lastFeedWeek = gameInstance.getIndustryWeek?.();
+    container._refreshVreadForWeek = () => {
+        const currentWeek = gameInstance.getIndustryWeek?.();
+        if (currentWeek == null || lastFeedWeek == null || currentWeek - lastFeedWeek < 4) return;
+        lastFeedWeek = currentWeek;
+        const reputation = container.querySelector('#vread-reputation');
+        if (reputation) reputation.textContent = `${ensureVreadState(gameInstance).reputation}/100`;
+        container.querySelector('#vread-update-notice').hidden = false;
+    };
+
+    const timeline = container.querySelector('#vread-feed-timeline');
+    const loadMore = container.querySelector('#vread-load-more');
+    function updateLoadMore() {
+        const full = allPosts.length >= maxFeedPosts;
+        loadMore.disabled = full;
+        loadMore.textContent = full ? 'Actualiza para ver publicaciones más recientes' : 'Cargar más publicaciones';
+    }
+    function appendMorePosts() {
+        if (loadMore.disabled) return;
+        const room = maxFeedPosts - allPosts.length;
+        const batch = generateVreadFeed(gameInstance)
+            .filter(post => !post.isStudio && !post.id.startsWith('backlash-'))
+            .slice(0, room);
+        allPosts.push(...batch);
+        renderTimeline(batch);
+        updateLoadMore();
+    }
+    loadMore.addEventListener('click', appendMorePosts);
+    timeline.addEventListener('scroll', () => {
+        if (timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 80) appendMorePosts();
+    }, { passive: true });
+
     // Initial render of chips & timeline
     renderChips();
     renderTimeline();
+    updateLoadMore();
 }
 
 // 6. CUSTOM APP: GUIDE APP FOR DESKTOP

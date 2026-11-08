@@ -586,3 +586,120 @@
     #modal-new-game .preprod-choice,
     #modal-new-game .preprod-progress button { transition: none; }
 }
+
+/* Preproducción debe poder leerse sin acercarse a la pantalla. */
+#modal-new-game .preprod-window {
+    width: min(100%, 1280px);
+    max-width: 1280px;
+    height: min(880px, calc(100dvh - 32px));
+}
+#modal-new-game { --preprod-muted: #c3d2dd; }
+#modal-new-game .preprod-progress button { font-size: 14px; min-height: 54px; }
+#modal-new-game .preprod-step { padding: clamp(20px, 2.5vw, 32px); }
+#modal-new-game .preprod-step-heading h3 { font-size: clamp(24px, 2.3vw, 30px); }
+#modal-new-game :is(.preprod-step-heading p, .preprod-help, .preprod-detail, .preprod-inline-metrics,
+    .preprod-error, .preprod-footer .preprod-status, .preprod-choice small, .preprod-summary-row,
+    .business-model-description, .business-model-lock, .contract-desc, .contract-terms-box) {
+    font-size: 15px;
+    line-height: 1.55;
+}
+#modal-new-game :is(.form-label, .preprod-detail h4, .preprod-choice strong,
+    .preprod-options .preprod-choice, .business-model-title, .contract-header strong,
+    .pipeline-badge, .dag-category-title) { font-size: 15px; line-height: 1.4; }
+#modal-new-game :is(.form-input, .form-select) { min-height: 48px; font-size: 16px; }
+#modal-new-game :is(.preprod-back, .preprod-next, .preprod-discard) {
+    min-height: 46px;
+    font-size: 15px;
+}
+#modal-new-game .preprod-choice { min-height: 62px; }
+#modal-new-game .preprod-choice:disabled,
+#modal-new-game .business-model-card.locked { opacity: .8; }
+#modal-new-game .creator-subtitle { font-size: 18px; line-height: 1.35; }
+#modal-new-game .creator-section { padding: 22px; }
+#modal-new-game .preprod-architecture > summary { font-size: 16px; padding: 18px 20px; }
+#modal-new-game .pipeline-selector { grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+#modal-new-game .publishing-contract-grid,
+#modal-new-game .business-model-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+#modal-new-game :is(.pipeline-card, .publishing-contract-card, .business-model-card) { padding: 18px; }
+#modal-new-game .pipeline-card strong { font-size: 17px !important; line-height: 1.35; }
+#modal-new-game .pipeline-card p,
+#modal-new-game .pipeline-card > div:last-child,
+#modal-new-game #preprod-step-5 :is(p, h4, label)[style*="font-size"],
+#modal-new-game .preprod-architecture :is(p, button, span, div)[style*="font-size"] {
+    font-size: 15px !important;
+    line-height: 1.5;
+}
+#modal-new-game .pipeline-card p { color: var(--preprod-muted) !important; }
+#modal-new-game #btn-open-pipeline-modal { min-height: 42px; padding: 8px 14px !important; font-size: 14px !important; }
+#modal-new-game .preprod-architecture :is(.node-card-title, .node-card-desc, .node-req-row,
+    .node-chip, .req-pill, .node-status-badge, .disc-name, .disc-num, .preset-btn) {
+    font-size: 14px;
+    line-height: 1.45;
+}
+#modal-new-game .preprod-architecture .dag-node-card.locked { opacity: .8; }
+#modal-new-game .preprod-architecture .node-card-desc,
+#modal-new-game .preprod-architecture .node-req-row { color: var(--preprod-muted); }
+#modal-new-game .contract-header { padding-right: 24px; }
+#modal-new-game .contract-terms-box { gap: 8px; padding: 12px; }
+#modal-new-game .contract-terms-box .term-benefit { color: #72e0b4; }
+#modal-new-game .contract-terms-box .term-caution { color: #ffdb8b; }
+#modal-new-game .contract-terms-box .term-cost { color: #ffaca9; }
+#modal-new-game .preprod-summary { gap: 0 32px; }
+#modal-new-game .preprod-summary-row {
+    display: grid;
+    grid-template-columns: minmax(100px, .8fr) minmax(0, 1.5fr) auto;
+    align-items: start;
+    padding: 16px 0;
+}
+#modal-new-game .preprod-summary-row strong { text-align: left; }
+#modal-new-game .preprod-summary-row button { padding: 0 4px; }
+#modal-new-game .preprod-summary > .preprod-help { grid-column: 1 / -1; margin-top: 16px; }
+
+/* Comparación ampliada, abierta desde la etapa de tecnología. */
+#modal-tech-pipeline { padding: 16px; }
+#modal-tech-pipeline .modal-window { width: min(100%, 1100px); max-width: 1100px !important; }
+#modal-tech-pipeline > .modal-window > p,
+#modal-tech-pipeline :is(.pipeline-card p, .pipeline-card > div:last-child) {
+    color: #c3d2dd !important;
+    font-size: 15px !important;
+    line-height: 1.55;
+}
+#modal-tech-pipeline .pipeline-card strong { font-size: 17px !important; }
+#modal-tech-pipeline .pipeline-badge { font-size: 14px; }
+#modal-tech-pipeline .dock-btn { min-height: 44px; font-size: 15px; }
+
+@media (max-width: 760px) {
+    #modal-tech-pipeline { padding: 8px; }
+    #modal-tech-pipeline .pipeline-modal-grid { grid-template-columns: 1fr; }
+    #modal-new-game .preprod-window { height: calc(100dvh - 16px); }
+    #modal-new-game .preprod-progress {
+        display: flex;
+        overflow-x: auto;
+        overscroll-behavior-inline: contain;
+    }
+    #modal-new-game .preprod-progress button {
+        flex: 0 0 auto;
+        min-height: 44px;
+        padding: 8px 12px;
+        font-size: 14px;
+    }
+    #modal-new-game .preprod-step { padding: 18px; }
+    #modal-new-game .preprod-summary { grid-template-columns: 1fr; }
+    #modal-new-game .publishing-contract-grid,
+    #modal-new-game .business-model-grid { grid-template-columns: 1fr; }
+    #modal-new-game .creator-section { padding: 16px; }
+    #modal-new-game .preprod-footer { flex-wrap: wrap; }
+    #modal-new-game .preprod-error { flex: 1 0 100%; margin: 0; }
+    #modal-new-game .preprod-back,
+    #modal-new-game .preprod-next,
+    #modal-new-game .preprod-discard { font-size: 14px; }
+}
+
+@media (max-width: 540px) {
+    #modal-new-game .preprod-summary-row { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+    #modal-new-game .preprod-summary-row > span { grid-column: 1; }
+    #modal-new-game .preprod-summary-row strong { grid-column: 1; grid-row: 2; }
+    #modal-new-game .preprod-summary-row button { grid-column: 2; grid-row: 1 / 3; }
+    #modal-new-game #preprod-step-2 > div[style*="grid-template-columns"],
+    #modal-new-game #preprod-step-5 div[style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+}

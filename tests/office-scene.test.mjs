@@ -31,7 +31,8 @@ function buildScene() {
         cameraOfficePos: new THREE.Vector3(),
         cameraOfficeTarget: new THREE.Vector3(),
         createAnimatedMonitorCanvas: () => new THREE.Texture(),
-        createWhiteboardTexture: () => new THREE.Texture()
+        createWhiteboardTexture: () => new THREE.Texture(),
+        clearComputerHover: () => {}
     });
     world.buildOffice(2);
     return world;

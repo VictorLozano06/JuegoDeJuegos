@@ -1,3 +1,5 @@
+import { createModernPeripherals } from './peripherals.js';
+
 export const MODERN_OFFICE_LAYOUT = Object.freeze([
     Object.freeze({ id: 'founder', role: 'founder', x: 0, z: -2.65 }),
     Object.freeze({ id: 'team-1', role: 'employee', x: -3.3, z: -0.35 }),
@@ -125,10 +127,7 @@ export function buildModernOffice(world, THREE) {
         display.name = 'Pantalla de desarrollo';
         display.position.set(0, 1.81, monitorZ + 0.03);
         desk.add(display);
-        box(desk, 'Teclado', graphite, 0.75, 0.038, 0.28, 0, 1.418, 0.40);
-        box(desk, 'Zona de teclas', aluminum, 0.68, 0.013, 0.20, 0, 1.443, 0.39);
-        box(desk, 'Alfombrilla', teal, 0.34, 0.012, 0.30, 0.64, 1.403, 0.30);
-        box(desk, 'Ratón', graphite, 0.086, 0.035, 0.13, 0.64, 1.424, 0.30);
+        desk.add(createModernPeripherals(THREE, { tabletop: 1.3975 }));
         if (boss) {
             box(desk, 'Organizador del fundador', graphite, 0.62, 0.08, 0.32, -0.96, 1.44, -0.20);
             box(desk, 'Cuaderno del fundador', warmWhite, 0.39, 0.032, 0.29, -0.83, 1.418, 0.30);

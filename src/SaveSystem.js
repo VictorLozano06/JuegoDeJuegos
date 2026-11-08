@@ -1,5 +1,6 @@
 import { InHouseEngine, ScopeDAG, ScopeNode, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
 import { migrateOfficeState } from './data/offices.js';
+import { ensureBasicEngine } from './basic-engine.js';
 
 const VERSION = 1;
 const SLOT_PREFIX = 'dev-empire:save:';
@@ -173,6 +174,7 @@ function replaceGame(game, savedState) {
     for (const [key, value] of Object.entries(state)) {
         if (!RUNTIME_FIELDS.has(key) && typeof game[key] !== 'function') game[key] = value;
     }
+    ensureBasicEngine(game);
     Object.assign(liveManager, defaults.techTreeManager, state.techTreeManager);
     game.techTreeManager = liveManager;
 }

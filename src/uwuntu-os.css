@@ -1130,6 +1130,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
+    padding: 4px;
 }
 
 .start-studio-meta {
@@ -1645,8 +1647,10 @@
 /* --- VREAD DESKTOP CLIENT (TWITTER / X CLONE FOR PC) --- */
 .uwuntu-vread-client {
     display: grid;
-    grid-template-columns: 1fr 280px;
+    grid-template-columns: minmax(0, 1fr) 280px;
+    grid-template-rows: minmax(0, 1fr);
     height: 100%;
+    min-height: 0;
     overflow: hidden;
     background: #070d18;
     color: #f1f5f9;
@@ -1658,6 +1662,8 @@
     flex-direction: column;
     height: 100%;
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
     border-right: 1px solid rgba(56, 189, 248, 0.15);
     background: #070d18;
 }
@@ -1751,6 +1757,20 @@
     background: rgba(15, 25, 45, 0.6);
     border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
+
+.vread-impact-message, .vread-post-impact {
+    margin: 0;
+    padding: 4px 16px;
+    color: #b8d9cd;
+    font-size: 12px;
+    line-height: 1.4;
+}
+.vread-impact-message:empty { display: none; }
+.vread-impact-message[data-kind="negative"], .vread-impact-message[data-kind="error"],
+.vread-post-impact.is-backlash { color: #ffb9aa; }
+.vread-post-impact { padding: 5px 0; font-size: 11px; color: #9db7b0; }
+.vread-reputation { padding: 8px 0; color: #b7cbd0; font-size: 12px; }
+.vread-reputation strong { color: #8ee2cb; }
 
 .vread-composer-main {
     flex: 1;
@@ -1905,11 +1925,31 @@
 
 /* Timeline & Posts */
 .vread-feed-timeline {
-    flex: 1;
+    flex: 1 1 0;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
     scrollbar-width: thin;
     scrollbar-color: rgba(56, 189, 248, 0.3) transparent;
 }
+
+.vread-load-more {
+    display: block;
+    margin: 16px auto 20px;
+    padding: 9px 18px;
+    border: 1px solid rgba(56, 189, 248, .35);
+    border-radius: 18px;
+    background: rgba(56, 189, 248, .08);
+    color: #d6f5ff;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.vread-load-more:hover { background: rgba(56, 189, 248, .2); }
+.vread-load-more:focus-visible, .vread-feed-timeline:focus-visible { outline: 2px solid #7dd3fc; outline-offset: -2px; }
+.vread-load-more:disabled { opacity: .65; cursor: default; }
+.vread-update-notice { color: #a6d5e4; padding: 4px 16px; font-size: 11px; }
+.vread-update-notice[hidden] { display: none; }
 
 .vread-posts-container {
     display: flex;
@@ -1966,6 +2006,10 @@
     padding: 6px;
 }
 
+.vread-avatar--player:has(.company-logo-image) {
+    padding: 0;
+}
+
 .vread-studio-avatar-inner {
     width: 100%;
     height: 100%;
@@ -1977,6 +2021,30 @@
 .vread-studio-avatar-inner svg {
     width: 100%;
     height: 100%;
+}
+
+.vread-profile-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex: 0 0 30px;
+    padding: 3px;
+    overflow: hidden;
+    border: 1px solid rgba(56, 189, 248, .4);
+    border-radius: 50%;
+    background: #18323d;
+    color: #b6e9e0;
+}
+
+.vread-profile-avatar:has(.company-logo-image) {
+    padding: 0;
+}
+
+.vread-avatar--player .company-logo-image,
+.vread-profile-avatar .company-logo-image {
+    object-fit: cover;
 }
 
 .vread-avatar-mini {

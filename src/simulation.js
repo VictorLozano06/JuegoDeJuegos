@@ -1,4 +1,5 @@
 import { soundEngine } from './audio.js';
+import { ensureBasicEngine } from './basic-engine.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
 import INDUSTRY_EVENT_CATALOG from './data/events.json' with { type: 'json' };
 import { PLATFORMS_DATABASE as PLATFORMS, getPlatformsByYear } from './data/platformsData.js';
@@ -7,6 +8,7 @@ import CREATOR_PROFILES from './data/streamers.json' with { type: 'json' };
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
 import { OFFICE_CATALOG, STARTING_OFFICE, findOffice } from './data/offices.js';
+import { getVreadSalesMultiplier, publishVreadPost } from './vread-engine.js';
 import { createIPState, registerIP, linkGame, recordRelease, updateIPSales, getIPBenefits, advanceIPYear, transferIP, getIPValue, setIPForSale } from './ipSystem.js';
 import { generateRivalCompanies, RIVAL_COMPANY_DEFAULTS } from './rivalCompanies.js';
 import { tickRivals } from './rivalAI.js';
@@ -389,6 +391,8 @@ class TycoonGame {
         // Company & Founder Profile
         this.companyName = 'PixelForge Interactive';
         this.companyLogo = '[[DE_ICON_001]]';
+        this.vreadState = { posts: [], effects: [], recentFeed: [], sequence: 0, reputation: 50 };
+        this.expoState = { lastAnnouncedYear: 0, pendingYear: null, resolvedYear: null };
         this.hasCustomizedProfile = false;
         this.founder = {
             name: 'Raúl Vance',
@@ -455,16 +459,8 @@ class TycoonGame {
         this.activeTopicResearch = null; // { topicId, topicName, costRP, totalWeeks, weeksRemaining, progress, employeeIndex, employeeName }
         this.marketingPressArchive = []; // Archive of retro/digital press covers and magazine clippings
 
-        this.customEngines = [
-            {
-                id: 'engine_v1',
-                name: 'Starter Voxel Engine',
-                features: ['graphics2d_v1', 'sound_chiptune'],
-                bonusTech: 18,
-                bonusDesign: 22,
-                bonusScore: 0.30
-            }
-        ];
+        this.customEngines = [];
+        ensureBasicEngine(this);
 
         // Technology Pipelines (Commercial Engines vs Proprietary In-House Engines)
         this.commercialEngines = (typeof CommercialEngineCatalog !== 'undefined') ? CommercialEngineCatalog : [];
@@ -586,6 +582,10 @@ class TycoonGame {
         const result = transferIP(this.ipState, ipId, this.getIPOwner(), buyer, agreedPrice, { year: this.getHistoricalYear() });
         if (result.success) this.notify();
         return result;
+    }
+
+    publishVreadPost(text) {
+        return publishVreadPost(this, text);
     }
 
     updateCompanyProfile(config) {
@@ -1724,6 +1724,7 @@ class TycoonGame {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === dagPipeline.id)) ||
                      (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === dagPipeline.id)) ||
                      (this.inHouseEngines && this.inHouseEngines.find(e => e.id === dagPipeline.id)) ||
+                     (this.customEngines && this.customEngines.find(e => e.id === dagPipeline.id)) ||
                      null;
         } else if (pipelineType === 'commercial') {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === config.engineId)) ||
@@ -3137,7 +3138,8 @@ class TycoonGame {
             const industryMultiplier = typeof this.getIndustrySalesMultiplier === 'function'
                 ? this.getIndustrySalesMultiplier(game.platformId || game.platform?.id, game.genre?.id || game.genreId)
                 : 1;
-            if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier * industryMultiplier);
+            const vreadMultiplier = getVreadSalesMultiplier(this, game);
+            if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier * industryMultiplier * vreadMultiplier);
             const currentPlatform = this.getPlatformById(game.platformId || game.platform?.id);
             if (currentPlatform && game.launchMarketShare != null) {
                 // El mercado evoluciona con el año; al retirarse persiste una cola residual.
@@ -3247,6 +3249,7 @@ class TycoonGame {
                 rank: chartRank,
                 lifecycleState: game.lifecycleState || 'long_tail',
                 viralMultiplier: weeklyViralMultiplier,
+                vreadMultiplier,
                 industryMultiplier: industryMultiplier,
                 hasPopularMods: !!(game.workshop?.popularMods > 0 && !game.workshop?.compatibilityBroken)
             });
