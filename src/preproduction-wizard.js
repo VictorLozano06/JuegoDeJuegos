@@ -309,6 +309,10 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         if (index === 2) renderPlatforms();
         if (index === 5) renderSummary();
         steps[index].section.scrollTop = 0;
+        if (progress.scrollWidth > progress.clientWidth) {
+            const activeButton = steps[index].button;
+            progress.scrollLeft = activeButton.offsetLeft - progress.offsetLeft - (progress.clientWidth - activeButton.offsetWidth) / 2;
+        }
         steps[index].section.querySelector('h3').focus({ preventScroll: true });
     }
     function sync() {

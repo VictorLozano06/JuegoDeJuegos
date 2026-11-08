@@ -15,6 +15,9 @@ import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DAT
 import REAL_BRANDS_MOD_PACK from './data/mod_sample_real_brands.json';
 import { WorldEngine } from './world.js';
 import { createMainMenu } from './main-menu.js';
+import { prepareCompanyLogo, renderCompanyLogo } from './company-logo.js';
+import { ensureBasicEngine } from './basic-engine.js';
+import { CALENDAR_WEEK_MS, DEVELOPMENT_TICK_MS, updateExpoSchedule, hasExpoInvitation, resolveExpoInvitation } from './expo-schedule.js';
 import { renderOfficeManager } from './office-ui.js';
 import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
@@ -49,7 +52,8 @@ const initialProfile = {
 };
 let devInterval = null;
 let calendarInterval = null;
-let lastExpoYearTriggered = 0;
+let expoSession = null;
+let expoPedestrianInterval = null;
 let lastNotifiedProjectOfferKey = null;
 let lastRenderedEmployeeCount = null;
 let lastOfficeManagerSnapshot = null;
@@ -178,6 +182,7 @@ function bootGameApp() {
             if (appState !== STATE_PLAYING) return;
             syncStudioScene(state);
             renderHUD(state);
+            syncExpoInvitation();
             const officesPhoneView = document.getElementById('phone-view-offices');
             if (document.getElementById('modal-offices')?.classList.contains('active') || (officesPhoneView && !officesPhoneView.hidden)) refreshOfficeManager();
             (state.pendingHeadhunts || []).forEach(offer => {
@@ -290,7 +295,6 @@ async function enterGameplay({ checkpoint = false } = {}) {
     scopeDAG = new ScopeDAG(null, { techTreeManager });
     debtManager = new TechnicalDebtModel();
     pipelineManager = new EnginePipelineManager();
-    lastExpoYearTriggered = 0;
     lastNotifiedProjectOfferKey = null;
     notifiedHeadhuntEmployeeIds.clear();
     selectedHistoricalTechs.clear();
@@ -325,6 +329,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
     appState = STATE_PLAYING;
     document.getElementById('ui-overlay')?.removeAttribute('inert');
     game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
+    checkCalendarEvents();
     game.notify();
     mainMenu.hide();
     mainMenu.setBusy(false);
@@ -371,32 +376,36 @@ function startSimulationLoops() {
 
     // Development tick loop (for active projects)
     devInterval = setInterval(() => {
-        if (!game.isPaused && game.gameSpeed > 0 && game.currentProject) {
+        if (!game.isPaused && game.gameSpeed > 0 && game.currentProject && !document.getElementById('modal-expo-scene')?.classList.contains('active')) {
             game.advanceDevTick(world);
         }
-    }, 120);
+    }, DEVELOPMENT_TICK_MS);
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {
-        if (!game.isPaused && game.gameSpeed > 0) {
+        if (!game.isPaused && game.gameSpeed > 0 && !document.getElementById('modal-expo-scene')?.classList.contains('active')) {
             game.advanceCalendar();
+            checkCalendarEvents();
             const cadence = appliedSettings.autosave;
             if (cadence === 'weekly' || (cadence === 'monthly' && game.week === 1)) autosaveCurrentGame();
             if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
             const liveOpsModal = document.getElementById('modal-liveops');
             if (liveOpsModal?.classList.contains('active') || liveOpsPhoneTarget) renderLiveOps();
-            checkCalendarEvents();
         }
-    }, 2800 / (game.gameSpeed || 1));
+    }, CALENDAR_WEEK_MS / (game.gameSpeed || 1));
 }
 
 function checkCalendarEvents() {
-    // Annual Mega Game Expo in Month 6 (June), Week 1
-    if (game.month === 6 && game.week === 1 && lastExpoYearTriggered !== game.year) {
-        lastExpoYearTriggered = game.year;
-        openModal('modal-expo');
-        if (soundEngine) soundEngine.playFanfare(8.5);
-    }
+    const announced = updateExpoSchedule(game);
+    syncExpoInvitation();
+    if (announced) showToast('La feria anual ya está disponible. Abre la invitación cuando quieras.', 'info');
+}
+
+function syncExpoInvitation() {
+    const button = document.getElementById('expo-invitation');
+    if (!button) return;
+    button.hidden = appState !== STATE_PLAYING || !hasExpoInvitation(game);
+    if (!button.hidden) button.querySelector('small').textContent = `${game.getHistoricalYear()} · Ver opciones`;
 }
 
 function setGameSpeed(speed) {
@@ -413,6 +422,21 @@ function setGameSpeed(speed) {
 function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
         if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
+        const expoModal = document.getElementById('modal-expo');
+        if (expoModal?.classList.contains('active')) {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                closeAllModals();
+            } else if (e.key === 'Tab') {
+                const controls = [...expoModal.querySelectorAll('button:not(:disabled)')];
+                const first = controls[0], last = controls.at(-1);
+                if (!expoModal.contains(document.activeElement) || (e.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+                    e.preventDefault();
+                    (e.shiftKey ? last : first)?.focus();
+                }
+            }
+            return;
+        }
         const officeModal = document.getElementById('modal-offices');
         if (officeModal?.classList.contains('active')) {
             if (e.key === 'Escape') {
@@ -500,6 +524,16 @@ function setupUIControls() {
     // Audio user gesture init
     document.body.addEventListener('click', () => {
         if (soundEngine) soundEngine.resume();
+    });
+
+    document.getElementById('expo-invitation').addEventListener('click', () => {
+        if (!hasExpoInvitation(game)) return;
+        if (window.uwuntuOS?.isOpen || document.querySelector('.modal-backdrop.active') || document.querySelector('dialog[open]')) {
+            showToast('Cierra la ventana actual para consultar la feria.', 'info');
+            return;
+        }
+        openModal('modal-expo');
+        document.querySelector('#modal-expo .modal-close')?.focus();
     });
 
     // Audio Mute toggle
@@ -1375,7 +1409,19 @@ function renderPipelineSelector() {
     const historicalYear = game && game.getHistoricalYear ? game.getHistoricalYear() : 1982;
     const owned = (game && game.inHouseEngines) || [];
     const commercial = (game && game.commercialEngines) || [];
+    const basic = ensureBasicEngine(game);
     pipelineManager.availablePipelines = [
+        {
+            ...basic,
+            type: 'inhouse',
+            isBasic: true,
+            desc: 'Motor inicial gratuito para crear tus primeros juegos en 2D. Disponible desde el principio.',
+            royaltyPercent: 0,
+            royaltyRate: 0,
+            baseDebtFloor: 0,
+            frictionMultiplier: 1,
+            unlockedNodes: []
+        },
         ...owned.map(engine => ({
             ...engine,
             type: 'inhouse',
@@ -1415,13 +1461,13 @@ function renderPipelineSelector() {
             card.innerHTML = `
                 <div>
                     <span class="pipeline-badge ${isCommercial ? 'badge-commercial' : 'badge-inhouse'}">
-                        ${isCommercial ? '[[DE_ICON_022]] Motor Comercial' : '[[DE_ICON_059]] Motor Propio (In-House)'}
+                        ${isCommercial ? '[[DE_ICON_022]] Motor Comercial' : pipe.isBasic ? '[[DE_ICON_059]] Motor inicial' : '[[DE_ICON_059]] Motor Propio (In-House)'}
                     </span>
                     <strong style="display: block; font-size: 14px; color: #fff; margin-bottom: 4px;">${pipe.name}</strong>
                     <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">${pipe.desc}</p>
                 </div>
                 <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: ${isCommercial ? 'var(--accent-gold)' : 'var(--accent-green)'};">
-                    ${isCommercial ? `Royalties: ${pipe.royaltyPercent}% | Deuda Base: ${pipe.baseDebtFloor} pts (Bloatware)` : `0% Royalties | -50% Fricción | Licencias a Terceros`}
+                    ${isCommercial ? `Royalties: ${pipe.royaltyPercent}% | Deuda Base: ${pipe.baseDebtFloor} pts (Bloatware)` : pipe.isBasic ? 'Gratis | 0% royalties' : '0% Royalties | -50% Fricción | Licencias a Terceros'}
                 </div>
             `;
             card.addEventListener('click', () => {
@@ -2195,7 +2241,7 @@ function renderHUD(state) {
     const logoEl = document.getElementById('studio-logo');
     if (logoEl.dataset.logo !== state.companyLogo) {
         logoEl.dataset.logo = state.companyLogo;
-        logoEl.textContent = state.companyLogo;
+        renderCompanyLogo(logoEl, state.companyLogo);
     }
 
     // Top Bar Stats
@@ -5987,10 +6033,16 @@ window.retireGameFromWidget = function() {
 
 // --- MEGA GAME EXPO INTERACTIVE CONVENTION SCENE ---
 
-let expoSession = null;
-let expoPedestrianInterval = null;
+window.dismissExpoInvitation = function() {
+    if (resolveExpoInvitation(game)) {
+        syncExpoInvitation();
+        if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+    }
+    closeAllModals();
+};
 
 window.attendExpo = function(tier) {
+    if (!hasExpoInvitation(game) || expoSession || ![1, 2, 3].includes(tier)) return;
     const cost = tier === 1 ? 5000 : (tier === 2 ? 22000 : 65000);
     if (game.funds < cost) {
         showToast(`Fondos insuficientes ($${cost.toLocaleString()}) para contratar este stand.`, 'warn');
@@ -6018,7 +6070,7 @@ window.attendExpo = function(tier) {
     boothStage.className = `expo-booth-stage tier-${tier}`;
 
     document.getElementById('expo-booth-name').innerText = game.companyName;
-    document.getElementById('expo-booth-logo').innerText = game.companyLogo;
+    renderCompanyLogo(document.getElementById('expo-booth-logo'), game.companyLogo);
 
     const featuredGame = game.activeSales.length ? game.activeSales[0] : (game.gamesHistory.length ? game.gamesHistory[game.gamesHistory.length - 1] : null);
     document.getElementById('expo-showcased-game').innerText = featuredGame ? `Presentando: "${featuredGame.name}" (${featuredGame.genre})` : 'Exhibiendo catálogo del estudio';
@@ -6187,11 +6239,11 @@ function showVisitorBubble(pedestrianEl, avatar) {
 
 window.expoDistributeMerch = function() {
     if (!expoSession || expoSession.merchUsed) return;
-    if (game.funds < 600) {
-        showToast('Fondos insuficientes para repartir merchandising ($600).', 'warn');
+    const standCost = [0, 5000, 22000, 65000][expoSession.tier];
+    if (game.funds < standCost + 600) {
+        showToast('Fondos insuficientes para el stand y el merchandising ($600).', 'warn');
         return;
     }
-    game.funds -= 600;
     expoSession.merchUsed = true;
     const btn = document.getElementById('btn-expo-merch');
     if (btn) {
@@ -6231,9 +6283,15 @@ window.finishExpoScene = function() {
 
     if (expoSession) {
         const result = game.executeExpoAttendance(expoSession.tier, expoSession.merchUsed, expoSession.interviewUsed);
+        expoSession = null;
+        if (result.success) {
+            resolveExpoInvitation(game);
+            syncExpoInvitation();
+            if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+        }
         closeAllModals();
-        showToast(result.message, 'success');
-        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        showToast(result.message, result.success ? 'success' : 'warn');
+        if (result.success && soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
     } else {
         closeAllModals();
     }
@@ -6263,6 +6321,7 @@ let localCustomization = {
     accessory: 'glasses_retro'
 };
 let localLogo = '[[DE_ICON_001]]';
+let logoUploadSequence = 0;
 studioPreviewDirty = false;
 
 initCompanyCreatorModal();
@@ -6286,14 +6345,49 @@ function initCompanyCreatorModal() {
             item.className = 'logo-option' + (logo === game.companyLogo ? ' active' : '');
             item.innerText = logo;
             item.addEventListener('click', () => {
+                logoUploadSequence++;
+                document.querySelector('#form-company-creator button[type="submit"]').disabled = false;
+                document.getElementById('company-logo-file').value = '';
+                document.getElementById('company-logo-feedback').textContent = '';
                 document.querySelectorAll('.logo-option').forEach(l => l.classList.remove('active'));
                 item.classList.add('active');
                 localLogo = logo;
+                renderCompanyLogo(document.getElementById('company-logo-preview'), localLogo);
                 if (soundEngine) soundEngine.playClick();
             });
             logoContainer.appendChild(item);
         });
     }
+
+    const logoFile = document.getElementById('company-logo-file');
+    logoFile.addEventListener('click', () => { logoFile.value = ''; });
+    logoFile.addEventListener('change', async () => {
+        const file = logoFile.files?.[0];
+        if (!file) return;
+        const sequence = ++logoUploadSequence;
+        const feedback = document.getElementById('company-logo-feedback');
+        const submit = document.querySelector('#form-company-creator button[type="submit"]');
+        feedback.dataset.result = '';
+        feedback.textContent = 'Preparando imagen…';
+        submit.disabled = true;
+        try {
+            const image = await prepareCompanyLogo(file);
+            if (sequence !== logoUploadSequence) return;
+            localLogo = image;
+            document.querySelectorAll('.logo-option').forEach(option => option.classList.remove('active'));
+            syncStudioSelection();
+            renderCompanyLogo(document.getElementById('company-logo-preview'), localLogo);
+            feedback.textContent = 'Imagen seleccionada para el emblema.';
+            feedback.dataset.result = 'success';
+        } catch (error) {
+            if (sequence === logoUploadSequence) {
+                feedback.dataset.result = 'error';
+                feedback.textContent = error.message;
+            }
+        } finally {
+            if (sequence === logoUploadSequence) submit.disabled = false;
+        }
+    });
 
     // Random company name generator
     const rndBtn = document.getElementById('btn-random-company-name');
@@ -6399,6 +6493,8 @@ function initCompanyCreatorModal() {
                 characterCustomization: { ...localCustomization }
             });
 
+            if (!startsNewGame && saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+
             studioPreviewDirty = false;
             if (startsNewGame) {
                 creatingNewGame = false;
@@ -6426,6 +6522,10 @@ function syncStudioFormValues(newGame = false) {
     if (!profile) return;
     localCustomization = { ...profile.characterCustomization };
     localLogo = profile.companyLogo;
+    logoUploadSequence++;
+    document.getElementById('company-logo-feedback').textContent = '';
+    document.getElementById('company-logo-file').value = '';
+    renderCompanyLogo(document.getElementById('company-logo-preview'), localLogo);
 
     const inputComp = document.getElementById('input-company-name');
     if (inputComp) inputComp.value = profile.companyName;
@@ -6436,7 +6536,10 @@ function syncStudioFormValues(newGame = false) {
     const traitSelect = document.getElementById('select-founder-trait');
     if (traitSelect) traitSelect.value = profile.founder?.trait || 'balanced';
     const submit = document.querySelector('#form-company-creator button[type="submit"]');
-    if (submit) submit.textContent = newGame ? 'Empezar partida' : 'Guardar perfil de estudio y personaje';
+    if (submit) {
+        submit.disabled = false;
+        submit.textContent = newGame ? 'Empezar partida' : 'Guardar perfil de estudio y personaje';
+    }
 
     // Sync active classes
     document.querySelectorAll('.logo-option').forEach(l => {
@@ -6588,6 +6691,12 @@ function openModal(id) {
 }
 
 function closeAllModals() {
+    const closedExpo = document.getElementById('modal-expo')?.classList.contains('active');
+    if (document.getElementById('modal-expo-scene')?.classList.contains('active') && expoSession) {
+        clearInterval(expoPedestrianInterval);
+        expoPedestrianInterval = null;
+        expoSession = null;
+    }
     const cancelNewGame = creatingNewGame && document.getElementById('modal-company-creator').classList.contains('active');
     const closedOffices = document.getElementById('modal-offices')?.classList.contains('active');
     if (studioPreviewDirty) {
@@ -6601,6 +6710,7 @@ function closeAllModals() {
     });
     compactMenuTrigger?.focus({ preventScroll: true });
     compactMenuTrigger = null;
+    if (closedExpo && hasExpoInvitation(game)) document.getElementById('expo-invitation')?.focus({ preventScroll: true });
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
     if (closedOffices) (document.getElementById('device-launcher') || document.getElementById('btn-upgrade-office')).focus();
