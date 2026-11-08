@@ -8,6 +8,7 @@ import {
     marketingBriefArt, marketingChannelState, marketingEdition, marketingMoney, marketingNumber,
     marketingText, renderMarketingChannels, renderMarketingHistory, renderMarketingInspector
 } from './marketing-ui.js';
+import { initializeFinanceUI } from './finance-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -34,6 +35,7 @@ const STATE_PLAYING = 'playing';
 window.game = game;
 let appState = STATE_MAIN_MENU;
 let mainMenu;
+let financeUI;
 let creatingNewGame = false;
 let appliedSettings;
 const initialProfile = {
@@ -135,10 +137,25 @@ function bootGameApp() {
 
         // 2. Setup UI Event Listeners & Keyboard Shortcuts
         setupUIControls();
+        setupKeyboardShortcuts();
         initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
         initializeRivalUI({ game, openModal });
+        financeUI = initializeFinanceUI({ game, openModal, showToast,
+            resumeRecovery: () => {
+                if (game.prepareBankruptcy().success) return { success:false, message:'La insolvencia sigue sin una solución viable. Revisa las medidas o el procedimiento.' };
+                game.financeState.procedurePending = false;
+                game.isPaused = false;
+                if (game.gameSpeed === 0) game.gameSpeed = 1;
+                startSimulationLoops();
+                return { success:true, message:'Plan revisado; simulación reanudada.' };
+            },
+            onBankruptcyCommitted: () => {
+                game.financeState.procedurePending = false;
+                if (game.financeState.bankruptcy.mode === 'spectator') { game.isPaused = false; startSimulationLoops(); }
+                if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+            }
+        });
         initializeUwuntuOS(game, world);
-        setupKeyboardShortcuts();
 
         // 3. Populate Modal Dropdowns & DAG Architecture
         populateProjectWizard();
@@ -305,12 +322,14 @@ async function enterGameplay({ checkpoint = false } = {}) {
     }
     appState = STATE_PLAYING;
     document.getElementById('ui-overlay')?.removeAttribute('inert');
-    game.isPaused = false;
+    game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
     game.notify();
     mainMenu.hide();
     mainMenu.setBusy(false);
     if (checkpoint && saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
     startSimulationLoops();
+    if (game.financeState?.procedurePending && !game.financeState?.bankruptcy?.confirmed) game.onBankruptcyProcedureRequired?.();
+    else if (game.financeState?.bankruptcy?.confirmed) financeUI?.open();
 }
 
 function returnToMainMenu() {
@@ -479,7 +498,7 @@ function setupUIControls() {
     // Audio user gesture init
     document.body.addEventListener('click', () => {
         if (soundEngine) soundEngine.resume();
-    }, { once: true });
+    });
 
     // Audio Mute toggle
     document.getElementById('audio-toggle').addEventListener('click', () => {

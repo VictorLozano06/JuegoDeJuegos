@@ -16,6 +16,7 @@ export function buildModernOffice(world, THREE) {
     const room = new THREE.Group();
     room.name = 'Oficina Moderna';
     world.officeGroup.add(room);
+    const chairs = [];
 
     const matte = (color, roughness = 0.82) => new THREE.MeshStandardMaterial({ color, roughness });
     const floor = matte(0x777b76);
@@ -136,7 +137,86 @@ export function buildModernOffice(world, THREE) {
         const chair = world.createChair(boss ? 0x435b52 : 0x525e63);
         chair.position.z = 0.85;
         desk.add(chair);
+        chairs.push({ desk, chair });
         world.registerDesk(desk, index, slot, room);
         world.monitors[index] = { mesh: display, lightPos: display.getWorldPosition(new THREE.Vector3()) };
     }
+
+    // Models are loaded once per office instance; the procedural chairs remain as
+    // a fallback while the files load or if an asset cannot be retrieved.
+    if (!THREE.GLTFLoader) return;
+    const loader = new THREE.GLTFLoader();
+    loader.load('/models/silla.glb?v=3', gltf => {
+        if (!room.parent) return;
+        const model = gltf.scene;
+        // The source chair's back faces +X; turn it away from the desk.
+        model.rotation.y = -Math.PI / 2;
+        model.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        if (!size.x || !size.y || !size.z) return;
+        // Fit the model to the seated rig: the seat is about 0.8 units above
+        // the floor and the front edge must stay behind the character's knees.
+        const horizontalScale = 0.64 / Math.max(size.x, size.z);
+        const verticalScale = 1.31 / size.y;
+        const center = bounds.getCenter(new THREE.Vector3());
+        model.scale.set(horizontalScale, verticalScale, horizontalScale);
+        model.position.set(-center.x * horizontalScale, -bounds.min.y * verticalScale + 0.02, -center.z * horizontalScale);
+        model.traverse(object => {
+            if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; }
+        });
+        for (const { desk, chair } of chairs) {
+            const replacement = new THREE.Group();
+            replacement.name = 'Silla de oficina';
+            replacement.position.z = 0.91;
+            replacement.add(model.clone(true));
+            desk.remove(chair);
+            desk.add(replacement);
+            chair.traverse(object => {
+                object.geometry?.dispose();
+                if (object.material) (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => material.dispose());
+            });
+        }
+        world.nextShadowRefresh = 0;
+    }, undefined, error => console.warn('No se pudo cargar la silla:', error));
+
+    loader.load('/models/mando-nes.glb', gltf => {
+        if (!room.parent) return;
+        const model = gltf.scene;
+        const prop = new THREE.Group();
+        prop.name = 'Mando NES';
+        prop.add(model);
+        // The front of the source model faces +X; turn it toward the room.
+        model.rotation.y = -Math.PI / 2;
+        prop.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        const scale = 0.90 / size.x;
+        const center = bounds.getCenter(new THREE.Vector3());
+        prop.scale.setScalar(scale);
+        prop.position.set(3.9 - center.x * scale, 2.46 - center.y * scale, BACK + 0.105 - bounds.min.z * scale);
+        model.traverse(object => {
+            if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; }
+        });
+        room.add(prop);
+        world.nextShadowRefresh = 0;
+    }, undefined, error => console.warn('No se pudo cargar el mando:', error));
+
+    loader.load('/models/primibot.glb?v=2', gltf => {
+        if (!room.parent) return;
+        const model = gltf.scene;
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        if (!size.y) return;
+        const center = bounds.getCenter(new THREE.Vector3());
+        const scale = 0.32 / size.y;
+        model.scale.setScalar(scale);
+        model.position.set(-0.82 - center.x * scale, 1.398 - bounds.min.y * scale, -0.27 - center.z * scale);
+        model.name = 'Figura de acción Primibot';
+        model.traverse(object => {
+            if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; }
+        });
+        chairs[1].desk.add(model);
+        world.nextShadowRefresh = 0;
+    }, undefined, error => console.warn('No se pudo cargar Primibot:', error));
 }

@@ -4,6 +4,7 @@ import { GENRES_DATABASE } from './data/genres_database.js';
 import { getPlatformsByYear } from './data/platformsData.js';
 import { TECH_TREE_NODES } from './data/techTreeData.js';
 import { registerIP, recordRelease, updateIPSales, getIPBenefits, getIPValue, setIPForSale, transferIP } from './ipSystem.js';
+import { assessLiquidity } from './financeSystem.js';
 
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const pick=(values,rng)=>values[Math.min(values.length-1,Math.floor(rng()*values.length))];
@@ -71,6 +72,8 @@ function updateFinance(co,game) {
  co.developmentBudget=Math.max(0,Math.floor((co.funds-reservedCash(co))*.35));
  co.marketingBudget=Math.max(0,Math.floor((co.funds-reservedCash(co))*(co.decisionWeights?.marketing ?? .1)*.2));
  co.investmentCapacity=Math.max(0,co.funds-reservedCash(co));
+ const weeklyIncome=co.games.reduce((sum,title)=>sum+(title.weeklySales||0)*(title.price||0)*(1-(title.platformRoyaltyRate||0)),0);
+ co.financialHealth=assessLiquidity({cash:co.funds,weeklyIncome,weeklyCosts:wages,debt:co.debt,cashFlow:weeklyIncome-wages});
 }
 
 function research(co,game,year,rng){
