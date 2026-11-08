@@ -10,6 +10,8 @@ class SoundEngine {
         this.masterGain = null;
         this.musicGain = null;
         this.sfxGain = null;
+        this.soundVolume = 0.6;
+        this.musicVolume = 0.3;
         this.isMuted = false;
         this.musicPlaying = false;
         this.musicTimer = null;
@@ -29,11 +31,11 @@ class SoundEngine {
             this.masterGain.connect(this.ctx.destination);
 
             this.musicGain = this.ctx.createGain();
-            this.musicGain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+            this.musicGain.gain.setValueAtTime(this.musicVolume, this.ctx.currentTime);
             this.musicGain.connect(this.masterGain);
 
             this.sfxGain = this.ctx.createGain();
-            this.sfxGain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+            this.sfxGain.gain.setValueAtTime(this.soundVolume, this.ctx.currentTime);
             this.sfxGain.connect(this.masterGain);
 
             this.initialized = true;
@@ -59,6 +61,15 @@ class SoundEngine {
             this.masterGain.gain.setValueAtTime(this.isMuted ? 0 : 0.7, this.ctx.currentTime);
         }
         return this.isMuted;
+    }
+
+    setVolumes(soundVolume, musicVolume) {
+        this.soundVolume = soundVolume;
+        this.musicVolume = musicVolume;
+        if (!this.initialized) return;
+        const time = this.ctx.currentTime;
+        this.sfxGain.gain.setTargetAtTime(this.soundVolume, time, 0.03);
+        this.musicGain.gain.setTargetAtTime(this.musicVolume, time, 0.03);
     }
 
     // --- SOUND EFFECTS ---
