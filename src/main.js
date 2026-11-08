@@ -463,7 +463,7 @@ function setupUIControls() {
     // Audio user gesture init
     document.body.addEventListener('click', () => {
         if (soundEngine) soundEngine.resume();
-    }, { once: true });
+    });
 
     // Audio Mute toggle
     document.getElementById('audio-toggle').addEventListener('click', () => {

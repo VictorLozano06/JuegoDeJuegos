@@ -1,7 +1,6 @@
 /**
  * Dev Empire 3D - Procedural Web Audio Engine & Sound Synthesizer
- * High-fidelity dynamic chiptune/lofi sound effects and ambient soundtrack
- * No external audio files needed - 100% synthesized in Web Audio API
+ * Procedural sound effects and the game’s background soundtrack.
  */
 
 class SoundEngine {
@@ -14,9 +13,8 @@ class SoundEngine {
         this.musicVolume = 0.3;
         this.isMuted = false;
         this.musicPlaying = false;
-        this.musicTimer = null;
-        this.bpm = 96;
-        this.step = 0;
+        this.musicElement = null;
+        this.musicSource = null;
         this.initialized = false;
     }
 
@@ -51,6 +49,8 @@ class SoundEngine {
         }
         if (!this.initialized) {
             this.init();
+        } else if (this.musicPlaying && this.musicElement?.paused) {
+            this.musicElement.play().catch(() => {});
         }
     }
 
@@ -294,59 +294,16 @@ class SoundEngine {
     // A lush, cozy, lo-fi tech groove (chords + subtle bass + warm tone)
     startAmbientMusic() {
         if (this.musicPlaying) return;
+        if (!this.musicElement) {
+            this.musicElement = new Audio(`${import.meta.env.BASE_URL}audio/musica-principal.mp3`);
+            this.musicElement.loop = true;
+            this.musicElement.preload = 'auto';
+            this.musicSource = this.ctx.createMediaElementSource(this.musicElement);
+            this.musicSource.connect(this.musicGain);
+        }
         this.musicPlaying = true;
-
-        // Chord progression: Dm9 -> G13 -> Cmaj9 -> Am9
-        const chords = [
-            [146.83, 220.00, 261.63, 329.63, 392.00], // D3, A3, C4, E4, G4 (Dm9)
-            [196.00, 246.94, 293.66, 329.63, 440.00], // G3, B3, D4, E4, A4 (G13)
-            [130.81, 196.00, 246.94, 293.66, 329.63], // C3, G3, B3, D4, E4 (Cmaj9)
-            [110.00, 164.81, 220.00, 261.63, 329.63]  // A2, E3, A3, C4, E4 (Am9)
-        ];
-
-        let chordIndex = 0;
-        const stepInterval = (60 / this.bpm) * 1000 * 2; // Every 2 beats
-
-        const playChordStep = () => {
-            if (!this.musicPlaying || this.isMuted || !this.ctx) {
-                this.musicTimer = setTimeout(playChordStep, stepInterval);
-                return;
-            }
-
-            const now = this.ctx.currentTime;
-            const currentChord = chords[chordIndex];
-            chordIndex = (chordIndex + 1) % chords.length;
-
-            // Warm lowpass filter for chill lofi tone
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = 'lowpass';
-            filter.frequency.setValueAtTime(950, now);
-            filter.frequency.exponentialRampToValueAtTime(650, now + 1.8);
-            filter.connect(this.musicGain);
-
-            currentChord.forEach((freq, idx) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-
-                osc.type = idx === 0 ? 'triangle' : 'sine';
-                osc.frequency.setValueAtTime(freq, now + idx * 0.02);
-
-                const noteVol = (idx === 0) ? 0.28 : 0.12;
-                gain.gain.setValueAtTime(0.001, now);
-                gain.gain.linearRampToValueAtTime(noteVol, now + 0.12 + idx * 0.02);
-                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
-
-                osc.connect(gain);
-                gain.connect(filter);
-
-                osc.start(now);
-                osc.stop(now + 2.0);
-            });
-
-            this.musicTimer = setTimeout(playChordStep, stepInterval);
-        };
-
-        playChordStep();
+        // Browsers may require a user gesture; resume() retries on the next click.
+        this.musicElement.play().catch(() => {});
     }
 
     playNodeToggle(active) {
@@ -418,10 +375,7 @@ class SoundEngine {
 
     stopAmbientMusic() {
         this.musicPlaying = false;
-        if (this.musicTimer) {
-            clearTimeout(this.musicTimer);
-            this.musicTimer = null;
-        }
+        this.musicElement?.pause();
     }
 }
 
