@@ -533,6 +533,7 @@
                     <div class="form-group">
                         <label class="form-label">Plataforma de Lanzamiento</label>
                         <select id="select-platform" class="form-select"></select>
+                        <small id="platform-details" aria-live="polite" style="display:block; margin-top:6px; color:var(--text-secondary)"></small>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Público Objetivo</label>
@@ -707,6 +708,13 @@
                         </div>
                     </div>
 
+                    <div class="dag-category-block" id="historical-tech-section">
+                        <div class="dag-category-title">[[DE_ICON_063]] Tecnologías históricas investigadas</div>
+                        <p style="font-size:12px;color:var(--text-secondary)">Selecciona las tecnologías para este proyecto. Investiga nuevos módulos en I+D.</p>
+                        <div id="historical-tech-options" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px;margin:10px 0"></div>
+                        <div id="historical-tech-warning" role="alert" style="display:none;color:#ff6666;font-weight:700;margin:10px 0"></div>
+                        <button type="button" id="btn-historical-graph" class="dock-btn">[[DE_ICON_020]] Ver tecnologías históricas en 3D</button>
+                    </div>
                     <!-- Clean Categorized 2D Architecture Nodes -->
                     <div class="dag-category-block">
                         <div class="dag-category-title"><span>[[DE_ICON_054]]</span> Motor Gráfico & Renderizado</div>
@@ -1246,6 +1254,7 @@
                     <div id="engine-specialty-genres" style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:14px"></div>
                     <label class="form-label">Módulos Desbloqueados a Integrar:</label>
                     <div id="engine-features-checkboxes" style="margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;"></div>
+                    <div id="engine-historical-warning" role="alert" style="display:none;color:#ff6666;font-weight:700;margin:10px 0"></div>
                     <button type="submit" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center;">
                         [[DE_ICON_015]] Financiar I+D y Registrar Motor
                     </button>

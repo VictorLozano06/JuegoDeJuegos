@@ -4,6 +4,7 @@ import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGI
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
 import REAL_BRANDS_MOD_PACK from './data/mod_sample_real_brands.json';
 import { WorldEngine } from './world.js';
+import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -22,6 +23,7 @@ const notifiedHeadhuntEmployeeIds = new Set();
 const techTreeManager = game.techTreeManager;
 const scopeDAG = new ScopeDAG(null, { techTreeManager });
 const debtManager = new TechnicalDebtModel();
+const selectedHistoricalTechs = new Set();
 const pipelineManager = new EnginePipelineManager();
 
 game.onResearchCompleted = (name) => {
@@ -387,6 +389,7 @@ function setupUIControls() {
     });
     const projectPlatform = document.getElementById('select-platform');
     if (projectPlatform) projectPlatform.addEventListener('change', () => {
+        updatePlatformDetails();
         renderPublishingContractSelector();
     });
 
@@ -907,10 +910,51 @@ function updateWizardSynergyBadge() {
     `;
 }
 
+function renderHistoricalGraph(frame = false) {
+    const available = TECH_TREE_NODES.filter(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id));
+    if (!available.length) return false;
+    const minYear = Math.min(...available.map(n => n.eraYear));
+    const maxYear = Math.max(...available.map(n => n.eraYear));
+    const centerYear = (minYear + maxYear) / 2;
+    const categories = ['Graphics', 'Audio', 'Engine', 'Physics', 'AI', 'Network'];
+    const nodes = available.map(n => ({
+        ...n,
+        // 2.4 units per year exceeds the width of the 1.7-unit labels.
+        // Simultaneous nodes occupy separate vertical lanes within the category.
+        pos: [(n.eraYear - centerYear) * 2.4, 2 + categories.indexOf(n.category) * 3 + (n.position.z / 5) * 1.2, 0],
+        prerequisites: n.requiredNodes,
+        state: selectedHistoricalTechs.has(n.id) ? 'active' : 'available'
+    }));
+    world.renderScopeDAG3D(nodes, []);
+    if (frame) {
+        const width = Math.max(8, (maxYear - minYear) * 2.4 + 4);
+        const height = 21;
+        const halfFov = world.camera.fov * Math.PI / 360;
+        const distance = Math.max(height / (2 * Math.tan(halfFov)), width / (2 * Math.tan(halfFov) * world.camera.aspect)) + 10;
+        world.camera.far = Math.max(world.camera.far, distance + 80);
+        world.camera.updateProjectionMatrix();
+        world.controls.maxDistance = Math.max(35, distance + 20);
+        world.targetCamPos = world.cameraDagPos.clone().set(0, 10.5, distance);
+        world.targetLookAt = world.cameraDagTarget.clone().set(0, 10.5, 0);
+    }
+    return true;
+}
+
 function initDAGArchitectureUI() {
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
+
+    document.getElementById('btn-historical-graph')?.addEventListener('click', () => {
+        if (!world) return;
+        if (!TECH_TREE_NODES.some(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id))) { showToast('Investiga tecnologías históricas para verlas en el grafo.', 'warn'); return; }
+        closeAllModals();
+        world.showScopeDAG();
+        renderHistoricalGraph(true);
+        const hud = document.getElementById('hologram-overlay-bar');
+        if (hud) hud.style.display = 'flex';
+        showToast('Grafo histórico: selecciona módulos haciendo clic en ellos.', 'info');
+    });
 
     // Preset buttons binding (works in both #modal-new-game and #modal-scope-dag)
     document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -1156,7 +1200,8 @@ function renderPublishingContractSelector() {
     const platformSelect = document.getElementById('select-platform');
     const platformId = platformSelect ? platformSelect.value : (game.platforms[0]?.id || 'pc_compatibles');
     const platform = (game.platforms || []).find(p => p.id === platformId) || game.platforms[0] || { devCost: 5000, name: 'PC' };
-    const baseDevCost = platform.devCost + (game.era === 1 ? 4000 : (game.era === 2 ? 14000 : 35000));
+    const kitCost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(platform) : platform.devCost;
+    const baseDevCost = kitCost + (game.era === 1 ? 4000 : (game.era === 2 ? 14000 : 35000));
 
     // Anticipos calculados
     const publisherAdvance = Math.max(15000, Math.round(baseDevCost * 0.65));
@@ -1272,7 +1317,41 @@ function applyDAGPreset(presetId) {
     showToast(`Preset "${presetId.toUpperCase()}" aplicado al Árbol de Arquitectura${filteredNotice}`, 'success');
 }
 
+function updateHistoricalWarning(elementId, ids) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const result = calculateTechIncompatibility(ids);
+    el.style.display = result.incompatible ? 'block' : 'none';
+    el.textContent = result.incompatible
+        ? `Incompatibilidad Tecnológica Severa: Intentar acoplar tecnologías de eras tan distantes disparará los fallos y ralentizará el desarrollo. Brecha: ${result.gapYears} años · multiplicador: ×${result.multiplier.toFixed(2)}`
+        : '';
+}
+
+function renderHistoricalTechOptions() {
+    const container = document.getElementById('historical-tech-options');
+    if (!container) return;
+    container.replaceChildren();
+    const year = game.getHistoricalYear();
+    const nodes = TECH_TREE_NODES.filter(n => n.eraYear <= year && techTreeManager.isUnlocked(n.id));
+    for (const id of selectedHistoricalTechs) if (!nodes.some(n => n.id === id)) selectedHistoricalTechs.delete(id);
+    if (!nodes.length) container.textContent = 'Todavía no hay tecnologías históricas investigadas.';
+    nodes.forEach(node => {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex;align-items:center;gap:7px;color:#fff;font-size:12px';
+        const input = document.createElement('input');
+        input.type = 'checkbox'; input.checked = selectedHistoricalTechs.has(node.id);
+        input.addEventListener('change', () => {
+            if (input.checked) selectedHistoricalTechs.add(node.id); else selectedHistoricalTechs.delete(node.id);
+            updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+        });
+        label.append(input, document.createTextNode(`${node.name} (${node.eraYear})`));
+        container.appendChild(label);
+    });
+    updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+}
+
 function renderDAGNodes() {
+    renderHistoricalTechOptions();
     const containerGroups = [
         {
             render: document.getElementById('dag-nodes-render'),
@@ -1627,6 +1706,15 @@ function updateDAGMetricsUI() {
 }
 
 function on3DNodeClicked(nodeId) {
+    if (nodeId.startsWith('tech_')) {
+        if (!techTreeManager.isUnlocked(nodeId)) return;
+        if (selectedHistoricalTechs.has(nodeId)) selectedHistoricalTechs.delete(nodeId); else selectedHistoricalTechs.add(nodeId);
+        renderHistoricalTechOptions();
+        const node = world.dagNodesMap.get(nodeId);
+        if (node) showToast(`${node.data.name}: ${selectedHistoricalTechs.has(nodeId) ? 'seleccionado' : 'retirado de la selección'}`, 'info');
+        renderHistoricalGraph();
+        return;
+    }
     const toggleRes = scopeDAG.toggleNode(nodeId);
     if (!toggleRes.success) {
         showToast(toggleRes.reason, 'warn');
@@ -1647,16 +1735,43 @@ function setupStageTabs() {
 function updatePlatformOptions() {
     const platformSelect = document.getElementById('select-platform');
     if (!platformSelect) return;
-    platformSelect.innerHTML = '';
+    const previous = platformSelect.value;
+    const year = game.getHistoricalYear();
     const platforms = typeof game.getPlatforms === 'function'
-        ? game.getPlatforms(game.era)
-        : (game.platforms || PLATFORMS).filter(p => (p.eraUnlocked || 1) <= game.era);
+        ? game.getPlatforms()
+        : (game.platforms || PLATFORMS);
+    platformSelect.replaceChildren();
     platforms.forEach(p => {
+        if (p.releaseYear != null && year < p.releaseYear) return;
+        if (p.releaseYear == null && (p.eraUnlocked || 1) > game.era) return;
+        const retired = p.status === 'RETIRED' || (p.retireYear != null && year >= p.retireYear);
+        const kitCost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(p) : (p.devKitCost ?? p.devCost ?? 0);
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.innerText = `${p.icon || '[[DE_ICON_001]]'} ${p.name} ($${p.devCost.toLocaleString()})${p.isModded ? ' [[DE_ICON_034]][MOD]' : ''}`;
+        opt.disabled = retired;
+        opt.textContent = `${p.name} · ${retired ? 'Retirada' : `DevKit $${kitCost.toLocaleString()}`}${p.isModded ? ' [MOD]' : ''}`;
         platformSelect.appendChild(opt);
     });
+    if ([...platformSelect.options].some(option => option.value === previous && !option.disabled)) {
+        platformSelect.value = previous;
+    }
+    updatePlatformDetails();
+}
+
+function updatePlatformDetails() {
+    const details = document.getElementById('platform-details');
+    const select = document.getElementById('select-platform');
+    if (!details || !select) return;
+    const platforms = typeof game.getPlatforms === 'function' ? game.getPlatforms() : (game.platforms || PLATFORMS);
+    const platform = platforms.find(p => p.id === select.value);
+    if (!platform) {
+        details.textContent = 'No hay plataformas disponibles para este año.';
+        return;
+    }
+    const cost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(platform) : (platform.devKitCost ?? platform.devCost ?? 0);
+    const royalty = platform.royaltyRate ?? platform.royalty ?? 0;
+    const share = Number(platform.marketShare);
+    details.textContent = `DevKit: $${cost.toLocaleString()} · Regalías: ${(royalty * 100).toLocaleString()}%${Number.isFinite(share) ? ` · Índice de mercado: ${(share * 100).toFixed(1)}%` : ''}${platform.type ? ` · ${platform.type}` : ''}`;
 }
 
 function updateEngineOptions() {
@@ -1703,6 +1818,7 @@ function startProjectFromWizard() {
 
     const result = game.startNewGameProject({
         name, topicId, genreId, platformId, targetAudience, dagConfig,
+        historicalTechIds: [...selectedHistoricalTechs],
         publishingContractType,
         businessModel, postLaunchContent, monetizationStyle, supportsPatches
     });
@@ -3083,7 +3199,7 @@ function renderTechTree() {
                 return;
             }
 
-            const branchNodes = SCOPE_NODES_CATALOG.filter(n => {
+            const branchNodes = mgr.catalog.filter(n => {
                 if (branch.id === 'netcode') return n.category === 'netcode' || n.category === 'net';
                 return n.category === branch.id;
             });
@@ -3125,7 +3241,7 @@ function renderTechTree() {
                 let prereqHtml = '';
                 if (prereqs.length > 0) {
                     const pills = prereqs.map(pId => {
-                        const pDef = SCOPE_NODES_CATALOG.find(x => x.id === pId);
+                        const pDef = mgr.catalogMap.get(pId);
                         const pName = pDef ? pDef.name : pId;
                         const met = mgr.isUnlocked(pId);
                         return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '[[DE_ICON_149]]' : '[[DE_ICON_150]]'} ${pName}</span>`;
@@ -3144,7 +3260,7 @@ function renderTechTree() {
                         </div>
                     `;
                 } else if (isInvestigable) {
-                    const canAffordRP = game.researchPoints >= (node.costRP || 30);
+                    const canAffordRP = game.researchPoints >= (node.costRP ?? 30);
                     const isBusy = game.activeResearch !== null;
                     const disabled = !canAffordRP || isBusy;
                     const btnText = isBusy ? '[[DE_ICON_060]] Equipo Ocupado en I+D' : (!canAffordRP ? `RP Insuficiente (${node.costRP} RP)` : `[[DE_ICON_006]] Iniciar Investigación (${node.costRP} RP)`);
@@ -3202,7 +3318,7 @@ function renderTechTree() {
     const checkContainer = document.getElementById('engine-features-checkboxes');
     if (checkContainer) {
         checkContainer.innerHTML = '';
-        SCOPE_NODES_CATALOG.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
+        mgr.catalog.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
             const lbl = document.createElement('label');
             lbl.style.display = 'flex';
             lbl.style.alignItems = 'center';
@@ -3213,6 +3329,9 @@ function renderTechTree() {
             lbl.innerHTML = `<input type="checkbox" name="engine-feat" value="${node.id}" ${index < 3 ? 'checked' : ''}> ${node.icon} ${node.name}`;
             checkContainer.appendChild(lbl);
         });
+        const refreshWarning = () => updateHistoricalWarning('engine-historical-warning', Array.from(checkContainer.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value).filter(id => id.startsWith('tech_')));
+        checkContainer.onchange = refreshWarning;
+        refreshWarning();
     }
     const genreContainer = document.getElementById('engine-specialty-genres');
     if (genreContainer && !genreContainer.dataset.rendered) {
@@ -3224,7 +3343,7 @@ function renderTechTree() {
 
 window.upgradeStudioEngine = function(engineId) {
     const selectedNodes = Array.from(document.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value);
-    const result = game.upgradeInHouseEngine(engineId, selectedNodes);
+    const result = game.upgradeInHouseEngine(engineId, selectedNodes.filter(id => !id.startsWith('tech_')), selectedNodes.filter(id => id.startsWith('tech_')));
     showToast(result.message, result.success ? 'success' : 'warn');
     if (result.success) renderTechTree();
 };
@@ -3283,7 +3402,8 @@ document.getElementById('form-custom-engine').addEventListener('submit', (e) => 
     }
 
     const affineGenres = Array.from(document.querySelectorAll('input[name="engine-genre"]:checked')).map(el => el.value);
-    const res = game.startInHouseEngineRD({ name, bakedNodes: checked, affineGenres });
+    const historicalTechIds = checked.filter(id => id.startsWith('tech_'));
+    const res = game.startInHouseEngineRD({ name, bakedNodes: checked.filter(id => !id.startsWith('tech_')), historicalTechIds, affineGenres });
     if (res.success) {
         updateEngineOptions();
         renderTechTree();
@@ -4541,6 +4661,7 @@ function openCompanyCreatorModal() {
 function openModal(id) {
     closeAllModals();
     if (id === 'modal-new-game') {
+        updatePlatformOptions();
         renderPipelineSelector();
         renderPublishingContractSelector();
         renderBusinessModelSelector();

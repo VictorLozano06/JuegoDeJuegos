@@ -1,7 +1,8 @@
 import { soundEngine } from './audio.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
 import INDUSTRY_EVENT_CATALOG from './data/events.json';
-import PLATFORMS from './data/platforms.json';
+import { PLATFORMS_DATABASE as PLATFORMS, getPlatformsByYear } from './data/platformsData.js';
+import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 import CREATOR_PROFILES from './data/streamers.json';
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
@@ -443,6 +444,8 @@ class TycoonGame {
         this.gamesHistory = [];
         this.activeSales = [];
         this.platforms = Array.isArray(PLATFORMS) ? JSON.parse(JSON.stringify(PLATFORMS)) : [];
+        // Array simple: también se puede serializar con el resto de la partida.
+        this.ownedDevKits = [];
         this.genres = Array.isArray(GENRES_DATABASE) ? JSON.parse(JSON.stringify(GENRES_DATABASE)) : [];
         this.creatorProfiles = Array.isArray(CREATOR_PROFILES) ? JSON.parse(JSON.stringify(CREATOR_PROFILES)) : [];
         this.industryEventsCatalog = Array.isArray(INDUSTRY_EVENT_CATALOG) ? JSON.parse(JSON.stringify(INDUSTRY_EVENT_CATALOG)) : [];
@@ -573,13 +576,23 @@ class TycoonGame {
     }
 
     // --- DATA-DRIVEN ARCHITECTURE & SIMULATOR EXTENSIBILITY (MODDING API) ---
-    getPlatforms(era = null) {
-        if (era === null || era === undefined) return [...(this.platforms || [])];
-        return (this.platforms || []).filter(p => (p.eraUnlocked || 1) <= era);
+    getPlatforms() {
+        const historical = getPlatformsByYear(this.getHistoricalYear());
+        const mods = (this.platforms || []).filter(p => p.isModded &&
+            (p.releaseYear == null ? (p.eraUnlocked || 1) <= this.era : this.getHistoricalYear() >= p.releaseYear));
+        const overridden = new Set(mods.map(p => p.id));
+        return [...historical.filter(p => !overridden.has(p.id)), ...mods.map(p => ({
+            ...p, status: p.retireYear != null && this.getHistoricalYear() >= p.retireYear ? 'RETIRED' : 'ACTIVE'
+        }))];
     }
 
     getPlatformById(id) {
-        return (this.platforms || []).find(p => p.id === id) || null;
+        return this.getPlatforms().find(p => p.id === id) || null;
+    }
+
+    getDevKitCost(platform) {
+        if (!platform || (this.ownedDevKits || []).includes(platform.id)) return 0;
+        return Math.max(0, Number(platform.devKitCost ?? platform.devCost) || 0);
     }
 
     registerPlatform(platformData) {
@@ -591,8 +604,11 @@ class TycoonGame {
         const cleanPlatform = {
             id: String(platformData.id).trim(),
             name: String(platformData.name).trim(),
-            devCost: Number(platformData.devCost) || 20000,
-            marketShare: Number(platformData.marketShare) || 0.65,
+            devCost: Number(platformData.devCost ?? platformData.devKitCost ?? 20000),
+            royaltyRate: Math.max(0, Math.min(1, Number(platformData.royaltyRate ?? platformData.royalty ?? 0))),
+            releaseYear: platformData.releaseYear == null ? null : Number(platformData.releaseYear),
+            retireYear: platformData.retireYear == null ? null : Number(platformData.retireYear),
+            marketShare: Number(platformData.marketShare ?? 0.65),
             eraUnlocked: Number(platformData.eraUnlocked) || 1,
             audience: platformData.audience || 'Everyone',
             icon: platformData.icon || '[[DE_ICON_001]]',
@@ -1654,7 +1670,9 @@ class TycoonGame {
         // config: { name, topicId, genreId, platformId, targetAudience, engineId, pipelineType, selectedNodeIds, sliders }
         const topic = findTheme(config.topicId) || TOPICS[0];
         const genre = findGenre(config.genreId) || GENRES[0];
-        const platform = (this.platforms || PLATFORMS).find(p => p.id === config.platformId) || (this.platforms || PLATFORMS)[0];
+        const platform = this.getPlatformById(config.platformId);
+        if (!platform) return { success: false, message: 'La plataforma seleccionada aún no está disponible.' };
+        if (platform.status === 'RETIRED') return { success: false, message: `${platform.name} ya está retirada y no admite nuevos proyectos.` };
 
         const allowLocked = Boolean(config.force || config.forced || config.bypassUnlockCheck);
 
@@ -1733,13 +1751,21 @@ class TycoonGame {
             return { success: false, message: 'Live-Service necesita un nodo de red online dentro del alcance del juego.' };
         }
 
+        const historicalTechIds = [...new Set([...(config.historicalTechIds || []), ...((engine && engine.historicalTechIds) || [])])];
+        const historicalValidation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!historicalValidation.valid) return { success: false, message: historicalValidation.errors.join(' ') };
+        const historicalIncompatibility = calculateTechIncompatibility(historicalTechIds);
+        const historicalBaseDebt = TECH_TREE_NODES.filter(node => historicalTechIds.includes(node.id)).reduce((sum, node) => sum + node.baseDebt, 0);
         const engineUpfrontCost = (engine && engine.licenseCost) ? engine.licenseCost : 0;
-        const totalDevCost = platform.devCost + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
+        const devKitCost = this.getDevKitCost(platform);
+        const totalDevCost = devKitCost + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
         if (this.funds < totalDevCost) {
             return { success: false, message: '¡Fondos insuficientes para costear el kit de desarrollo y licencias!' };
         }
 
         this.funds -= totalDevCost;
+        this.ownedDevKits = this.ownedDevKits || [];
+        if (!this.ownedDevKits.includes(platform.id)) this.ownedDevKits.push(platform.id);
 
         // Custom engine bonuses
         const engineTechBonus = engine ? (engine.bonusTech || 10) : 0;
@@ -1775,7 +1801,7 @@ class TycoonGame {
         if (typeof TechnicalDebtModel !== 'undefined') {
             const bloatwareFloor = (dagPipeline && dagPipeline.baseDebtFloor !== undefined) ? dagPipeline.baseDebtFloor : ((engine && engine.bloatwareDebtFloor) ? engine.bloatwareDebtFloor : 0);
             techDebtModel = new TechnicalDebtModel({
-                initialDebt: bloatwareFloor,
+                initialDebt: (bloatwareFloor + historicalBaseDebt) * historicalIncompatibility.multiplier,
                 baseBloatwareDebt: bloatwareFloor
             });
         }
@@ -1886,6 +1912,8 @@ class TycoonGame {
             // DAG & Technical Debt Engine Fields
             scopeDAG: scopeDAG,
             techDebtModel: techDebtModel,
+            historicalTechIds,
+            historicalIncompatibility,
             devMode: 'normal', // 'normal', 'crunch', 'refactor'
             disciplineWorkloads: frictionData ? frictionData.effectiveWorkload : { engine: 30, gameplay: 30, network: 0, art: 30, qa: 15, totalSum: 105 },
             disciplineProgress: { engine: 0, gameplay: 0, network: 0, art: 0, qa: 0 },
@@ -2070,13 +2098,13 @@ class TycoonGame {
                 dagComplexity: proj.friction || 25,
                 connectedCount: activeNodesList.length || 6,
                 isLateStage: proj.stage >= 3,
-                engineModifier: engineModifier * (1 - perfectionistShare) * (burnoutRiskActive ? 3 : 1),
+                engineModifier: engineModifier * (proj.historicalIncompatibility?.multiplier || 1) * (1 - perfectionistShare) * (burnoutRiskActive ? 3 : 1),
                 qaPower: qaPower,
                 extraHours: isCrunch ? 3.0 : 0
             });
 
             // Punto 3.1: Penalización de velocidad y fricción acumulada
-            devSpeedMultiplier = debtTickResult.speedMultiplier; // 1.0 / accumulatedFriction
+            devSpeedMultiplier = debtTickResult.speedMultiplier / (proj.historicalIncompatibility?.multiplier || 1); // 1.0 / accumulatedFriction
             proj.accumulatedFriction = debtTickResult.accumulatedFriction;
             proj.regressionRisk = debtTickResult.regressionRisk;
             proj.burnoutDebtMultiplier = burnoutRiskActive ? 3 : 1;
@@ -2499,7 +2527,8 @@ class TycoonGame {
         const referencePrice = this.era === 1 ? 12 : (this.era === 2 ? 28 : 55);
         const basePrice = proj.businessModel === 'f2p' || proj.businessModel === 'live_service' ? 0 : referencePrice;
         const eraSalesFactor = this.era === 1 ? 85 : (this.era === 2 ? 280 : 950);
-        const marketShareBonus = proj.platform.marketShare + 0.25;
+        const launchPlatform = this.getPlatformById(proj.platform.id) || proj.platform;
+        const marketShareBonus = (launchPlatform.marketShare ?? 0.1) + 0.25;
         const trendSalesMultiplier = isTrendMatch ? 1.35 : 1.0;
 
         let totalSalesPotential = Math.floor(
@@ -2654,6 +2683,9 @@ class TycoonGame {
             // Pipeline & Tech Debt Record
             pipelineType: proj.pipelineType || 'inhouse',
             royaltyRate: (proj.engineObj && proj.engineObj.royaltyRate) || 0,
+            platformRoyaltyRate: proj.platform.royaltyRate || 0,
+            launchMarketShare: launchPlatform.marketShare ?? 0.1,
+            platformRoyaltiesPaidTotal: 0,
             engineObsolescencePenalty,
             royaltiesPaidTotal: 0,
             techDebtAtRelease: proj.techDebtModel ? Math.round(proj.techDebtModel.accumulatedDebt * 10) / 10 : 0,
@@ -3008,11 +3040,15 @@ class TycoonGame {
         this.funds -= cost;
         const conversion = game.monetizationStyle === 'aggressive' ? 0.04 : 0.02;
         const grossRevenue = Math.floor(game.mau * conversion * game.referencePrice * 0.9);
-        const combinedFeeRate = Math.min(1, (game.royaltyRate || 0) + (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0));
+        const engineRate = Math.max(0, Math.min(1, game.royaltyRate || 0));
+        const platformRate = Math.max(0, Math.min(1 - engineRate, game.platformRoyaltyRate || 0));
+        const publisherRate = Math.max(0, Math.min(1 - engineRate - platformRate, (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+        const combinedFeeRate = engineRate + platformRate + publisherRate;
         const fees = Math.floor(grossRevenue * combinedFeeRate);
         const revenue = grossRevenue - fees;
         game.royaltiesPaidTotal += Math.floor(grossRevenue * (game.royaltyRate || 0));
-        game.publisherSharePaid += Math.floor(grossRevenue * ((game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+        game.platformRoyaltiesPaidTotal = (game.platformRoyaltiesPaidTotal || 0) + Math.floor(grossRevenue * platformRate);
+        game.publisherSharePaid += Math.floor(grossRevenue * publisherRate);
         game.season++;
         game.nextSeasonWeek = Math.max(game.nextSeasonWeek, game.weeksOnMarket) + 12;
         game.weeksWithoutContentPatch = 0;
@@ -3111,9 +3147,15 @@ class TycoonGame {
                 ? this.applyWeeklyViralEffect(game)
                 : 1;
             const industryMultiplier = typeof this.getIndustrySalesMultiplier === 'function'
-                ? this.getIndustrySalesMultiplier(game.platform?.id, game.genre?.id || game.genreId)
+                ? this.getIndustrySalesMultiplier(game.platformId || game.platform?.id, game.genre?.id || game.genreId)
                 : 1;
             if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier * industryMultiplier);
+            const currentPlatform = this.getPlatformById(game.platformId || game.platform?.id);
+            if (currentPlatform && game.launchMarketShare != null) {
+                // El mercado evoluciona con el año; al retirarse persiste una cola residual.
+                const shareFactor = Math.max(0.15, Math.min(2, (currentPlatform.marketShare + 0.05) / (game.launchMarketShare + 0.05)));
+                unitsThisWeek = Math.max(unitsThisWeek > 0 ? 1 : 0, Math.floor(unitsThisWeek * shareFactor));
+            }
 
             let grossRevenueThisWeek = 0;
             if (isService) {
@@ -3164,11 +3206,15 @@ class TycoonGame {
                 }
             }
 
-            const royalty = Math.floor(grossRevenueThisWeek * (game.royaltyRate || 0));
-            const publisherShareRate = Math.max(0, Math.min(1 - (game.royaltyRate || 0), (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+            const engineRate = Math.max(0, Math.min(1, game.royaltyRate || 0));
+            const platformRate = Math.max(0, Math.min(1 - engineRate, game.platformRoyaltyRate || 0));
+            const royalty = Math.floor(grossRevenueThisWeek * engineRate);
+            const platformRoyalty = Math.floor(grossRevenueThisWeek * platformRate);
+            const publisherShareRate = Math.max(0, Math.min(1 - engineRate - platformRate, (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
             const publisherShare = Math.floor(grossRevenueThisWeek * publisherShareRate);
-            const netRevenueThisWeek = grossRevenueThisWeek - royalty - publisherShare;
+            const netRevenueThisWeek = grossRevenueThisWeek - royalty - platformRoyalty - publisherShare;
             game.royaltiesPaidTotal = (game.royaltiesPaidTotal || 0) + royalty;
+            game.platformRoyaltiesPaidTotal = (game.platformRoyaltiesPaidTotal || 0) + platformRoyalty;
             game.publisherSharePaid = (game.publisherSharePaid || 0) + publisherShare;
             game.revenueTotal += netRevenueThisWeek;
             game.grossRevenueTotal = (game.grossRevenueTotal || 0) + grossRevenueThisWeek;
@@ -3431,7 +3477,7 @@ class TycoonGame {
                 const finishedTechId = this.activeResearch.techId;
                 const finishedTechName = this.activeResearch.nodeName;
                 if (this.techTreeManager) {
-                    this.techTreeManager.unlockTech(finishedTechId);
+                    this.techTreeManager.unlockTech(finishedTechId, this.getHistoricalYear());
                 }
                 this.activeResearch = null;
 
@@ -3518,7 +3564,9 @@ class TycoonGame {
                     createdWeek: this.week,
                     releaseYear: this.getHistoricalYear()
                 });
-                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId));
+                engine.historicalTechIds = cfg.historicalTechIds || [];
+                engine.historicalIncompatibility = cfg.historicalIncompatibility;
+                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId, this.getHistoricalYear()));
                 this.inHouseEngines.push(engine);
                 this.activeEngineRD = null;
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
@@ -4285,7 +4333,7 @@ class TycoonGame {
         const nodeDef = this.techTreeManager.catalogMap.get(techId);
         if (!nodeDef) return { success: false, message: 'Tecnología no encontrada en el catálogo.' };
 
-        const costRP = nodeDef.costRP || 30;
+        const costRP = nodeDef.costRP ?? nodeDef.researchCost ?? 30;
         if (this.researchPoints < costRP) {
             return { success: false, message: `Puntos de I+D insuficientes. Requiere ${costRP} RP (disponibles: ${this.researchPoints} RP).` };
         }
@@ -4422,6 +4470,11 @@ class TycoonGame {
     startInHouseEngineRD(config = {}) {
         // config: { name, affineGenres, bakedNodes }
         const bakedNodes = config.bakedNodes || ['render_raster', 'physics_basic', 'net_singleplayer', 'content_linear'];
+        const historicalTechIds = [...new Set(config.historicalTechIds || [])];
+        const validation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!validation.valid) return { success: false, message: validation.errors.join(' ') };
+        const incompatibility = calculateTechIncompatibility(historicalTechIds);
+        const engineWeeks = Math.ceil(8 * incompatibility.multiplier);
         const affineGenres = config.affineGenres || ['Action', 'RPG'];
         if (this.activeEngineRD) return { success: false, message: 'Ya hay un proyecto de I+D de motor en curso.' };
         const costMoney = 18000 + (bakedNodes.length * 2000);
@@ -4448,19 +4501,24 @@ class TycoonGame {
             name: config.name || 'Proprietary Core v' + (this.inHouseEngines.length + 1),
             affineGenres,
             bakedNodes,
-            totalWeeks: 8,
-            weeksRemaining: 8,
+            historicalTechIds,
+            historicalIncompatibility: incompatibility,
+            totalWeeks: engineWeeks,
+            weeksRemaining: engineWeeks,
             progress: 0,
             leadProgrammerIndex: leadIndex >= 0 ? leadIndex : 0,
             leadProgrammerName: leadSenior.name
         };
         this.notify();
-        return { success: true, project: this.activeEngineRD, message: `[[DE_ICON_094]] Proyecto de I+D iniciado: "${this.activeEngineRD.name}". ${leadSenior.name} lidera la arquitectura durante 8 semanas.` };
+        return { success: true, project: this.activeEngineRD, message: `[[DE_ICON_094]] Proyecto de I+D iniciado: "${this.activeEngineRD.name}". ${leadSenior.name} lidera la arquitectura durante ${engineWeeks} semanas.` };
     }
 
-    upgradeInHouseEngine(engineId, newNodes = []) {
+    upgradeInHouseEngine(engineId, newNodes = [], historicalNodes = []) {
         const engine = this.inHouseEngines.find(e => e.id === engineId);
         if (!engine) return { success: false, message: 'Motor no encontrado.' };
+        const historicalTechIds = [...new Set([...(engine.historicalTechIds || []), ...historicalNodes])];
+        const validation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!validation.valid) return { success: false, message: validation.errors.join(' ') };
 
         const costMoney = 20000 + (newNodes.length * 4000);
         const costRP = 25;
@@ -4479,6 +4537,10 @@ class TycoonGame {
             res = { success: true, message: `Motor ${engine.name} actualizado con éxito.` };
         }
 
+        if (res?.success) {
+            engine.historicalTechIds = historicalTechIds;
+            engine.historicalIncompatibility = calculateTechIncompatibility(historicalTechIds);
+        }
         if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return res;
