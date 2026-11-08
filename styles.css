@@ -3566,9 +3566,9 @@ body, html {
     box-shadow: 0 4px 16px rgba(56, 189, 248, 0.25);
 }
 
-.press-gallery-card.80s { border-top: 3px solid #ef4444; }
-.press-gallery-card.90s { border-top: 3px solid #fbbf24; }
-.press-gallery-card.2000s { border-top: 3px solid #38bdf8; }
+.press-gallery-card[class~="80s"] { border-top: 3px solid #ef4444; }
+.press-gallery-card[class~="90s"] { border-top: 3px solid #fbbf24; }
+.press-gallery-card[class~="2000s"] { border-top: 3px solid #38bdf8; }
 
 .press-gallery-badge {
     position: absolute;

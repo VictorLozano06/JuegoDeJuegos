@@ -56,7 +56,7 @@ const rows = [
  ['quest','Meta Quest (Standalone VR)',2020,null,50000,.30,'VR','Everyone / Mature',.25,4,.04],
  ['switch2','Nintendo Switch 2',2025,null,250000,.15,'Híbrida','Everyone',.80,5,.04]
 ];
-const icons = { 'Ordenador':'💻', 'Microordenador':'💻', 'Consola':'🎮', 'Consola Nicho':'🎮', 'Portátil':'🕹️', 'Móvil/Consola':'📱', 'Móvil':'📱', 'VR':'🥽', 'Híbrida':'🎮', 'PC Portátil':'🕹️' };
+const icons = { 'Ordenador':'[[DE_ICON_018]]', 'Microordenador':'[[DE_ICON_018]]', 'Consola':'[[DE_ICON_001]]', 'Consola Nicho':'[[DE_ICON_001]]', 'Portátil':'[[DE_ICON_037]]', 'Móvil/Consola':'[[DE_ICON_146]]', 'Móvil':'[[DE_ICON_146]]', 'VR':'[[DE_ICON_147]]', 'Híbrida':'[[DE_ICON_001]]', 'PC Portátil':'[[DE_ICON_037]]' };
 export const PLATFORMS_DATABASE = rows.map(([id,name,releaseYear,retireYear,devKitCost,royaltyRate,type,audience,peakShare,peakAge,decline]) => ({
  id,name,releaseYear,retireYear,devKitCost,devCost:devKitCost,royaltyRate,royalty:royaltyRate,type,audience,
  icon:icons[type], audienceFit:{ Everyone: audience.includes('Everyone') ? 1.15 : .95, Young: audience.includes('Young') ? 1.15 : 1, Mature: audience.includes('Mature') ? 1.15 : .9 },
