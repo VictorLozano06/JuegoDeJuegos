@@ -1,3 +1,5 @@
+import { TECH_TREE_NODES } from './data/techTreeData.js';
+
 /**
  * DEV EMPIRE 3D - DAG Engine & Technical Debt Architecture
  * Complete mathematical and logical implementation for:
@@ -625,11 +627,39 @@ const REVERSE_ENGINEERING_CATALOG = [
 // 1.9 TECH TREE MANAGER (Historical Progression & Prerequisites)
 // =========================================================================
 
+function validateTechTree(catalog) {
+    const byId = new Map(), errors = [], colors = new Map();
+    for (const node of catalog) {
+        if (!node || !node.id || byId.has(node.id)) errors.push(`ID inválido o duplicado: ${node?.id}`);
+        else byId.set(node.id, node);
+    }
+    const visit = id => {
+        if (colors.get(id) === 1) { errors.push(`Ciclo de dependencias en ${id}`); return; }
+        if (colors.get(id) === 2) return;
+        colors.set(id, 1);
+        for (const required of byId.get(id).requiredNodes || byId.get(id).prerequisites || []) {
+            if (!byId.has(required)) errors.push(`${id} requiere un nodo inexistente: ${required}`);
+            else visit(required);
+        }
+        colors.set(id, 2);
+    };
+    for (const id of byId.keys()) visit(id);
+    return { valid: errors.length === 0, errors };
+}
+
 class TechTreeManager {
     constructor(catalog = DAG_CATALOG, unlockedIds = null) {
-        this.catalog = catalog;
+        const categories = { Graphics:'render', Physics:'physics', Network:'netcode', AI:'ai', Audio:'audio', Engine:'systems' };
+        const historical = TECH_TREE_NODES.map(node => ({
+            ...node, historicalCategory: node.category, category: categories[node.category] || node.category,
+            prerequisites: node.requiredNodes, minYear: node.eraYear, costRP: node.researchCost,
+            icon: '🔬', tier: 1, eraName: 'Tecnología histórica', desc: `Riesgo base de deuda técnica: ${node.baseDebt}.`
+        }));
+        this.catalog = [...catalog, ...historical.filter(n => !catalog.some(existing => existing.id === n.id))];
+        const validation = validateTechTree(this.catalog);
+        if (!validation.valid) throw new Error(`Árbol tecnológico inválido: ${validation.errors.join('; ')}`);
         this.catalogMap = new Map();
-        catalog.forEach(n => this.catalogMap.set(n.id, n));
+        this.catalog.forEach(n => this.catalogMap.set(n.id, n));
 
         // Default foundation technologies unlocked in Era 8-bit (1982)
         const defaultUnlocked = [
@@ -639,7 +669,8 @@ class TechTreeManager {
             'net_singleplayer',
             'ai_scripts',
             'audio_stereo',
-            'content_linear'
+            'content_linear',
+            ...historical.filter(n => n.researchCost === 0 && n.eraYear <= 1982 && n.requiredNodes.length === 0).map(n => n.id)
         ];
 
         this.unlockedTechs = new Set(Array.isArray(unlockedIds) && unlockedIds.length > 0 ? unlockedIds : defaultUnlocked);
@@ -650,8 +681,10 @@ class TechTreeManager {
         return this.unlockedTechs.has(nodeId);
     }
 
-    unlockTech(nodeId) {
-        if (this.catalogMap.has(nodeId)) {
+    unlockTech(nodeId, historicalYear = 1982) {
+        const node = this.catalogMap.get(nodeId);
+        if (node) {
+            if (node.requiredNodes && !this.isUnlocked(nodeId) && !this.getNodeState(nodeId, historicalYear).canResearch) return false;
             this.unlockedTechs.add(nodeId);
             return true;
         }
@@ -674,7 +707,7 @@ class TechTreeManager {
         }
 
         // Condition 1: Historical Minimum Year
-        const minYear = node.minYear || 1982;
+        const minYear = node.minYear ?? 1982;
         if (historicalYear < minYear) {
             return {
                 state: 'BLOQUEADO',
@@ -687,7 +720,7 @@ class TechTreeManager {
         }
 
         // Condition 2: Tree Prerequisites
-        const prereqs = node.prerequisites || [];
+        const prereqs = node.requiredNodes || node.prerequisites || [];
         const missingPrereqs = prereqs.filter(pId => !this.unlockedTechs.has(pId));
         if (missingPrereqs.length > 0) {
             const missingNames = missingPrereqs.map(pId => {
@@ -710,9 +743,23 @@ class TechTreeManager {
             state: 'INVESTIGABLE',
             label: 'Investigable',
             canResearch: true,
-            costRP: node.costRP || 30,
-            reason: `Lista para investigar por ${node.costRP || 30} RP.`
+            costRP: node.costRP ?? 30,
+            reason: `Lista para investigar por ${node.costRP ?? 30} RP.`
         };
+    }
+
+    validateSelection(ids, historicalYear = 1982) {
+        const errors = [];
+        for (const id of ids || []) {
+            const node = this.catalogMap.get(id);
+            if (!node) { errors.push(`Tecnología desconocida: ${id}.`); continue; }
+            if (historicalYear < (node.minYear ?? 1982)) errors.push(`${node.name} aún no existe en ${historicalYear}.`);
+            if (!this.isUnlocked(id)) errors.push(`${node.name} no está investigada.`);
+            for (const req of node.requiredNodes || node.prerequisites || []) {
+                if (!this.isUnlocked(req)) errors.push(`${node.name} requiere ${this.catalogMap.get(req)?.name || req}.`);
+            }
+        }
+        return { valid: errors.length === 0, errors };
     }
 
     getUnlockedCount() {
@@ -1922,4 +1969,4 @@ const DAGEngine = {
     }
 };
 
-export { DAG_CATALOG, REVERSE_ENGINEERING_CATALOG, TechTreeManager, ScopeNode, ScopeDAG, TechnicalDebtManager, TechnicalDebtModel, CommercialEngineCatalog, InHouseEngine, EnginePipelineManager, DAGEngine };
+export { validateTechTree, DAG_CATALOG, REVERSE_ENGINEERING_CATALOG, TechTreeManager, ScopeNode, ScopeDAG, TechnicalDebtManager, TechnicalDebtModel, CommercialEngineCatalog, InHouseEngine, EnginePipelineManager, DAGEngine };
