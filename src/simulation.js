@@ -393,6 +393,7 @@ class TycoonGame {
         this.month = 1;
         this.week = 1;
         this.gameSpeed = 1; // 0 = pause, 1 = normal, 2 = fast, 4 = ultra
+        this.isPaused = false; // Session lifecycle pause, independent of player speed
         this.era = 1; // 1: Garage, 2: Indie Loft, 3: Cyber Campus
         this.workMode = 'normal';
         this.employeeEvents = [];
@@ -406,13 +407,13 @@ class TycoonGame {
             trait: 'Visionario'
         };
         this.characterCustomization = {
-            skin: '#ffdfc4',
+            skin: '#f0b884',
             hairStyle: 'mop',
             hairColor: '#3d2314',
             shirtStyle: 'flannel',
-            shirtColor: '#2563eb',
+            shirtColor: '#367b70',
             pantsColor: '#1e293b',
-            accessory: 'glasses_retro'
+            accessory: 'none'
         };
 
         this.employees = [
@@ -592,7 +593,9 @@ class TycoonGame {
 
     getDevKitCost(platform) {
         if (!platform || (this.ownedDevKits || []).includes(platform.id)) return 0;
-        return Math.max(0, Number(platform.devKitCost ?? platform.devCost) || 0);
+        const year = this.getHistoricalYear();
+        const multiplier = year < 1990 ? 1 : (year < 2000 ? 1.2 : 1.45);
+        return Math.ceil(Math.max(0, Number(platform.devKitCost ?? platform.devCost) || 0) * multiplier);
     }
 
     registerPlatform(platformData) {
@@ -2027,7 +2030,7 @@ class TycoonGame {
     }
 
     advanceDevTick(worldRef) {
-        if (!this.currentProject) return;
+        if (this.isPaused || !this.currentProject) return;
 
         const proj = this.currentProject;
         const speedMultiplier = this.gameSpeed;
@@ -2293,23 +2296,12 @@ class TycoonGame {
         const eraTarget = this.era === 1 ? 75 : (this.era === 2 ? 220 : 520);
         const pointsFactor = Math.min(1.45, pointsSum / eraTarget);
 
-        // 5. Engine Tech Bonus
-        const engineBonus = proj.engine ? (proj.engine.bonusScore || 0.25) : 0.15;
-
-        // 6. Market Trend Boost
+        // Current market trends give a small, temporary boost.
         let trendBoost = 0;
         let isTrendMatch = false;
         if (this.marketTrend && (this.marketTrend.topicId === proj.topic.id || this.marketTrend.genreId === proj.genre.id)) {
             trendBoost = 0.50;
             isTrendMatch = true;
-        }
-
-        // 7. Bug Impact & Bug-Free Bonus
-        let bugImpact = 0;
-        if (proj.bugs === 0) {
-            bugImpact = 0.40; // Bonus for a pristine bug-free master release!
-        } else {
-            bugImpact = -Math.min(3.6, proj.bugs * 0.35);
         }
 
         // 8. DAG Architecture Synergies & Genre Fits
@@ -2341,92 +2333,46 @@ class TycoonGame {
             debtPenalties = proj.techDebtModel.calculateLaunchPenalties(netcodeId, proj.platform.id);
         }
 
-        // --- RAW BASE SCORE (1.5 to 10.0) ---
-        let rawScore = (pointsFactor * 3.8) + (sliderScoreFactor * 3.2) + ((topicSynergy - 0.7) * 2.8) + ((audienceFactor - 1.0) * 1.8) + engineBonus + trendBoost + bugImpact + synergyBonus + (debtPenalties.reviewScoreBonus || 0) - (debtPenalties.reviewScorePenalty || 0);
-        rawScore = Math.max(1.8, Math.min(10.0, rawScore));
-
-        // --- 4 SPECIALIZED PRESS CRITICS WITH DISTINCT BIASES & PERSONALITIES ---
-        // Critic 1: GameByte Tech ([[DE_ICON_022]]) - Focuses on tech, engine, physics, bugs, tech debt & servers
-        const techWeight = proj.techPoints >= proj.designPoints ? 0.35 : -0.20;
-        const techBugPenalty = proj.bugs > 0 ? proj.bugs * 0.25 : 0.20;
-        const engineReleaseYear = proj.engineObj && proj.engineObj.releaseYear
-            ? proj.engineObj.releaseYear
-            : (proj.engineObj && proj.engineObj.createdYear ? 1981 + proj.engineObj.createdYear : this.getHistoricalYear());
-        const engineObsolescencePenalty = proj.pipelineType === 'inhouse'
-            ? Math.max(0, (this.getHistoricalYear() - engineReleaseYear - 2) * 1.5)
-            : 0;
-        const scoreTech = Math.min(10, Math.max(2, Math.round((rawScore + techWeight - techBugPenalty - (debtPenalties.reviewScorePenalty * 0.5) - engineObsolescencePenalty + (debtPenalties.reviewScoreBonus * 0.5) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
-
-        // Critic 2: Polygon Star ([[DE_ICON_005]]) - Focuses on story, world, dialogues, mature themes
-        const storyWeight = (proj.genre.id === 'RPG' || proj.genre.id === 'Adventure') ? 0.40 : 0.05;
-        const topicBonus = topicSynergy >= 1.25 ? 0.30 : -0.25;
-        const scoreStar = Math.min(10, Math.max(2, Math.round((rawScore + storyWeight + topicBonus + (Math.random() * 0.6 - 0.3)) * 10) / 10));
-
-        // Critic 3: AllGames Hub ([[DE_ICON_001]]) - Focuses on pure gameplay, fun factor, audience fit
-        const gameFunBonus = (audienceFactor >= 1.1) ? 0.35 : -0.25;
-        const scoreHub = Math.min(10, Math.max(2, Math.round((rawScore + gameFunBonus - (debtPenalties.reviewScorePenalty * 0.3) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
-
-        // Critic 4: Digital Forge ([[DE_ICON_003]]) - Hardcore industry vet, looks at engine tier, graphics/sound polish & synergies
-        const enginePower = (proj.engine && ((proj.engine.features && proj.engine.features.length >= 3) || proj.engine.tier >= 2)) ? 0.40 : -0.15;
-        const scoreForge = Math.min(10, Math.max(2, Math.round((rawScore + enginePower + (synergyBonus * 0.4) + (Math.random() * 0.6 - 0.3)) * 10) / 10));
-
-        const reviews = [
-            {
-                critic: 'GameByte Tech',
-                avatar: '[[DE_ICON_022]]',
-                score: scoreTech,
-                comment: ''
-            },
-            {
-                critic: 'Polygon Star',
-                avatar: '[[DE_ICON_005]]',
-                score: scoreStar,
-                comment: ''
-            },
-            {
-                critic: 'AllGames Hub',
-                avatar: '[[DE_ICON_001]]',
-                score: scoreHub,
-                comment: ''
-            },
-            {
-                critic: 'Digital Forge',
-                avatar: '[[DE_ICON_003]]',
-                score: scoreForge,
-                comment: ''
-            }
-        ];
-
-        // Tailored comments per outlet governed by Technical Debt stability
-        const currentRawDebt = proj.techDebtModel ? Math.round(proj.techDebtModel.rawDebt) : 0;
-        if (debtPenalties.launchStabilityStatus === 'smooth') {
-            reviews[0].comment = scoreTech >= 9.0
-                ? "¡Prodigio de ingeniería técnica! Código impecable, 60 FPS rocosos y cero fricción. La arquitectura técnica vuela sin fisuras."
-                : (scoreTech >= 7.0 ? "Optimización ejemplar y código extraordinariamente limpio. Es un alivio disfrutar de un lanzamiento tan fluido." : "El código es estable y libre de bugs, aunque el motor base carece de ambición técnica.");
-        } else if (debtPenalties.launchStabilityStatus === 'rough') {
-            reviews[0].comment = `Apartado técnico aceptable pero con tirones evidentes de framerate, micro-stuttering y caídas de FPS. La deuda técnica acumulada (${currentRawDebt} pts) empieza a pasar factura en el rendimiento.`;
-        } else {
-            // Critical
-            const isOnline = debtPenalties.serverCrashRisk > 0;
-            reviews[0].comment = isOnline
-                ? `¡COLAPSO TOTAL! Cuelgues continuos al escritorio (CTD) y caída absoluta de los servidores multijugador el Día 1. La deuda crítica (${currentRawDebt} pts) vuelve el juego injugable.`
-                : `¡DESASTRE TÉCNICO! Crashes masivos al escritorio, corrupción de memoria y rendimiento pésimo por código espagueti (${currentRawDebt} pts). Injugable el Día 1.`;
-            reviews[2].comment = `Una pesadilla de optimización. La comunidad está solicitando reembolsos masivos (${Math.round(debtPenalties.refundRate * 100)}% de devoluciones el Día 1).`;
-        }
-
-        reviews[1].comment = scoreStar >= 9.0
-            ? `¡Una obra de arte! El universo de ${proj.topic.name} tratado con una madurez narrativa sobrecogedora.`
-            : (scoreStar >= 7.0 ? "Guion cautivador y personajes con carisma. Una propuesta artística con verdadera personalidad." : (topicSynergy < 0.95 ? `La temática de ${proj.topic.name} no termina de cuajar con el formato ${proj.genre.name}.` : "Falta alma en la ambientación y los diálogos caen en lugares comunes."));
-
-        if (!reviews[2].comment) {
-            reviews[2].comment = scoreHub >= 9.0
-                ? "¡Diversión pura y adictiva! Desde que tomas el mando no puedes soltarlo. Candidato clarísimo a Juego del Año."
-                : (scoreHub >= 7.0 ? "Jugabilidad directa, niveles bien diseñados y controles sumamente satisfactorios." : (audienceFactor < 1.0 ? "Desconecta de su público objetivo; el diseño de niveles resulta confuso y tosco." : "Se deja jugar pero no aporta nada memorable al catálogo."));
-        }
-
-        reviews[3].comment = scoreForge >= 9.0
-            ? (activeSynergiesList.length > 0 ? `Valores de producción de élite. Las sinergias tecnológicas de ${activeSynergiesList.map(s => s.name).join(', ')} deslumbran por completo.` : `Valores de producción de élite. La combinación de ${proj.genre.name} con ${proj.topic.name} es la cumbre de la temporada.`)
-            : (scoreForge >= 7.0 ? "Un producto redondo y bien calibrado. Justifica plenamente el precio de lanzamiento." : "Le ha faltado ambición y pulido general. Se siente como una oportunidad a medio gas.");
+        // Each reviewer sees the same underlying quality, but has an independent opinion.
+        const currentRawDebt = Math.max(0, proj.techDebtModel?.rawDebt || 0);
+        const year = this.getHistoricalYear();
+        const engineYear = proj.engineObj?.releaseYear ?? (proj.engineObj?.createdYear != null ? 1981 + proj.engineObj.createdYear : null);
+        const engineAge = engineYear == null ? Infinity : Math.max(0, year - engineYear);
+        const previous = (this.gamesHistory || []).find(game => game.id !== options.existingGameId);
+        const repeated = previous && (previous.genreId === proj.genre.id || previous.genre === proj.genre.name) &&
+            (previous.topicId === proj.topic.id || previous.topic === proj.topic.name);
+        const successes = (this.gamesHistory || []).filter(game => game.id !== options.existingGameId && game.score >= 8).length;
+        const expectationPenalty = Math.min(1.5, successes * 0.18 + Math.max(0, year - 1981) * 0.012) +
+            (previous?.score >= 8.5 ? 0.8 : 0);
+        const debtPenalty = currentRawDebt <= 15 ? 0 : currentRawDebt <= 35 ? 1 : Math.min(5, 3 + (currentRawDebt - 35) * 0.04);
+        const enginePenalty = Number.isFinite(engineAge) ? Math.min(1.5, Math.max(0, engineAge - 2) * 0.2) : 0.5;
+        const engineObsolescencePenalty = enginePenalty;
+        const repetitionPenalty = repeated ? 1.8 : 0;
+        const quality = Math.min(1.45, pointsFactor) * 1.6 + sliderScoreFactor * 0.9;
+        const affinity = (topicSynergy - 0.8) * 1.8 + (audienceFactor - 1) * 0.8;
+        const baseScore = 5 + quality + affinity + Math.min(0.3, synergyBonus) + Math.min(0.15, trendBoost) -
+            debtPenalty - enginePenalty - repetitionPenalty - expectationPenalty - Math.min(2, Math.max(0, proj.bugs || 0) * 0.08);
+        const masterpiece = topicSynergy >= 1.25 && engineAge < 2 && proj.bugs === 0 && currentRawDebt < 5 &&
+            !repeated && baseScore > Math.max(8.8, (previous?.score || 0) + 0.2);
+        const gaussian = () => {
+            const u = Math.max(Number.MIN_VALUE, Math.random());
+            return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * Math.random()) * 0.6;
+        };
+        const weakness = debtPenalty ? `Los bugs y la falta de optimización empañan la experiencia (deuda ${Math.round(currentRawDebt)}: -${debtPenalty.toFixed(1)} puntos).`
+            : enginePenalty >= 0.4 ? `El motor gráfico se siente anticuado para los estándares actuales (-${enginePenalty.toFixed(1)} puntos).`
+            : repeated ? `La combinación de temática y género se repite y pierde originalidad (-${repetitionPenalty.toFixed(1)} puntos).`
+            : topicSynergy < 1 ? 'La combinación de temática y género resulta confusa y poco atractiva.'
+            : expectationPenalty >= 0.5 ? `El juego no supera las expectativas del mercado (-${expectationPenalty.toFixed(1)} puntos).`
+            : 'La producción y el diseño necesitan más pulido para destacar.';
+        const calculateReviews = () => [
+            ['GameByte Tech', '⚡'], ['Polygon Star', '⭐'], ['AllGames Hub', '🎮'], ['Digital Forge', '🔥']
+        ].map(([critic, avatar]) => {
+            const score = Math.max(0, Math.min(masterpiece ? 10 : 9.4, Math.round((baseScore + gaussian()) * 10) / 10));
+            return { critic, avatar, score, comment: score < 7 ? weakness : score < 9.5
+                ? 'Un título sólido y divertido, aunque le falta un punto de innovación para ser legendario.'
+                : 'Una obra excepcional que supera las expectativas del estudio.' };
+        });
+        const reviews = calculateReviews();
 
         const reputationDelta = ['f2p', 'live_service'].includes(proj.businessModel)
             ? (proj.monetizationStyle === 'aggressive' ? -0.8 : 0.45)
@@ -2437,6 +2383,7 @@ class TycoonGame {
         if (proj.exclusivityReviewPenalty) {
             reviews.forEach(review => { review.score = Math.max(2, Math.min(10, Math.round((review.score - proj.exclusivityReviewPenalty) * 10) / 10)); });
         }
+        reviews.forEach(review => { review.score = Math.min(masterpiece ? 10 : 9.4, review.score); });
         const scoreBeforeDowngrade = reviews.reduce((sum, review) => sum + review.score, 0) / reviews.length;
         const trailerDowngradePenalty = proj.trailerQuality && scoreBeforeDowngrade < proj.trailerQuality - 1.5 ? 0.6 : 0;
         if (trailerDowngradePenalty) {
@@ -2444,9 +2391,13 @@ class TycoonGame {
                 review.score = Math.max(2, Math.round((review.score - trailerDowngradePenalty) * 10) / 10);
             });
         }
+        reviews.forEach((review, index) => {
+            if (review.score < 7) review.comment = ['Análisis técnico: ', 'Diseño y temática: ', 'Experiencia de juego: ', 'Valoración general: '][index] + weakness;
+            else if (review.score < 9.5) review.comment = 'Un título sólido y divertido, aunque le falta un punto de innovación para ser legendario.';
+        });
         const finalScore = Math.round((reviews.reduce((acc, review) => acc + review.score, 0) / 4) * 10) / 10;
         const reviewBombReasons = [];
-        if (currentRawDebt > 45) reviewBombReasons.push('Deuda técnica crítica superior a 45 puntos');
+        if (currentRawDebt > 35) reviewBombReasons.push('Deuda técnica crítica superior a 35 puntos');
         if (proj.businessModel === 'f2p' && proj.monetizationStyle === 'aggressive') reviewBombReasons.push('Microtransacciones Pay-to-Win agresivas');
         const userApproval = Math.max(0, Math.min(100, Math.round(
             50 + (finalScore - 5) * 8 + (proj.demoConversionBonus ? 3 : 0) -
@@ -2555,6 +2506,11 @@ class TycoonGame {
         // Fanbase loyalty multiplier
         totalSalesPotential += Math.floor(this.fans * (this.era === 1 ? 1.8 : (this.era === 2 ? 3.5 : 8.0)));
 
+        // Poor reviews also suppress loyal-fan purchases and wishlist conversions.
+        if (finalScore < 6) {
+            totalSalesPotential = Math.floor(totalSalesPotential * Math.max(0.18, 0.30 + (finalScore - 4) * 0.10));
+        }
+
         // In the physical era, a small studio can self-publish locally, but has
         // to finance manufacturing and distribution stock itself. A publisher
         // advance covers that burden; only independent releases pay this cost.
@@ -2592,6 +2548,7 @@ class TycoonGame {
             synergyMultiplier: topicSynergy,
             reviews: reviews,
             pressScore: finalScore,
+            masterpieceEligible: masterpiece,
             userApproval,
             communityLoyalty: userApproval,
             reviewBombing,
@@ -3084,7 +3041,7 @@ class TycoonGame {
     }
 
     adjustGameReviews(game, delta) {
-        game.reviews = (game.reviews || []).map(review => ({ ...review, score: Math.max(2, Math.min(10, Math.round((review.score + delta) * 10) / 10)) }));
+        game.reviews = (game.reviews || []).map(review => ({ ...review, score: Math.max(2, Math.min(game.masterpieceEligible ? 10 : 9.4, Math.round((review.score + delta) * 10) / 10)) }));
         game.score = Math.round((game.reviews.reduce((sum, review) => sum + review.score, 0) / Math.max(1, game.reviews.length)) * 10) / 10;
     }
 
@@ -3292,9 +3249,15 @@ class TycoonGame {
             weeklyIncomeTotal += passiveRoyaltiesTotal;
         }
 
-        // Deduct staff monthly salaries prorated weekly (/ 4)
-        const totalSalaries = this.employees.reduce((acc, e) => acc + (e.salary / 4), 0);
-        this.funds -= totalSalaries;
+        // The calendar has four weeks per month. Charge payroll and recurring
+        // office costs weekly so long projects cannot defer their expenses.
+        const totalSalaries = this.employees.reduce((acc, e) => acc + (Number(e.salary) || 0), 0);
+        const year = this.getHistoricalYear();
+        const officeCost = this.era === 1 ? 300 : (this.era === 2 ? 6000 : 28000);
+        const utilities = year < 1990 ? 100 : (year < 2000 ? 700 : 1800);
+        const network = year >= 1995 ? (this.era === 3 ? 3000 : 600) : 0;
+        this.lastMonthlyOperatingCosts = { salaries: totalSalaries, office: officeCost, utilities, network };
+        this.funds -= (totalSalaries + officeCost + utilities + network) / 4;
 
         // Passive stamina recovery for employees when not in an active project
         if (!this.currentProject) {
@@ -3446,6 +3409,7 @@ class TycoonGame {
     }
 
     advanceCalendar() {
+        if (this.isPaused) return;
         this.week++;
         if (this.week > 4) {
             this.week = 1;

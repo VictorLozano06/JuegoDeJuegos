@@ -21,13 +21,45 @@
     </script>
     <div id="debug-errors" style="position:fixed;top:60px;left:20px;z-index:9999;color:#ff3333;font-size:16px;background:rgba(0,0,0,0.8);max-width:90%;"></div>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/src/main-menu.css">
 </head>
-<body>
+<body class="menu-active">
     <!-- WebGL Three.js Container -->
     <div id="canvas-container"></div>
 
+    <section id="main-menu" class="main-menu" aria-labelledby="main-menu-title" hidden>
+        <div class="main-menu-panel">
+            <p class="menu-eyebrow"><span class="menu-status-light" aria-hidden="true"></span> <span data-menu-text="brandLine">Simulador de estudios</span></p>
+            <h1 id="main-menu-title">DEV EMPIRE <span>3D</span></h1>
+            <p class="menu-tagline" data-menu-text="tagline">Todo empieza en un garaje.</p>
+            <nav class="main-menu-actions" aria-label="Menú principal">
+                <button type="button" data-menu-action="continue" class="menu-primary" disabled>
+                    <span data-menu-text="continue">Continuar</span>
+                    <small id="main-menu-continue-detail" data-menu-text="noContinue">No hay una partida guardada</small>
+                </button>
+                <button type="button" data-menu-action="new" data-menu-text="newGame">Nueva partida</button>
+                <button type="button" data-menu-action="load" data-menu-text="loadGame">Cargar partida</button>
+                <button type="button" data-menu-action="options" data-menu-text="options">Opciones</button>
+                <button type="button" data-menu-action="credits" data-menu-text="credits">Créditos</button>
+            </nav>
+            <p id="main-menu-message" class="menu-message" role="status"></p>
+            <p class="menu-version"><span data-menu-text="version">Versión</span> <span id="main-menu-version"></span></p>
+        </div>
+    </section>
+
+    <dialog id="main-menu-dialog" class="main-menu-dialog" aria-labelledby="main-menu-dialog-title">
+        <div class="menu-dialog-header">
+            <h2 id="main-menu-dialog-title"></h2>
+            <form method="dialog">
+                <button type="submit" class="menu-close" data-menu-label="close" aria-label="Cerrar">×</button>
+            </form>
+        </div>
+        <div id="main-menu-dialog-content"></div>
+        <p id="main-menu-dialog-message" class="menu-message" role="status"></p>
+    </dialog>
+
     <!-- UI Overlay Layer -->
-    <div id="ui-overlay">
+    <div id="ui-overlay" inert>
         <!-- Top Status Bar -->
         <header class="top-bar">
             <div id="studio-info-btn" class="studio-info" title="Haz clic para personalizar el nombre de tu estudio y el aspecto 3D de tu personaje">
@@ -67,6 +99,7 @@
                     <button class="speed-btn" data-speed="4" title="Velocidad ultra (4)">4x</button>
                 </div>
                 <button id="audio-toggle" class="audio-toggle-btn" title="Activar/Silenciar Música y Sonido (M)">[[DE_ICON_008]]</button>
+                <button type="button" id="btn-session-options" class="audio-toggle-btn" data-menu-label="session" aria-label="Partida y opciones" title="Partida y opciones">⚙</button>
             </div>
         </header>
 
@@ -471,7 +504,8 @@
                         <div class="form-group">
                             <label class="form-label">Color de Ropa</label>
                             <div id="picker-shirt-color" class="swatch-group">
-                                <div class="color-swatch active" data-color="#2563eb" style="background: #2563eb;" title="Azul Eléctrico"></div>
+                                <div class="color-swatch active" data-color="#367b70" style="background: #367b70;" title="Verde petróleo"></div>
+                                <div class="color-swatch" data-color="#2563eb" style="background: #2563eb;" title="Azul Eléctrico"></div>
                                 <div class="color-swatch" data-color="#dc2626" style="background: #dc2626;" title="Rojo Crimson"></div>
                                 <div class="color-swatch" data-color="#16a34a" style="background: #16a34a;" title="Verde Esmeralda"></div>
                                 <div class="color-swatch" data-color="#7c3aed" style="background: #7c3aed;" title="Púrpura Synth"></div>

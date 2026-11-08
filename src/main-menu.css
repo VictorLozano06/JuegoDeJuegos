@@ -1,0 +1,339 @@
+.main-menu,
+.main-menu-dialog {
+    --menu-text: #f5f6f0;
+    --menu-muted: #aeb8b1;
+    --menu-accent: #b8f0c5;
+    --menu-line: #c4ebd12e;
+    color: var(--menu-text);
+}
+
+body.menu-active #ui-overlay,
+body.menu-active #toast-container {
+    visibility: hidden;
+    pointer-events: none;
+}
+
+body.menu-active #ui-overlay {
+    display: none;
+}
+
+.menu-hud-enter {
+    animation: menu-hud-reveal 550ms ease-out both;
+}
+
+@keyframes menu-hud-reveal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.main-menu {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    padding: clamp(1.25rem, 4vw, 4rem);
+    background: linear-gradient(90deg, #07130cb3 0%, #07130c80 30%, #07130c30 48%, transparent 64%);
+    pointer-events: none;
+}
+
+.main-menu[hidden] {
+    display: none;
+}
+
+.main-menu-panel {
+    width: min(45vw, 38rem);
+    max-height: 100%;
+    overflow: auto;
+    padding: clamp(1rem, 2.5vw, 2.5rem);
+    border: 0;
+    background: transparent;
+    text-shadow: 0 2px 14px #000b;
+    pointer-events: auto;
+}
+
+.menu-eyebrow,
+.menu-version {
+    color: var(--menu-muted);
+    font-size: clamp(.75rem, .85vw, .9rem);
+    letter-spacing: .13em;
+    text-transform: uppercase;
+}
+
+.menu-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin: 0 0 1.5rem;
+}
+
+.menu-status-light {
+    width: .45rem;
+    height: .45rem;
+    flex: 0 0 .45rem;
+    border-radius: 50%;
+    background: var(--menu-accent);
+    box-shadow: 0 0 .7rem #9bf8b590;
+}
+
+.main-menu h1 {
+    margin: 0;
+    font-size: clamp(3rem, 5.2vw, 5.5rem);
+    line-height: .98;
+    letter-spacing: -.055em;
+}
+
+.main-menu h1 span {
+    color: var(--menu-accent);
+}
+
+.menu-tagline {
+    margin: 1rem 0 2rem;
+    color: var(--menu-muted);
+    font-size: clamp(1rem, 1.15vw, 1.2rem);
+}
+
+.main-menu-actions {
+    display: grid;
+    gap: .65rem;
+}
+
+.main-menu button,
+.main-menu-dialog button {
+    min-height: 2.55rem;
+    padding: .55rem .8rem;
+    border: 1px solid var(--menu-line);
+    border-radius: .55rem;
+    background: #dbf2de0c;
+    color: var(--menu-text);
+    font: inherit;
+    font-size: .9rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition: border-color .18s, background-color .18s;
+}
+
+.main-menu-actions button {
+    text-align: left;
+    min-height: 3.4rem;
+    padding: .8rem 1.1rem;
+    font-size: clamp(1rem, 1.1vw, 1.15rem);
+    background: #0b171299;
+    backdrop-filter: blur(8px);
+}
+
+.main-menu button:hover:not(:disabled),
+.main-menu-dialog button:hover:not(:disabled) {
+    border-color: var(--menu-accent);
+    background: #dbf2de22;
+}
+
+.main-menu button:focus-visible,
+.main-menu-dialog :is(button, select, input):focus-visible {
+    outline: 2px solid var(--menu-accent);
+    outline-offset: 2px;
+}
+
+.main-menu-actions .menu-primary {
+    border-color: #a9d8b47d;
+    background: #87c89b24;
+    color: var(--menu-accent);
+}
+
+.main-menu-actions button:disabled {
+    opacity: .47;
+    cursor: default;
+}
+
+.menu-primary small {
+    display: block;
+    margin-top: .15rem;
+    color: var(--menu-text);
+    font-size: .8rem;
+    font-weight: 400;
+    overflow-wrap: anywhere;
+}
+
+.menu-version {
+    margin: 1.75rem 0 0;
+}
+
+.menu-message {
+    margin: .75rem 0 0;
+    color: #f0d09e;
+    font-size: .83rem;
+}
+
+.menu-message:empty {
+    margin: 0;
+}
+
+.main-menu-dialog {
+    width: min(calc(100% - 1.5rem), 39rem);
+    max-height: 88dvh;
+    margin: auto;
+    padding: clamp(1rem, 3vw, 1.75rem);
+    border: 1px solid var(--menu-line);
+    border-radius: 1rem;
+    background: #101b16;
+    box-shadow: 0 24px 80px #0009;
+}
+
+.main-menu-dialog::backdrop {
+    background: #060d0ab8;
+}
+
+.menu-dialog-header,
+.menu-slot-actions,
+.menu-session-actions {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    flex-wrap: wrap;
+}
+
+.menu-dialog-header {
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.menu-dialog-header h2 {
+    margin: 0;
+    font-size: 1.45rem;
+}
+
+.menu-dialog-header .menu-close {
+    min-width: 2.55rem;
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.menu-slot {
+    display: grid;
+    gap: .55rem;
+    margin: 0 0 .65rem;
+    padding: .8rem;
+    border: 1px solid var(--menu-line);
+    border-radius: .65rem;
+    overflow-wrap: anywhere;
+}
+
+.menu-slot h3,
+.menu-slot p {
+    margin: 0;
+}
+
+.menu-slot p,
+.menu-help {
+    color: var(--menu-muted);
+    font-size: .84rem;
+}
+
+.main-menu-dialog .menu-delete {
+    color: #f2b7af;
+}
+
+.menu-setting {
+    display: grid;
+    grid-template-columns: minmax(8rem, 1fr) minmax(6rem, 1fr);
+    align-items: center;
+    gap: .65rem;
+    margin: 0 0 .7rem;
+    font-size: .9rem;
+}
+
+.menu-setting input[type="range"] {
+    width: 100%;
+    accent-color: var(--menu-accent);
+}
+
+.menu-setting select,
+.menu-session-actions input {
+    width: 100%;
+    padding: .55rem;
+    color: var(--menu-text);
+    background: #0a130e;
+    border: 1px solid var(--menu-line);
+    border-radius: .4rem;
+    font: inherit;
+}
+
+.menu-session-actions {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--menu-line);
+}
+
+.menu-session-actions input {
+    flex: 1 1 11rem;
+    width: auto;
+    min-width: 0;
+}
+
+.menu-return-warning {
+    display: flex;
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+    gap: .55rem;
+}
+
+.menu-return-warning p {
+    flex-basis: 100%;
+}
+
+@media (max-width: 700px) {
+    .main-menu {
+        align-items: flex-end;
+        justify-content: center;
+        padding: .65rem;
+        background: linear-gradient(0deg, #07130ce0, transparent 65%);
+    }
+
+    .main-menu-panel {
+        width: 100%;
+        max-height: 65%;
+        padding: .8rem 1rem;
+    }
+
+    .main-menu h1 {
+        font-size: clamp(2.3rem, 9vw, 3.5rem);
+    }
+
+    .menu-eyebrow,
+    .menu-version {
+        margin: 0 0 .4rem;
+    }
+
+    .menu-version {
+        margin: .5rem 0 0;
+    }
+
+    .menu-tagline {
+        margin: .25rem 0 .5rem;
+    }
+
+    .main-menu-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .35rem;
+    }
+
+    .main-menu-actions button {
+        min-height: 2.15rem;
+        padding: .35rem .5rem;
+    }
+
+    .main-menu-actions .menu-primary {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .menu-hud-enter {
+        animation: none;
+    }
+
+    .main-menu button,
+    .main-menu-dialog button {
+        transition: none;
+    }
+}

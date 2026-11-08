@@ -3,6 +3,27 @@ const HAIR = [0x2a1a17, 0x853b24, 0x211f2b, 0x674229, 0x39282b];
 const SKIN = [0xffdfc4, 0xb97758, 0xe8b08a, 0x8f563e, 0xf2c8a1];
 const HAIRSTYLES = ['mop', 'short', 'curly', 'ponytail', 'quiff'];
 
+const HEAD_CENTER = 0.143;
+const HEAD_HEIGHT = 0.174;
+
+function headWidth(y) {
+    // A narrower jaw and broader temples keep the head readable in profile.
+    return 0.153 * (1 + 0.08 * Math.min(0, (y - HEAD_CENTER) / HEAD_HEIGHT));
+}
+
+function feature(x, y, centerX, centerY, width, height) {
+    const dx = (x - centerX) / width;
+    const dy = (y - centerY) / height;
+    return Math.exp(-dx * dx - dy * dy);
+}
+
+function faceDepth(x, y) {
+    const oval = Math.max(0, 1 - (x / headWidth(y)) ** 2 - ((y - HEAD_CENTER) / HEAD_HEIGHT) ** 2);
+    const nose = 0.016 * feature(x, y, 0, 0.132, 0.040, 0.029);
+    const cheeks = 0.012 * feature(Math.abs(x), y, 0.073, 0.114, 0.047, 0.037);
+    return 0.145 * Math.sqrt(oval) + nose + cheeks;
+}
+
 function appearanceSeed(employee, index) {
     let seed = 2166136261;
     for (const character of String(employee.id ?? employee.name ?? index)) {
@@ -37,8 +58,8 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
     const material = new THREE.MeshStandardMaterial({
         color: 0xffffff,
         vertexColors: true,
-        roughness: 0.7,
-        metalness: 0.1,
+        roughness: 0.82,
+        metalness: 0.02,
     });
     const geometries = [];
     const batches = new Map();
@@ -52,94 +73,97 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
         return joint;
     }
 
-    function piece(parent, geometry, color, x, y, z) {
+    function piece(parent, geometry, color, x, y, z, tint) {
         geometry.translate(x, y, z);
         if (!batches.has(parent)) batches.set(parent, []);
-        batches.get(parent).push({ geometry, color: new THREE.Color(color) });
+        batches.get(parent).push({ geometry, color: new THREE.Color(color), tint });
     }
 
     function ball(parent, color, x, y, z, rx, ry, rz, tilt = 0) {
         const isDetail = Math.max(rx, ry, rz) < 0.075;
-        const geometry = new THREE.SphereGeometry(1, isDetail ? 8 : 10, isDetail ? 5 : 7);
+        const geometry = new THREE.SphereGeometry(1, isDetail ? 6 : 8, isDetail ? 4 : 5);
         geometry.scale(rx, ry, rz);
         geometry.rotateZ(tilt);
         piece(parent, geometry, color, x, y, z);
     }
 
-    function beam(parent, color, start, end, startRadius, endRadius = startRadius) {
+    function box(parent, color, x, y, z, width, height, depth) {
+        piece(parent, new THREE.BoxGeometry(width, height, depth), color, x, y, z);
+    }
+
+    function beam(parent, color, start, end, startRadius, endRadius = startRadius, openEnded = false) {
         const a = new THREE.Vector3(...start);
         const b = new THREE.Vector3(...end);
         const axis = b.clone().sub(a);
-        const geometry = new THREE.CylinderGeometry(startRadius, endRadius, axis.length(), 8);
+        const geometry = new THREE.CylinderGeometry(startRadius, endRadius, axis.length(), 6, 1, openEnded);
         const rotation = new THREE.Quaternion().setFromUnitVectors(down, axis.normalize());
         geometry.applyMatrix4(new THREE.Matrix4().makeRotationFromQuaternion(rotation));
         const center = a.add(b).multiplyScalar(0.5);
         piece(parent, geometry, color, center.x, center.y, center.z);
     }
 
-    function ring(parent, color, x, y, z, radius, tube, scaleX = 1, scaleY = 1, arc = Math.PI * 2) {
-        const geometry = new THREE.TorusGeometry(radius, tube, 5, 16, arc);
+    function ring(parent, color, x, y, z, radius, tube, scaleX = 1, scaleY = 1, arc = Math.PI * 2, yaw = 0) {
+        const geometry = new THREE.TorusGeometry(radius, tube, 4, 12, arc);
         geometry.scale(scaleX, scaleY, 1);
+        geometry.rotateY(yaw);
         piece(parent, geometry, color, x, y, z);
     }
 
-    function taperedBody(parent, color, points, depthRatio, y, z) {
-        const profile = points.map(([radius, height]) => new THREE.Vector2(radius, height));
-        const geometry = new THREE.LatheGeometry(profile, 14);
+    function taperedBody(parent, color, points, depthRatio, tint, segments = 6) {
+        const profile = points.map(([radius, y]) => new THREE.Vector2(radius, y));
+        const geometry = new THREE.LatheGeometry(profile, segments);
         geometry.scale(1, 1, depthRatio);
-        piece(parent, geometry, color, 0, y, z);
+        piece(parent, geometry, color, 0, 0, 0, tint);
     }
 
     // Bake the forward thighs, flexed shins and flat shoes into a single
     // seated mesh. The pelvis is the rig root so a pose can move it as a unit.
     const pelvis = pivot(group, 0, 0.87, 0.008);
     const inPelvis = (x, y, z) => [x, y - pelvis.position.y, z - pelvis.position.z];
-    ball(pelvis, pantsColor, 0, 0, 0, 0.19, 0.09, 0.141);
+    box(pelvis, pantsColor, 0, 0, 0, 0.33, 0.12, 0.22);
     for (const side of [-1, 1]) {
         const hip = inPelvis(side * 0.115, 0.865, -0.012);
         const knee = inPelvis(side * 0.139, 0.835, -0.347);
         const ankle = inPelvis(side * 0.144, 0.1, -0.414);
-        beam(pelvis, pantsColor, hip, knee, 0.085, 0.071);
+        beam(pelvis, pantsColor, hip, knee, 0.085, 0.071, true);
         ball(pelvis, pantsColor, ...knee, 0.072, 0.075, 0.074);
-        beam(pelvis, pantsColor, knee, ankle, 0.071, 0.052);
-        ball(pelvis, 0x292a35, ...inPelvis(side * 0.144, 0.068, -0.456), 0.064, 0.058, 0.115);
-        ball(pelvis, 0x777781, ...inPelvis(side * 0.144, 0.023, -0.471), 0.065, 0.023, 0.116);
+        beam(pelvis, pantsColor, knee, ankle, 0.071, 0.052, true);
+        box(pelvis, 0x292a35, ...inPelvis(side * 0.144, 0.062, -0.461), 0.114, 0.092, 0.200);
+        box(pelvis, 0xd5c5aa, ...inPelvis(side * 0.144, 0.012, -0.464), 0.116, 0.024, 0.204);
     }
 
     const torso = pivot(pelvis, ...inPelvis(0, 0.885, 0.015));
     const collarColor = shade(shirtColor, 0.62);
-    const sleeveColor = shade(shirtColor, 0.8);
+    const sleeveColor = shade(shirtColor, 0.96);
     taperedBody(torso, shirtColor, [
-        [0, 0], [0.15, 0.008], [0.172, 0.11], [0.175, 0.26],
-        [0.208, 0.49], [0.215, 0.56], [0.19, 0.625], [0.095, 0.662], [0, 0.664],
-    ], 0.64, 0, 0);
-    ball(torso, collarColor, 0, 0.652, -0.004, 0.106, 0.033, 0.078);
-    ball(torso, skinColor, 0, 0.683, -0.008, 0.067, 0.082, 0.062);
+        [0.16, 0], [0.176, 0.26], [0.215, 0.54], [0.197, 0.606], [0.078, 0.668],
+    ], 0.72, (_x, y) => 0.91 + y * 0.19, 10);
+    beam(torso, skinColor, [0, 0.645, -0.009], [0, 0.743, -0.009], 0.059, 0.065, true);
 
     if (shirtStyle === 'hoodie') {
         ball(torso, collarColor, 0, 0.617, 0.096, 0.138, 0.071, 0.076);
-        for (const side of [-1, 1]) {
-            beam(torso, 0xddd2bb, [side * 0.041, 0.59, -0.123], [side * 0.048, 0.447, -0.137], 0.007);
-        }
     } else if (shirtStyle === 'flannel') {
-        for (const side of [-1, 1]) {
-            beam(torso, collarColor, [side * 0.075, 0.64, -0.073], [side * 0.029, 0.528, -0.137], 0.018, 0.009);
-        }
-        for (const y of [0.45, 0.37, 0.29, 0.21]) {
-            ball(torso, 0xf1d7a9, 0, y, -0.129 + (0.45 - y) * 0.08, 0.009, 0.009, 0.008);
-        }
+        const collar = new THREE.BufferGeometry();
+        collar.setAttribute('position', new THREE.Float32BufferAttribute([
+            -0.057, 0.657, -0.057, 0, 0.554, -0.155, 0.057, 0.657, -0.057,
+        ], 3));
+        collar.setIndex([0, 2, 1]);
+        collar.computeVertexNormals();
+        piece(torso, collar, 0xe1d2b5, 0, 0, 0);
     }
 
     const arms = [-1, 1].map(side => {
-        const shoulderPosition = new THREE.Vector3(side * 0.198, 0.596, -0.014);
-        const elbowPosition = new THREE.Vector3(side * 0.205, 0.57, -0.182);
+        const shoulderPosition = new THREE.Vector3(side * 0.181, 0.585, -0.014);
+        const elbowPosition = new THREE.Vector3(side * 0.219, 0.526, -0.174);
         const wristPosition = new THREE.Vector3(side * 0.154, 0.589, -0.369);
         const shoulder = pivot(torso, ...shoulderPosition.toArray());
         const upperAxis = elbowPosition.clone().sub(shoulderPosition);
         const upperLength = upperAxis.length();
         shoulder.quaternion.setFromUnitVectors(down, upperAxis.normalize());
-        beam(shoulder, sleeveColor, [0, 0, 0], [0, -upperLength, 0], 0.076, 0.049);
-        ball(shoulder, sleeveColor, 0, 0, 0, 0.067, 0.068, 0.07);
+        taperedBody(shoulder, sleeveColor, [
+            [0.043, -upperLength - 0.015], [0.055, -upperLength + 0.015],
+            [0.070, -0.024], [0.047, 0.04], [0, 0.055]
+        ], 0.95, (_x, y) => y < -upperLength + 0.016 ? 0.91 : 1);
 
         const elbow = pivot(shoulder, 0, -upperLength, 0);
         const lowerAxis = wristPosition.clone().sub(elbowPosition);
@@ -147,39 +171,43 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
         const toShoulderSpace = shoulder.quaternion.clone().invert();
         lowerAxis.applyQuaternion(toShoulderSpace).normalize();
         elbow.quaternion.setFromUnitVectors(down, lowerAxis);
-        beam(elbow, skinColor, [0, 0, 0], [0, -lowerLength, 0], 0.047, 0.031);
-        ball(elbow, skinColor, 0, 0, 0, 0.046, 0.045, 0.042);
+        taperedBody(elbow, skinColor, [
+            [0.023, -lowerLength], [0.031, -lowerLength * 0.69],
+            [0.043, -0.023], [0.038, 0.022]
+        ], 0.88);
 
         const wrist = pivot(elbow, 0, -lowerLength, 0);
         // The wrist cancels the arm bend so the palm sits parallel to the keys.
         wrist.quaternion.copy(shoulder.quaternion).multiply(elbow.quaternion).invert();
         wrist.rotateX(Math.PI / 2);
-        ball(wrist, skinColor, 0, -0.034, 0, 0.036, 0.043, 0.018);
-        ball(wrist, skinColor, -side * 0.031, -0.042, 0.002, 0.013, 0.028, 0.013, side * 0.37);
-        for (let finger = 0; finger < 4; finger++) {
-            ball(wrist, skinColor, (finger - 1.5) * 0.016, -0.075, 0.006,
-                0.0085, 0.027 - 0.004 * Math.abs(finger - 1), 0.012);
-        }
+        ball(wrist, skinColor, -side * 0.004, -0.039, 0.002, 0.030, 0.055, 0.014, side * 0.15);
         return { shoulder, elbow, wrist };
     });
 
     const head = pivot(torso, 0, 0.697, -0.009);
-    const faceSize = { width: 0.24, height: 0.215 };
-    const faceAnchor = pivot(head, 0, 0.157, -0.153);
+    const faceY = 0.155;
+    const faceSize = {
+        width: 0.225,
+        height: 0.207,
+        depth: (x, y) => faceDepth(x, y + faceY) + 0.003
+    };
+    const faceAnchor = pivot(head, 0, faceY, 0);
     faceAnchor.rotation.y = Math.PI;
 
-    // Flatten a small central patch so the painted features hug the face.
-    const skull = new THREE.SphereGeometry(1, 20, 15);
-    skull.scale(0.158, 0.178, 0.182);
+    // Shape the front and its decal from the same surface, including the nose.
+    const skull = new THREE.SphereGeometry(1, 20, 14);
     const vertices = skull.getAttribute('position');
     for (let i = 0; i < vertices.count; i++) {
-        vertices.setZ(i, Math.max(vertices.getZ(i), -0.15));
+        const y = HEAD_CENTER + vertices.getY(i) * HEAD_HEIGHT;
+        const x = vertices.getX(i) * headWidth(y);
+        const z = vertices.getZ(i);
+        vertices.setXYZ(i, x, y, z < 0 ? -faceDepth(x, y) : z * 0.158);
     }
     skull.computeVertexNormals();
-    piece(head, skull, skinColor, 0, 0.143, 0);
+    piece(head, skull, skinColor, 0, 0, 0);
     for (const side of [-1, 1]) {
-        ball(head, skinColor, side * 0.151, 0.135, -0.004, 0.031, 0.05, 0.034);
-        ball(head, shade(skinColor, 0.77), side * 0.171, 0.134, -0.014, 0.013, 0.024, 0.019);
+        ball(head, skinColor, side * 0.148, 0.132, -0.001, 0.025, 0.042, 0.030, side * -0.22);
+        ball(head, shade(skinColor, 0.78), side * 0.167, 0.134, -0.008, 0.008, 0.023, 0.017, side * -0.22);
     }
 
     const hairHighlight = shade(hairColor, 1.28);
@@ -189,12 +217,38 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
         ball(head, collarColor, 0, 0.25, -0.157, 0.128, 0.019, 0.111);
         ball(head, 0xf5e5c3, 0, 0.295, -0.152, 0.029, 0.023, 0.012);
         ball(head, hairShadow, 0, 0.224, 0.09, 0.151, 0.075, 0.089);
-    } else {
-        ball(head, hairShadow, 0, 0.227, 0.073, 0.161, 0.105, 0.121);
-        ball(head, hairColor, 0, 0.277, -0.006, 0.166, 0.086, 0.183);
+    } else if (hairStyle !== 'bald') {
+        const scalp = new THREE.SphereGeometry(1, 22, 8, 0, Math.PI * 2, 0, 1);
+        const points = scalp.getAttribute('position');
+        const uv = scalp.getAttribute('uv');
+        const closeCut = hairStyle === 'short';
+        for (let i = 0; i < points.count; i++) {
+            const phi = uv.getX(i) * Math.PI * 2;
+            const along = 1 - uv.getY(i);
+            const front = -Math.sin(phi);
+            const part = Math.cos(phi + 0.95);
+            const fringe = (hairStyle === 'mop' ? 0.32 : 0.08) * Math.max(0, front) ** 3;
+            const end = 1.59 - front * 0.62 + fringe * (0.37 + 0.52 * part);
+            const theta = along * end;
+            const sine = Math.sin(theta);
+            const groove = Math.cos(phi * 5 + along * 4.6) * 0.003 * sine;
+            const swept = hairStyle === 'mop' || hairStyle === 'quiff';
+            const lift = swept ? Math.max(0, front) * Math.sin(Math.PI * along) ** 2 * (0.63 + 0.37 * part) : 0;
+            const crownShift = swept ? -0.032 * (1 - along) ** 2 : 0;
+            const volume = closeCut ? 0.183 : 0.195;
+            points.setXYZ(i,
+                crownShift - Math.cos(phi) * sine * (0.162 + groove + lift * 0.023),
+                HEAD_CENTER + Math.cos(theta) * volume + lift * (hairStyle === 'quiff' ? 0.049 : 0.032),
+                Math.sin(phi) * sine * (0.167 + groove + lift * 0.019));
+        }
+        scalp.computeVertexNormals();
+        piece(head, scalp, hairColor, 0, 0, 0, (x, y, z) => {
+            const strand = Math.cos(Math.atan2(z, -x) * 5 - y * 21);
+            return 0.84 + 0.22 * Math.max(0, strand) + 0.18 * Math.max(0, (y - 0.18) / 0.16);
+        });
         if (hairStyle === 'curly') {
-            for (let i = 0; i < 9; i++) {
-                const angle = i * Math.PI * 2 / 9;
+            for (let i = 0; i < 7; i++) {
+                const angle = i * Math.PI * 2 / 7;
                 ball(head, i % 2 ? hairColor : hairHighlight,
                     Math.sin(angle) * 0.116, 0.287 + (i % 3) * 0.016, Math.cos(angle) * 0.129,
                     0.063, 0.075, 0.065);
@@ -203,25 +257,18 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
             ball(head, hairHighlight, 0, 0.239, 0.175, 0.048, 0.055, 0.038);
             ball(head, hairColor, 0.034, 0.134, 0.194, 0.062, 0.117, 0.069, 0.18);
             ball(head, 0xa8638f, 0, 0.222, 0.189, 0.047, 0.015, 0.045);
-        } else {
-            const sweep = hairStyle === 'quiff' ? 0.058 : 0;
-            const fringe = hairStyle === 'mop' ? 0.059 : 0.037;
-            for (let i = 0; i < 4; i++) {
-                ball(head, i % 2 ? hairColor : hairHighlight, (i - 1.5) * 0.061,
-                    0.263 + i * 0.009 + sweep, -0.137, 0.059, fringe + sweep, 0.056, -0.48);
-            }
         }
     }
 
     if (accessory === 'glasses_retro' || accessory === 'glasses_modern') {
         const retro = accessory === 'glasses_retro';
-        const frame = retro ? 0x69412d : 0x303a4b;
+        const frame = retro ? 0x392820 : 0x303a4b;
         for (const side of [-1, 1]) {
-            ring(head, frame, side * 0.054, 0.178, -0.171, 0.041, 0.006,
-                retro ? 1.02 : 1.17, retro ? 0.84 : 0.65);
-            beam(head, frame, [side * 0.095, 0.184, -0.17], [side * 0.155, 0.176, -0.015], 0.005);
+            ring(head, frame, side * 0.051, 0.176, -0.154, 0.038, 0.005,
+                retro ? 1.02 : 1.17, retro ? 0.84 : 0.65, Math.PI * 2, -side * 0.36);
+            beam(head, frame, [side * 0.088, 0.182, -0.141], [side * 0.158, 0.164, -0.002], 0.004);
         }
-        beam(head, frame, [-0.016, 0.184, -0.17], [0.016, 0.184, -0.17], 0.006);
+        beam(head, frame, [-0.016, 0.184, -0.163], [0.016, 0.184, -0.163], 0.005);
     } else if (accessory === 'headphones') {
         ring(head, 0x424450, 0, 0.16, 0.005, 0.181, 0.014, 1, 1.25, Math.PI);
         for (const side of [-1, 1]) {
@@ -246,12 +293,16 @@ export function createEmployeeModel(THREE, employee = {}, index = 0) {
         const indices = new Uint16Array(indexCount);
         let vertexOffset = 0;
         let indexOffset = 0;
-        for (const { geometry, color } of parts) {
+        for (const { geometry, color, tint } of parts) {
             const sourcePositions = geometry.getAttribute('position');
             positions.set(sourcePositions.array, vertexOffset * 3);
             normals.set(geometry.getAttribute('normal').array, vertexOffset * 3);
             for (let i = 0; i < sourcePositions.count; i++) {
-                color.toArray(colors, (vertexOffset + i) * 3);
+                const offset = (vertexOffset + i) * 3;
+                const value = tint ? tint(sourcePositions.getX(i), sourcePositions.getY(i), sourcePositions.getZ(i)) : 1;
+                colors[offset] = color.r * value;
+                colors[offset + 1] = color.g * value;
+                colors[offset + 2] = color.b * value;
             }
             for (const index of geometry.index.array) indices[indexOffset++] = index + vertexOffset;
             vertexOffset += sourcePositions.count;

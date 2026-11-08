@@ -26,51 +26,52 @@ function curve(ctx, color, width, x, y, cx, cy, endX, endY) {
     ctx.stroke();
 }
 
-function drawFace(ctx, { closed, state, iris, warmShade, variant }) {
+function drawFace(ctx, { closed, state, iris, blush, freckles }) {
     ctx.clearRect(0, 0, SIZE, SIZE);
     const thinking = state === 'thinking';
     const happy = state === 'celebrating';
-    const ink = '#2b1d29';
+    const ink = '#36241e';
 
     for (const side of [-1, 1]) {
-        const eyeX = SIZE * (0.5 + side * 0.215);
-        const eyeY = SIZE * 0.4;
-        const browY = SIZE * 0.24 - (happy ? 2 : 0) - (thinking && side > 0 ? 4 : 0);
-        const browTilt = thinking ? 3 : variant;
+        const eyeX = 64 + side * 23;
+        const eyeY = 52;
+        const browY = 34 - (happy ? 3 : 0) - (thinking && side > 0 ? 5 : 0);
 
-        curve(ctx, ink, 4, eyeX - side * 11, browY + browTilt,
-            eyeX, browY - 5, eyeX + side * 12, browY + 1);
+        curve(ctx, ink, 4, eyeX - side * 9, browY + (thinking ? 3 : 0),
+            eyeX, browY - 6, eyeX + side * 9, browY + 1);
 
         if (closed) {
-            curve(ctx, ink, 3.6, eyeX - 12, eyeY,
-                eyeX, eyeY + (happy ? -7 : 6), eyeX + 12, eyeY);
+            curve(ctx, ink, 3.8, eyeX - 9, eyeY,
+                eyeX, eyeY + (happy ? -7 : 5), eyeX + 9, eyeY);
         } else {
-            const height = happy ? 7.5 : 9;
-            const irisX = eyeX + (thinking ? 3 : side * -1);
-            oval(ctx, eyeX, eyeY, 13, height + 1.5, ink);
-            oval(ctx, eyeX, eyeY + 1, 11, height - 1.25, '#fff7e8');
-            oval(ctx, irisX, eyeY, 6.4, height - 1.5, iris);
-            oval(ctx, irisX, eyeY, 3.6, 4.9, ink);
-            oval(ctx, irisX - 2, eyeY - 3, 2.1, 2.1, '#fffaf0');
-            oval(ctx, irisX + 2.4, eyeY + 2.6, 0.9, 0.9, '#f7e5d6');
+            const irisX = eyeX + (thinking ? 3 : 0);
+            oval(ctx, eyeX, eyeY, 9.5, happy ? 8.5 : 11, '#fff2dc');
+            oval(ctx, irisX, eyeY + 1, 6.5, happy ? 7 : 8, iris);
+            oval(ctx, irisX, eyeY + 0.5, 4.3, 6.3, ink);
+            oval(ctx, irisX - 2, eyeY - 3, 2.4, 2.4, '#fffaf0');
         }
 
-        oval(ctx, eyeX + side * 3, 72, 8, 3, warmShade);
+        oval(ctx, eyeX + side * 7, 74, 9.5, 3.8, blush);
+        if (freckles) {
+            for (let i = 0; i < 3; i++) {
+                oval(ctx, eyeX + side * (i * 4 + 2), 72 + (i % 2) * 2, 1.15, 1, ink);
+            }
+        }
     }
 
-    curve(ctx, warmShade, 3.5, 59, 78, 64, 81, 69, 77);
+    oval(ctx, 65, 72, 4.2, 2.8, blush);
     if (happy) {
         oval(ctx, 64, 94, 12, 5.2, '#673747');
         curve(ctx, '#fff1dd', 2.2, 56, 92, 64, 94, 72, 92);
     } else if (thinking) {
-        curve(ctx, '#6b3c48', 3, 59, 95, 65, 91, 71, 94);
+        curve(ctx, ink, 3, 59, 93, 65, 90, 71, 93);
     } else {
-        curve(ctx, '#6b3c48', 3, 54, 92, 63, 100, 74, 91 - variant);
+        curve(ctx, ink, 3.7, 54, 89, 65, 102, 76, 88);
     }
 }
 
 /**
- * Adds a single decal to the flat front of the head. The anchor's local +Z
+ * Adds a single decal that follows the shape of the head. The anchor's local +Z
  * faces away from the skin. Animation time is the caller's elapsed seconds.
  */
 export function createEmployeeFace(THREE, faceAnchor, faceSize, skinColor, seed) {
@@ -85,12 +86,17 @@ export function createEmployeeFace(THREE, faceAnchor, faceSize, skinColor, seed)
 
     let randomState = seedValue(seed);
     const iris = IRISES[randomState % IRISES.length];
-    const variant = (randomState >>> 8) % 4;
-    const warmShade = new THREE.Color(skinColor).lerp(new THREE.Color(0xa84857), 0.28).getStyle();
+    const freckles = (randomState & 1) === 0;
+    const blush = new THREE.Color(skinColor).lerp(new THREE.Color(0xb24c41), 0.37).getStyle();
     const texture = new THREE.CanvasTexture(canvas);
     texture.encoding = THREE.sRGBEncoding;
 
-    const geometry = new THREE.PlaneGeometry(faceSize.width, faceSize.height);
+    const geometry = new THREE.PlaneGeometry(faceSize.width, faceSize.height, 12, 12);
+    const points = geometry.getAttribute('position');
+    for (let i = 0; i < points.count; i++) {
+        points.setZ(i, faceSize.depth(points.getX(i), points.getY(i)));
+    }
+    geometry.computeVertexNormals();
     const material = new THREE.MeshStandardMaterial({
         map: texture,
         transparent: true,
@@ -114,7 +120,7 @@ export function createEmployeeFace(THREE, faceAnchor, faceSize, skinColor, seed)
     }
 
     function paint(closed, state) {
-        drawFace(ctx, { closed, state, iris, warmShade, variant });
+        drawFace(ctx, { closed, state, iris, blush, freckles });
         texture.needsUpdate = true;
     }
 

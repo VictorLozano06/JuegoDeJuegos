@@ -4,6 +4,9 @@ import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGI
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
 import REAL_BRANDS_MOD_PACK from './data/mod_sample_real_brands.json';
 import { WorldEngine } from './world.js';
+import { createMainMenu } from './main-menu.js';
+import { resetGame, saveSystem } from './SaveSystem.js';
+import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 
 /**
@@ -13,6 +16,19 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
  */
 
 let world = null;
+const STATE_MAIN_MENU = 'main-menu';
+const STATE_TRANSITION = 'transition';
+const STATE_PLAYING = 'playing';
+let appState = STATE_MAIN_MENU;
+let mainMenu;
+let creatingNewGame = false;
+let appliedSettings;
+const initialProfile = {
+    companyName: game.companyName,
+    companyLogo: game.companyLogo,
+    founder: { ...game.founder },
+    characterCustomization: { ...game.characterCustomization }
+};
 let devInterval = null;
 let calendarInterval = null;
 let lastExpoYearTriggered = 0;
@@ -21,10 +37,10 @@ let lastRenderedEmployeeCount = null;
 const notifiedHeadhuntEmployeeIds = new Set();
 
 const techTreeManager = game.techTreeManager;
-const scopeDAG = new ScopeDAG(null, { techTreeManager });
-const debtManager = new TechnicalDebtModel();
+let scopeDAG = new ScopeDAG(null, { techTreeManager });
+let debtManager = new TechnicalDebtModel();
+let pipelineManager = new EnginePipelineManager();
 const selectedHistoricalTechs = new Set();
-const pipelineManager = new EnginePipelineManager();
 
 game.onResearchCompleted = (name) => {
     showToast(`[[DE_ICON_073]] ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
@@ -89,6 +105,7 @@ window.updateWizardSynergyBadge = updateWizardSynergyBadge;
 window.updateLiveSalesWidget = updateLiveSalesWidget;
 
 document.addEventListener('DOMContentLoaded', () => {
+    game.isPaused = true;
     // 1. Initialize 3D World Engine
     world = new WorldEngine('canvas-container');
     world.onNodeClick(on3DNodeClicked);
@@ -107,9 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
     populateProjectWizard();
     initDAGArchitectureUI();
     initCompanyCreatorModal();
+    initializeMainMenu();
 
     // 4. Bind Game State Listeners
     game.onStateChange((state) => {
+        if (appState !== STATE_PLAYING) return;
         renderHUD(state);
         if (world && state.employees.length !== lastRenderedEmployeeCount) {
             lastRenderedEmployeeCount = state.employees.length;
@@ -129,14 +148,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // 5. Initial Render
     renderHUD(game);
 
-    // 6. Start Simulation Loops
-    startSimulationLoops();
-
-    // Show Welcome Toast & Auto-open Character/Company Creator if new game
-    setTimeout(() => {
-        showToast("[[DE_ICON_024]] ¡Bienvenido a DEV EMPIRE 3D! Comienza en tu garaje retro y crea tu primer videojuego.", "info");
-    }, 600);
-
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('autostart') === '1') {
         game.startNewGameProject({
@@ -147,30 +158,150 @@ document.addEventListener('DOMContentLoaded', () => {
             engineId: 'engine_v1',
             targetAudience: 'Mature'
         });
-    } else if (!game.hasCustomizedProfile) {
-        setTimeout(() => {
-            openCompanyCreatorModal();
-        }, 700);
+        void enterGameplay();
     }
 });
+
+function initializeMainMenu() {
+    const settings = saveSystem.getSettings();
+    mainMenu = createMainMenu({
+        version,
+        initialSettings: settings,
+        getSlots: () => saveSystem.list(),
+        onContinue: loadSavedGame,
+        onLoad: loadSavedGame,
+        onDelete: id => saveSystem.remove(id),
+        onNewGame: () => {
+            closeAllModals();
+            creatingNewGame = true;
+            mainMenu.hidePanel();
+            openCompanyCreatorModal(true);
+        },
+        onSave: saveName => saveSystem.save(game, { saveName }),
+        onSettingsChange: patch => applyMenuSettings(saveSystem.updateSettings(patch)),
+        onReturnToMenu: returnToMainMenu
+    });
+    applyMenuSettings(settings);
+    world.enterMainMenu();
+    mainMenu.show();
+}
+
+function applyMenuSettings(settings) {
+    if (settings.soundVolume !== appliedSettings?.soundVolume || settings.musicVolume !== appliedSettings?.musicVolume) {
+        soundEngine.setVolumes(settings.soundVolume, settings.musicVolume);
+    }
+    if (settings.resolution !== appliedSettings?.resolution || settings.shadows !== appliedSettings?.shadows) {
+        world.setGraphicsSettings(settings);
+    }
+    appliedSettings = settings;
+}
+
+function loadSavedGame(id) {
+    if (appState !== STATE_MAIN_MENU) return;
+    saveSystem.load(id, game);
+    return enterGameplay();
+}
+
+async function enterGameplay({ checkpoint = false } = {}) {
+    if (appState !== STATE_MAIN_MENU) return;
+    appState = STATE_TRANSITION;
+    mainMenu.setBusy(true);
+    mainMenu.hidePanel();
+    closeAllModals();
+    scopeDAG = new ScopeDAG(null, { techTreeManager });
+    debtManager = new TechnicalDebtModel();
+    pipelineManager = new EnginePipelineManager();
+    lastExpoYearTriggered = 0;
+    lastNotifiedProjectOfferKey = null;
+    notifiedHeadhuntEmployeeIds.clear();
+    selectedHistoricalTechs.clear();
+    window._pausedSpeedForNews = 0;
+    if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
+
+    try {
+        lastRenderedEmployeeCount = game.employees.length;
+        if (world.currentEra === game.era) {
+            world.syncEmployees(game.employees);
+            await world.transitionToGameplay();
+        } else {
+            await world.transitionToGameplay({
+                era: game.era,
+                revealOffice: () => {
+                    world.buildOffice(game.era);
+                    world.syncEmployees(game.employees);
+                }
+            });
+        }
+        populateProjectWizard();
+        updateSpeedButtonsUI(game.gameSpeed);
+    } catch (error) {
+        appState = STATE_MAIN_MENU;
+        if (world.currentEra !== 1) world.buildOffice(1);
+        world.syncEmployees(game.employees.slice(0, 1));
+        world.enterMainMenu();
+        mainMenu.setBusy(false);
+        mainMenu.show();
+        mainMenu.report(error.message);
+        return;
+    }
+    appState = STATE_PLAYING;
+    game.isPaused = false;
+    game.notify();
+    mainMenu.hide();
+    mainMenu.setBusy(false);
+    if (checkpoint && saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+    startSimulationLoops();
+}
+
+function returnToMainMenu() {
+    if (appState !== STATE_PLAYING) return;
+    if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
+    appState = STATE_MAIN_MENU;
+    game.isPaused = true;
+    clearInterval(devInterval);
+    clearInterval(calendarInterval);
+    clearInterval(expoPedestrianInterval);
+    closeAllModals();
+    world.hideScopeDAG();
+    const holoHud = document.getElementById('hologram-overlay-bar');
+    if (holoHud) holoHud.style.display = 'none';
+    if (world.currentEra !== 1) world.buildOffice(1);
+    world.syncEmployees(game.employees.slice(0, 1));
+    world.enterMainMenu();
+    mainMenu.show();
+}
+
+let autosaveFailed = false;
+function autosaveCurrentGame() {
+    try {
+        saveSystem.autosave(game);
+        autosaveFailed = false;
+    } catch (error) {
+        if (!autosaveFailed) showToast(error.message, 'warn');
+        autosaveFailed = true;
+    }
+}
 
 // --- SIMULATION LOOP CONTROLLER ---
 
 function startSimulationLoops() {
     clearInterval(devInterval);
     clearInterval(calendarInterval);
+    if (game.isPaused) return;
 
     // Development tick loop (for active projects)
     devInterval = setInterval(() => {
-        if (game.gameSpeed > 0 && game.currentProject) {
+        if (!game.isPaused && game.gameSpeed > 0 && game.currentProject) {
             game.advanceDevTick(world);
         }
     }, 120);
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {
-        if (game.gameSpeed > 0) {
+        if (!game.isPaused && game.gameSpeed > 0) {
             game.advanceCalendar();
+            const cadence = appliedSettings.autosave;
+            if (cadence === 'weekly' || (cadence === 'monthly' && game.week === 1)) autosaveCurrentGame();
             if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
             const liveOpsModal = document.getElementById('modal-liveops');
             if (liveOpsModal?.classList.contains('active')) renderLiveOps();
@@ -201,6 +332,11 @@ function setGameSpeed(speed) {
 
 function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+        if (appState !== STATE_PLAYING) {
+            if (e.key === 'Escape' && creatingNewGame) closeAllModals();
+            return;
+        }
+        if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
         // Ignore if user is currently typing inside an input or textarea
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
             return;
@@ -1857,7 +1993,12 @@ function renderHUD(state) {
 
     // Studio Title & Logo
     const titleEl = document.getElementById('studio-title');
-    if (titleEl) titleEl.innerHTML = `${state.companyName} <span class="studio-edit-hint">[[DE_ICON_002]]</span>`;
+    if (titleEl) {
+        const hint = document.createElement('span');
+        hint.className = 'studio-edit-hint';
+        hint.textContent = '✏️';
+        titleEl.replaceChildren(`${state.companyName} `, hint);
+    }
     const logoEl = document.getElementById('studio-logo');
     if (logoEl) logoEl.innerText = state.companyLogo;
 
@@ -2244,6 +2385,7 @@ function updateMarketingHubCounters() {
 }
 
 function renderIndustryNews(state = game) {
+    if (appState !== STATE_PLAYING) return;
     const modal = document.getElementById('modal-industry-news');
     const windowEl = document.getElementById('industry-news-window');
     const content = document.getElementById('industry-news-content');
@@ -4601,6 +4743,17 @@ function initCompanyCreatorModal() {
             const founderName = document.getElementById('input-founder-name').value.trim() || 'Raúl Vance';
             const founderTrait = document.getElementById('select-founder-trait').value;
 
+            const startsNewGame = creatingNewGame;
+            if (startsNewGame) {
+                try {
+                    if (saveSystem.getSettings().autosave !== 'off') saveSystem.archiveAutosave();
+                    resetGame(game);
+                } catch (error) {
+                    closeAllModals();
+                    mainMenu.report(error.message);
+                    return;
+                }
+            }
             game.updateCompanyProfile({
                 companyName: companyName,
                 companyLogo: localLogo,
@@ -4609,7 +4762,13 @@ function initCompanyCreatorModal() {
                 characterCustomization: { ...localCustomization }
             });
 
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            if (startsNewGame) {
+                creatingNewGame = false;
+                void enterGameplay({ checkpoint: true });
+                soundEngine.playLevelUp();
+                return;
+            }
+            world.updateCharacterMesh(0, localCustomization);
             closeAllModals();
             showToast(`[[DE_ICON_073]] ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
             if (soundEngine) soundEngine.playLevelUp();
@@ -4617,18 +4776,21 @@ function initCompanyCreatorModal() {
     }
 }
 
-function openCompanyCreatorModal() {
-    localCustomization = { ...game.characterCustomization };
-    localLogo = game.companyLogo;
+function openCompanyCreatorModal(newGame = false) {
+    const profile = newGame ? initialProfile : game;
+    localCustomization = { ...profile.characterCustomization };
+    localLogo = profile.companyLogo;
 
     const inputComp = document.getElementById('input-company-name');
-    if (inputComp) inputComp.value = game.companyName;
+    if (inputComp) inputComp.value = profile.companyName;
 
     const inputFounder = document.getElementById('input-founder-name');
-    if (inputFounder) inputFounder.value = game.founder.name;
+    if (inputFounder) inputFounder.value = profile.founder.name;
 
     const traitSelect = document.getElementById('select-founder-trait');
-    if (traitSelect) traitSelect.value = game.founder.trait;
+    if (traitSelect) traitSelect.value = profile.founder.trait;
+    const submit = document.querySelector('#form-company-creator button[type="submit"]');
+    if (submit) submit.textContent = newGame ? 'Empezar partida' : 'Guardar perfil de estudio y personaje';
 
     // Sync active classes
     document.querySelectorAll('.logo-option').forEach(l => {
@@ -4654,6 +4816,10 @@ function openCompanyCreatorModal() {
     });
 
     openModal('modal-company-creator');
+    if (newGame) {
+        world.updateCharacterMesh(0, localCustomization);
+        inputComp?.focus();
+    }
 }
 
 // --- MODAL HELPERS ---
@@ -4675,12 +4841,18 @@ function openModal(id) {
 }
 
 function closeAllModals() {
+    const cancelNewGame = creatingNewGame && document.getElementById('modal-company-creator').classList.contains('active');
     document.querySelectorAll('.modal-backdrop').forEach(m => {
         m.style.display = 'none';
         m.classList.remove('active');
     });
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
+    if (cancelNewGame) {
+        creatingNewGame = false;
+        world.updateCharacterMesh(0, game.characterCustomization);
+        mainMenu.show();
+    }
     if (game.pendingIndustryEvents?.length) setTimeout(() => renderIndustryNews(game), 0);
 }
 

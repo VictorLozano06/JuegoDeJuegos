@@ -4,6 +4,7 @@ import { createRetroWorkstation } from './garage/workstation.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
 import { createEmployeeModel } from './characters/model.js';
+import { MenuCamera } from './menuCamera.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
 import { game } from './simulation.js';
@@ -11,6 +12,13 @@ import { game } from './simulation.js';
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
 const SHADOW_REFRESH_INTERVAL = 1 / 20;
+const OFFICE_CAMERA = { garage: [11, 7.3, 8], upgraded: [16, 9, -7] };
+const CRT_CODE = [
+    '> RUN DEV_EMPIRE.BAS', '10 GOSUB INIT', '20 IF KEY$="" THEN 40',
+    '30 GOSUB HANDLE_KEY', '40 GOSUB DRAW_FRAME', '50 GOTO 20',
+    '100 REM LOAD SPRITES', '110 FOR I=0 TO 15', '120 READ PIXEL',
+    '130 NEXT I', '140 RETURN', 'READY.',
+];
 
 /**
  * Dev Empire 3D - Three.js Visual World Engine (AAA Polished Edition)
@@ -249,7 +257,7 @@ export class WorldEngine {
         this.selectedDagNode = null;
 
         // Cinematic Camera Interpolation Targets
-        this.cameraOfficePos = new THREE.Vector3(11, 7.3, 8);
+        this.cameraOfficePos = new THREE.Vector3(...OFFICE_CAMERA.garage);
         this.cameraOfficeTarget = new THREE.Vector3(0, 1.0, 0);
         this.cameraDagPos = new THREE.Vector3(0.0, 13.5, 14.5);
         this.cameraDagTarget = new THREE.Vector3(0, 3.2, 0);
@@ -273,6 +281,7 @@ export class WorldEngine {
         this.steamParticles = [];
 
         this.currentEra = 1;
+        this.resolution = 'medium';
         this.clock = new THREE.Clock();
 
         this.init();
@@ -316,6 +325,7 @@ export class WorldEngine {
         this.controls.minDistance = 6;
         this.controls.maxDistance = 35;
         this.controls.target.set(0, 1.0, 0);
+        this.menuCamera = new MenuCamera(THREE, this.camera, this.controls);
 
         // Setup Post-processing with UnrealBloom
         this.setupPostProcessing();
@@ -338,6 +348,42 @@ export class WorldEngine {
 
         // Start render loop
         this.animate();
+    }
+
+    enterMainMenu() {
+        this.setViewMode('office');
+        this.targetCamPos = null;
+        this.targetLookAt = null;
+        this.isTransitioningCamera = false;
+        if (this.hoveredCharacter) {
+            this.unhighlightCharacter(this.hoveredCharacter);
+            this.hoveredCharacter = null;
+        }
+        this.container.style.cursor = 'default';
+        this.menuCamera.enter(this.desks[0]?.worldPos, this.clock.elapsedTime);
+    }
+
+    transitionToGameplay({ era = this.currentEra, revealOffice } = {}) {
+        this.targetCamPos = null;
+        this.targetLookAt = null;
+        this.isTransitioningCamera = false;
+        const position = new THREE.Vector3(...(era === 1 ? OFFICE_CAMERA.garage : OFFICE_CAMERA.upgraded));
+        return this.menuCamera.play(position, this.cameraOfficeTarget, revealOffice);
+    }
+
+    setGraphicsSettings({ resolution = this.resolution, shadows } = {}) {
+        this.resolution = resolution;
+        this.onWindowResize();
+        const shadowSize = { off: 0, low: 512, medium: 1024, high: 2048 }[shadows];
+        if (shadowSize === undefined) return;
+        this.renderer.shadowMap.enabled = shadowSize > 0;
+        const shadow = this.sunLight.shadow;
+        if (shadowSize && shadow.mapSize.x !== shadowSize) {
+            shadow.map?.dispose();
+            shadow.map = null;
+            shadow.mapSize.set(shadowSize, shadowSize);
+        }
+        this.nextShadowRefresh = 0;
     }
 
     setupPostProcessing() {
@@ -611,9 +657,8 @@ export class WorldEngine {
         }
 
         applyOfficeLighting(this);
-        if (era === 1) this.cameraOfficePos.set(11, 7.3, 8);
-        else this.cameraOfficePos.set(16, 9, -7);
-        if (eraChanged && this.viewMode === 'office') {
+        this.cameraOfficePos.set(...(era === 1 ? OFFICE_CAMERA.garage : OFFICE_CAMERA.upgraded));
+        if (eraChanged && this.viewMode === 'office' && !this.menuCamera.active) {
             this.targetCamPos = this.cameraOfficePos.clone();
         }
         this.updateCharacterPositions();
@@ -713,7 +758,13 @@ export class WorldEngine {
             const { group, screen } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
             this.registerDesk(group, index);
-            this.monitors.push({ mesh: screen, lightPos: screen.getWorldPosition(new THREE.Vector3()) });
+            const lamp = group.getObjectByName('flexo_bulb');
+            this.monitors.push({
+                mesh: screen,
+                lightPos: screen.getWorldPosition(new THREE.Vector3()),
+                lamp,
+                lampIntensity: lamp?.intensity,
+            });
             return;
         }
 
@@ -1119,25 +1170,44 @@ export class WorldEngine {
         const delta = this.clock.getDelta();
         const time = this.clock.elapsedTime;
 
-        if (this.controls) this.controls.update();
+        const menuShot = this.menuCamera.active;
+        if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
+        else this.controls.update();
+        this.particlesGroup.visible = !menuShot;
+        this.confettiGroup.visible = !menuShot;
 
         // Upload the CRT canvas only when its scrolling content changes.
-        const scroll = Math.floor(time * 20) % 20;
         for (const monitor of this.dynamicTextures) {
-            if (monitor.lastScroll === scroll) continue;
+            const retro = monitor.type === 'retro';
+            const cursor = Math.floor(time * 2) % 2;
+            const scroll = retro ? Math.floor(time * 2.5) % CRT_CODE.length : Math.floor(time * 20) % 20;
+            if (monitor.lastScroll === scroll && (!retro || monitor.lastCursor === cursor)) continue;
             monitor.lastScroll = scroll;
+            monitor.lastCursor = cursor;
             const { ctx, lines, texture } = monitor;
             ctx.fillStyle = '#051b11';
             ctx.fillRect(0, 0, 256, 192);
-            for (let i = 0; i < lines.length; i++) {
-                const line = lines[i];
-                ctx.fillStyle = line.color;
-                ctx.fillRect(16 + line.indent, 14 + ((i + scroll) % 20) * 8.5, line.w, 4);
+            if (retro) {
+                ctx.font = 'bold 12px monospace';
+                for (let row = 0; row < 10; row++) {
+                    ctx.fillStyle = row === 9 ? '#bbffaf' : '#5ad68b';
+                    ctx.fillText(CRT_CODE[(row + scroll) % CRT_CODE.length], 16, 18 + row * 16);
+                }
+                if (cursor) ctx.fillRect(16, 172, 9, 9);
+                ctx.fillStyle = '#071a123d';
+                for (let y = 1; y < 192; y += 3) ctx.fillRect(0, y, 256, 1);
+            } else {
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i];
+                    ctx.fillStyle = line.color;
+                    ctx.fillRect(16 + line.indent, 14 + ((i + scroll) % 20) * 8.5, line.w, 4);
+                }
             }
             texture.needsUpdate = true;
         }
-        this.monitors.forEach(({ pointLight }, index) => {
+        this.monitors.forEach(({ pointLight, lamp, lampIntensity }, index) => {
             if (pointLight) pointLight.intensity = 0.8 + Math.sin(time * 18 + index) * 0.12;
+            if (lamp) lamp.intensity = lampIntensity * (menuShot ? 1.55 + Math.sin(time * 5 + index) * 0.035 : 1);
         });
 
         // Spawn and update Coffee Steam Particles
@@ -1179,6 +1249,16 @@ export class WorldEngine {
 
         for (const character of this.characters) {
             if (!character.group.visible) continue;
+            if (menuShot) {
+                character.state = 'typing';
+                character.bulbGroup.visible = false;
+                character.statusBubble.visible = false;
+                character.statusBubbleIcon = '';
+                character.engineProgressSprite.visible = false;
+                animateEmployee(character, time, character.index === 0 ? -0.51 : 0);
+                character.face.update(time, character.state);
+                continue;
+            }
             if (time >= character.stateUntil) character.state = 'typing';
             character.bulbGroup.visible = character.state === 'thinking';
             const employee = character.employee || {};
@@ -1330,14 +1410,14 @@ export class WorldEngine {
         this.updateScopeDag(delta, time);
 
         // Camera Smooth Lerp Transition between Office and Hologram DAG
-        if (this.targetCamPos) {
+        if (!menuShot && this.targetCamPos) {
             this.camera.position.lerp(this.targetCamPos, Math.min(1.0, delta * 4.5));
             if (this.camera.position.distanceTo(this.targetCamPos) < 0.05) {
                 this.targetCamPos = null;
                 this.isTransitioningCamera = false;
             }
         }
-        if (this.targetLookAt && this.controls) {
+        if (!menuShot && this.targetLookAt && this.controls) {
             this.controls.target.lerp(this.targetLookAt, Math.min(1.0, delta * 4.5));
             if (this.controls.target.distanceTo(this.targetLookAt) < 0.05) {
                 this.targetLookAt = null;
@@ -1361,13 +1441,18 @@ export class WorldEngine {
         if (!this.container) return;
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
-        this.camera.aspect = width / height;
+        this.camera.aspect = width / Math.max(1, height);
         this.camera.updateProjectionMatrix();
         this.resizeRenderer(width, height);
     }
 
     resizeRenderer(width, height) {
-        const pixelRatio = Math.min(1, window.devicePixelRatio, Math.sqrt(MAX_RENDER_PIXELS / (width * height)));
+        const { ratio, pixelBudget } = {
+            low: { ratio: 0.65, pixelBudget: 750_000 },
+            medium: { ratio: 1, pixelBudget: MAX_RENDER_PIXELS },
+            high: { ratio: 1.5, pixelBudget: 2_750_000 },
+        }[this.resolution] || { ratio: 1, pixelBudget: MAX_RENDER_PIXELS };
+        const pixelRatio = Math.min(ratio, window.devicePixelRatio, Math.sqrt(pixelBudget / Math.max(1, width * height)));
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setSize(width, height);
         if (this.composer) {
@@ -2208,6 +2293,7 @@ export class WorldEngine {
 
         // Pointer Move for Hover Raycasting (Punto 2: Hover con outline / luminosidad brillante)
         this.renderer.domElement.addEventListener('pointermove', (e) => {
+            if (this.menuCamera.active) return;
             const rect = this.renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
@@ -2299,12 +2385,14 @@ export class WorldEngine {
 
         // Pointer Down to record drag origin
         this.renderer.domElement.addEventListener('pointerdown', (e) => {
+            if (this.menuCamera.active) return;
             pointerDownPos.set(e.clientX, e.clientY);
             pointerDownTime = performance.now();
         });
 
         // Pointer Up to detect Click (Distinguish from OrbitControls pan/rotation)
         this.renderer.domElement.addEventListener('pointerup', (e) => {
+            if (this.menuCamera.active) return;
             const dragDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
             const elapsed = performance.now() - pointerDownTime;
             if (dragDist > 6 || elapsed > 450) return; // Ignore drags
