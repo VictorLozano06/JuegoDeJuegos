@@ -979,21 +979,22 @@ export class WorldEngine {
         character.dispose();
     }
 
-    updateCharacterMesh(index, customConfig) {
+    updateCharacterMesh(index, customConfig, { preview = false } = {}) {
         const previous = this.characters[index];
         if (!previous) return;
 
         const employee = game.employees[index];
-        if (customConfig) {
+        if (customConfig && !preview) {
             employee.customization = { ...employee.customization, ...customConfig };
         }
-        const character = this.buildCharacterMesh(employee, index);
+        const character = this.buildCharacterMesh(preview ? { ...employee, customization: { ...employee.customization, ...customConfig } } : employee, index);
         character.state = previous.state;
         character.stateUntil = previous.stateUntil;
         this.removeCharacter(previous);
         this.charactersGroup.add(character.group);
         this.characters[index] = character;
         this.updateCharacterPositions();
+        this.needsStaticFrame = true;
     }
 
     updateCharacterPositions() {
@@ -1147,6 +1148,18 @@ export class WorldEngine {
         const time = this.clock.elapsedTime;
 
         const menuShot = this.menuCamera.active;
+        // Keep the last office frame while these menus are open. Redraw on demand
+        // for appearance changes and resizes without advancing the visual effects.
+        if (!menuShot && document.querySelector('.modal-backdrop.active > .compact-menu, #modal-expo-scene.active, .game-dialog[open]')) {
+            if (this.needsStaticFrame) {
+                this.renderer.shadowMap.needsUpdate = true;
+                this.renderFrame();
+                this.needsStaticFrame = false;
+            }
+            return;
+        }
+        this.needsStaticFrame = false;
+
         if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
         else this.controls.update();
         this.particlesGroup.visible = !menuShot;
@@ -1405,6 +1418,10 @@ export class WorldEngine {
             this.nextShadowRefresh = time + SHADOW_REFRESH_INTERVAL;
         }
 
+        this.renderFrame();
+    }
+
+    renderFrame() {
         // Bloom is used for the hologram; the office renders in a single pass.
         if (this.composer && this.viewMode === 'dag_hologram') {
             this.composer.render();
@@ -1420,6 +1437,7 @@ export class WorldEngine {
         this.camera.aspect = width / Math.max(1, height);
         this.camera.updateProjectionMatrix();
         this.resizeRenderer(width, height);
+        this.needsStaticFrame = true;
     }
 
     resizeRenderer(width, height) {

@@ -26,6 +26,9 @@
     <link rel="stylesheet" href="/src/main-menu.css">
     <link rel="stylesheet" href="/src/office-ui.css">
     <link rel="stylesheet" href="/src/admin-ui.css">
+    <link rel="stylesheet" href="menu-design.css">
+    <link rel="stylesheet" href="empire-ui.css">
+    <link rel="stylesheet" href="marketing-ops.css">
 </head>
 <body class="menu-active">
     <!-- WebGL Three.js Container -->
@@ -69,7 +72,7 @@
             <div id="studio-info-btn" class="studio-info" title="Haz clic para personalizar el nombre de tu estudio y el aspecto 3D de tu personaje">
                 <div id="studio-logo" class="studio-logo">[[DE_ICON_001]]</div>
                 <div>
-                    <h1 id="studio-title" class="studio-title">DEV EMPIRE 3D <span class="studio-edit-hint">[[DE_ICON_002]]</span></h1>
+                    <h1 id="studio-title" class="studio-title"><span id="studio-title-text">DEV EMPIRE 3D</span> <span class="studio-edit-hint">[[DE_ICON_002]]</span></h1>
                     <span id="badge-era" class="era-badge">Garaje Retro (Años 80)</span>
                 </div>
             </div>
@@ -81,7 +84,7 @@
 
             <div class="stats-group">
                 <div class="stat-item stat-funds">
-                    <span class="stat-icon">[[DE_ICON_004]]</span>
+                    <span class="stat-icon funds-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="6.5" rx="6" ry="3"/><path d="M4 6.5v8c0 1.65 2.7 3 6 3 .7 0 1.4-.06 2-.18M4 10.5c0 1.65 2.7 3 6 3h1.2M16 6.5v3"/><circle cx="17" cy="15.5" r="4.5"/><path d="M17 13.7v3.6"/></svg></span>
                     <span id="stat-funds" class="stat-val">$75,000</span>
                 </div>
                 <div class="stat-item stat-fans">
@@ -213,53 +216,48 @@
                 </button>
             </div>
 
-            <div class="proj-header">
-                <div class="proj-title">
-                    <span>[[DE_ICON_017]]</span>
-                    <span id="proj-title">Proyecto Alfa</span>
-                </div>
-                <div class="proj-tags">
-                    <span id="proj-tag-topic" class="tag-badge">Cyberpunk</span>
-                    <span id="proj-tag-genre" class="tag-badge">RPG</span>
-                    <span id="proj-tag-platform" class="tag-badge">PC</span>
-                    <span id="proj-tag-pipeline" class="tag-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24;">Titan Engine</span>
-                    <span id="proj-tag-business" class="tag-badge">Premium</span>
-                </div>
+            <div class="project-overview">
+                <div><p class="project-kicker">EN PRODUCCIÓN</p><h2 id="proj-title">Proyecto Alfa</h2><p id="stage-label">Fase 1</p></div>
+                <strong id="proj-progress-value">0%</strong>
             </div>
-
-            <!-- Dynamic Workload & Technical Debt Counters (Punto 6) -->
-            <div class="proj-points-row">
-                <div class="point-pill pill-tech">[[DE_ICON_018]] Motor: <span id="pts-tech">0</span></div>
-                <div class="point-pill pill-design">[[DE_ICON_019]] Gameplay/Arte: <span id="pts-design">0</span></div>
-                <div class="point-pill" style="color: #a855f7;">[[DE_ICON_020]] Red: <span id="pts-net">0</span></div>
-                <div class="point-pill" style="color: #10b981;">[[DE_ICON_021]] QA: <span id="pts-qa">0</span></div>
-                <div class="point-pill pill-friction" style="color: #f59e0b;" title="Fricción acumulada que ralentiza el avance de características">[[DE_ICON_022]] Fricción: <span id="pts-friction">1.00x (+0%)</span></div>
-                <div id="pill-debt-health" class="point-pill pill-debt-health status-clean" title="Salud del Código y Deuda Técnica Acumulada">
-                    <span id="debt-health-icon">[[DE_ICON_023]]</span> Salud: <strong id="pts-debt-status">Limpio</strong> (<span id="pts-debt">0</span> pts)
-                    <span id="pts-hidden-debt-badge" class="badge-hidden-debt" style="display: none;">(+<span id="pts-hidden-debt">0</span> oculta)</span>
-                </div>
-                <div class="point-pill pill-regression-risk" style="color: #ec4899;" title="Probabilidad de que un cambio rompa un nodo completado">[[DE_ICON_016]] Riesgo Regresión: <span id="pts-regression-risk">0%</span></div>
-            </div>
-
-            <div class="proj-progress-track">
+            <div class="proj-progress-track" role="progressbar" aria-label="Progreso del desarrollo" aria-valuenow="0">
                 <div id="proj-progress-fill" class="proj-progress-fill"></div>
             </div>
-
-            <div class="proj-actions">
-                <span id="stage-label" class="stage-label">Fase 1: Implementación de Nodos DAG</span>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button id="btn-hud-open-dag" class="dock-btn" type="button" style="padding: 6px 12px; font-size: 12px;" title="Ver Arquitectura y Grafo DAG">
-                        <span>[[DE_ICON_020]]</span> Ver Grafo DAG
-                    </button>
-                    <button id="btn-toggle-refactor" class="btn-refactor" type="button" title="Pagar deuda técnica, desacoplar módulos y evitar regresiones">
-                        [[DE_ICON_015]] Refactorizar Código
-                    </button>
-                    <button id="btn-release-game" class="release-btn" style="display: none;">[[DE_ICON_024]] Lanzar Videojuego</button>
+            <div class="project-controls">
+                <div id="pill-debt-health" class="pill-debt-health status-clean">
+                    <strong id="pts-debt-status">Limpio</strong><span><span id="pts-debt">0</span> pts de deuda</span>
+                    <span id="pts-hidden-debt-badge" class="badge-hidden-debt" hidden>(+<span id="pts-hidden-debt">0</span> oculta)</span>
+                </div>
+                <div class="project-buttons">
+                    <button id="btn-hud-open-dag" type="button">Arquitectura</button>
+                    <button id="btn-toggle-refactor" type="button" aria-pressed="false">Refactorizar</button>
+                    <button id="btn-release-game" type="button" class="release-btn" style="display:none">Publicar juego</button>
                 </div>
             </div>
+            <details class="project-details">
+                <summary>Detalles del proyecto</summary>
+                <div class="proj-tags">
+                    <span id="proj-tag-topic" class="tag-badge"></span>
+                    <span id="proj-tag-genre" class="tag-badge"></span>
+                    <span id="proj-tag-platform" class="tag-badge"></span>
+                    <span id="proj-tag-pipeline" class="tag-badge"></span>
+                    <span id="proj-tag-business" class="tag-badge"></span>
+                </div>
+                <dl class="project-metrics">
+                    <div><dt>Motor</dt><dd id="pts-tech">0</dd></div>
+                    <div><dt>Arte y jugabilidad</dt><dd id="pts-design">0</dd></div>
+                    <div><dt>Red</dt><dd id="pts-net">0</dd></div>
+                    <div><dt>QA</dt><dd id="pts-qa">0</dd></div>
+                    <div><dt>Fricción</dt><dd id="pts-friction">1.00x (+0%)</dd></div>
+                    <div><dt>Riesgo de regresión</dt><dd id="pts-regression-risk">0%</dd></div>
+                </dl>
+                <p id="project-funding" class="project-funding" hidden></p>
+            </details>
+            <details id="project-offers-container" class="project-details" hidden>
+                <summary id="project-offers-label">Propuestas comerciales</summary>
+                <div id="project-offers-list" class="contract-offer-list"></div>
+            </details>
         </section>
-
-        <div id="project-offers-container" style="display:none"></div>
 
         <div id="modal-contract-negotiation" class="modal-backdrop">
             <div class="modal-window contract-negotiation-window">
@@ -409,20 +407,26 @@
     </div>
 
     <!-- MODAL: CREADOR DE EMPRESA Y PERSONAJE -->
-    <div id="modal-company-creator" class="modal-backdrop">
-        <div class="modal-window" style="max-width: 780px;">
+    <div id="modal-company-creator" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="studio-menu-title">
+        <div class="modal-window compact-menu studio-menu empire-window">
             <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_035]]</span> Creador de Estudio & Personaje</h2>
-                <button class="modal-close">&times;</button>
+                <div><p class="menu-kicker">DEV EMPIRE / PERFIL</p><h2 class="modal-title" id="studio-menu-title">Tu estudio</h2></div>
+                <button type="button" class="modal-close" aria-label="Cerrar">&times;</button>
             </div>
 
+            <div class="menu-tabs" role="tablist" aria-label="Perfil del estudio">
+                <button type="button" id="studio-tab-identity" role="tab" aria-controls="studio-identity" aria-selected="true">Identidad</button>
+                <button type="button" id="studio-tab-look" role="tab" aria-controls="studio-look" aria-selected="false" tabindex="-1">Apariencia</button>
+            </div>
             <form id="form-company-creator">
+              <div class="menu-scroll">
+                <section id="studio-identity" role="tabpanel" aria-labelledby="studio-tab-identity">
                 <!-- SECCIÓN 1: IDENTIDAD DE LA EMPRESA -->
                 <div class="creator-section">
                     <h3 class="creator-subtitle"><span>[[DE_ICON_037]]</span> Identidad del Estudio</h3>
-                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 16px; margin-bottom: 14px;">
+                    <div class="studio-name-row">
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Nombre del Estudio de Videojuegos</label>
+                            <label class="form-label" for="input-company-name">Nombre del estudio</label>
                             <input type="text" id="input-company-name" class="form-input" placeholder="Ej: PixelForge Games" required>
                         </div>
                         <div style="display: flex; align-items: flex-end;">
@@ -433,7 +437,7 @@
                     </div>
 
                     <div class="form-group" style="margin-bottom: 0;">
-                        <label class="form-label">Emblema / Logotipo del Estudio</label>
+                        <label class="form-label">Emblema</label>
                         <div id="company-logo-picker" class="logo-picker"></div>
                     </div>
                 </div>
@@ -441,42 +445,44 @@
                 <!-- SECCIÓN 2: PERFIL DEL FUNDADOR -->
                 <div class="creator-section">
                     <h3 class="creator-subtitle"><span>[[DE_ICON_039]]</span> Perfil del Fundador</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="studio-fields">
                         <div class="form-group">
-                            <label class="form-label">Nombre del Fundador</label>
+                            <label class="form-label" for="input-founder-name">Nombre del fundador</label>
                             <input type="text" id="input-founder-name" class="form-input" placeholder="Ej: Raúl Vance" required>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Especialidad / Rasgo Inicial</label>
+                            <label class="form-label" for="select-founder-trait">Especialidad</label>
                             <select id="select-founder-trait" class="form-select">
-                                <option value="Visionario">[[DE_ICON_040]] Visionario (Desarrollo equilibrado)</option>
-                                <option value="Mago del Código">[[DE_ICON_018]] Mago del Código (+8 Tech)</option>
-                                <option value="Diseñador Maestro">[[DE_ICON_019]] Diseñador Maestro (+8 Design)</option>
-                                <option value="Cazador de Bugs">[[DE_ICON_041]] Cazador de Bugs (+35% velocidad depurando)</option>
-                                <option value="Finanzas Ágiles">[[DE_ICON_042]] Finanzas Ágiles (+$15,000 iniciales)</option>
+                                <option value="Visionario">Visionario (Desarrollo equilibrado)</option>
+                                <option value="Mago del Código">Mago del Código (+8 Tech)</option>
+                                <option value="Diseñador Maestro">Diseñador Maestro (+8 Design)</option>
+                                <option value="Cazador de Bugs">Cazador de Bugs (+35% velocidad depurando)</option>
+                                <option value="Finanzas Ágiles">Finanzas Ágiles (+$15,000 iniciales)</option>
                             </select>
                         </div>
                     </div>
                 </div>
 
+                </section>
+                <section id="studio-look" role="tabpanel" aria-labelledby="studio-tab-look" hidden>
                 <!-- SECCIÓN 3: PERSONALIZADOR 3D EN TIEMPO REAL -->
                 <div class="creator-section">
-                    <h3 class="creator-subtitle"><span>[[DE_ICON_019]]</span> Personalización 3D del Personaje (Tiempo Real)</h3>
+                    <h3 class="creator-subtitle"><span>[[DE_ICON_019]]</span> Estilo del fundador</h3>
                     
                     <!-- Tono de Piel -->
                     <div class="form-group">
                         <label class="form-label">Tono de Piel</label>
                         <div id="picker-skin" class="swatch-group">
-                            <div class="color-swatch" data-skin="#ffe4d0" style="background: #ffe4d0;" title="Pálido"></div>
-                            <div class="color-swatch active" data-skin="#ffdfc4" style="background: #ffdfc4;" title="Claro"></div>
-                            <div class="color-swatch" data-skin="#f0b884" style="background: #f0b884;" title="Trigueño"></div>
-                            <div class="color-swatch" data-skin="#8d5524" style="background: #8d5524;" title="Moreno"></div>
-                            <div class="color-swatch" data-skin="#543118" style="background: #543118;" title="Oscuro"></div>
+                            <button type="button" class="color-swatch" data-skin="#ffe4d0" style="background: #ffe4d0;" title="Pálido" aria-label="Pálido"></button>
+                            <button type="button" class="color-swatch active" data-skin="#ffdfc4" style="background: #ffdfc4;" title="Claro" aria-label="Claro"></button>
+                            <button type="button" class="color-swatch" data-skin="#f0b884" style="background: #f0b884;" title="Trigueño" aria-label="Trigueño"></button>
+                            <button type="button" class="color-swatch" data-skin="#8d5524" style="background: #8d5524;" title="Moreno" aria-label="Moreno"></button>
+                            <button type="button" class="color-swatch" data-skin="#543118" style="background: #543118;" title="Oscuro" aria-label="Oscuro"></button>
                         </div>
                     </div>
 
                     <!-- Peinado y Color -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="studio-fields">
                         <div class="form-group">
                             <label class="form-label">Estilo de Cabello</label>
                             <div id="picker-hair-style" class="pill-group">
@@ -490,18 +496,18 @@
                         <div class="form-group">
                             <label class="form-label">Color de Cabello</label>
                             <div id="picker-hair-color" class="swatch-group">
-                                <div class="color-swatch active" data-color="#3d2314" style="background: #3d2314;" title="Castaño"></div>
-                                <div class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro"></div>
-                                <div class="color-swatch" data-color="#eab308" style="background: #eab308;" title="Rubio"></div>
-                                <div class="color-swatch" data-color="#b91c1c" style="background: #b91c1c;" title="Pelirrojo"></div>
-                                <div class="color-swatch" data-color="#00f0ff" style="background: #00f0ff;" title="Azul Neón"></div>
-                                <div class="color-swatch" data-color="#ec4899" style="background: #ec4899;" title="Rosa Neón"></div>
+                                <button type="button" class="color-swatch active" data-color="#3d2314" style="background: #3d2314;" title="Castaño" aria-label="Castaño"></button>
+                                <button type="button" class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro" aria-label="Negro"></button>
+                                <button type="button" class="color-swatch" data-color="#eab308" style="background: #eab308;" title="Rubio" aria-label="Rubio"></button>
+                                <button type="button" class="color-swatch" data-color="#b91c1c" style="background: #b91c1c;" title="Pelirrojo" aria-label="Pelirrojo"></button>
+                                <button type="button" class="color-swatch" data-color="#00f0ff" style="background: #00f0ff;" title="Azul Neón" aria-label="Azul Neón"></button>
+                                <button type="button" class="color-swatch" data-color="#ec4899" style="background: #ec4899;" title="Rosa Neón" aria-label="Rosa Neón"></button>
                             </div>
                         </div>
                     </div>
 
                     <!-- Atuendo y Color -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div class="studio-fields">
                         <div class="form-group">
                             <label class="form-label">Prenda / Ropa</label>
                             <div id="picker-shirt-style" class="pill-group">
@@ -513,13 +519,13 @@
                         <div class="form-group">
                             <label class="form-label">Color de Ropa</label>
                             <div id="picker-shirt-color" class="swatch-group">
-                                <div class="color-swatch active" data-color="#367b70" style="background: #367b70;" title="Verde petróleo"></div>
-                                <div class="color-swatch" data-color="#2563eb" style="background: #2563eb;" title="Azul Eléctrico"></div>
-                                <div class="color-swatch" data-color="#dc2626" style="background: #dc2626;" title="Rojo Crimson"></div>
-                                <div class="color-swatch" data-color="#16a34a" style="background: #16a34a;" title="Verde Esmeralda"></div>
-                                <div class="color-swatch" data-color="#7c3aed" style="background: #7c3aed;" title="Púrpura Synth"></div>
-                                <div class="color-swatch" data-color="#d97706" style="background: #d97706;" title="Ámbar Retro"></div>
-                                <div class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro"></div>
+                                <button type="button" class="color-swatch active" data-color="#367b70" style="background: #367b70;" title="Verde petróleo" aria-label="Verde petróleo"></button>
+                                <button type="button" class="color-swatch" data-color="#2563eb" style="background: #2563eb;" title="Azul Eléctrico" aria-label="Azul Eléctrico"></button>
+                                <button type="button" class="color-swatch" data-color="#dc2626" style="background: #dc2626;" title="Rojo Crimson" aria-label="Rojo Crimson"></button>
+                                <button type="button" class="color-swatch" data-color="#16a34a" style="background: #16a34a;" title="Verde Esmeralda" aria-label="Verde Esmeralda"></button>
+                                <button type="button" class="color-swatch" data-color="#7c3aed" style="background: #7c3aed;" title="Púrpura Synth" aria-label="Púrpura Synth"></button>
+                                <button type="button" class="color-swatch" data-color="#d97706" style="background: #d97706;" title="Ámbar Retro" aria-label="Ámbar Retro"></button>
+                                <button type="button" class="color-swatch" data-color="#18181b" style="background: #18181b;" title="Negro" aria-label="Negro"></button>
                             </div>
                         </div>
                     </div>
@@ -537,9 +543,12 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 24px; text-align: right;">
-                    <button type="submit" class="dock-btn btn-primary-action" style="padding: 12px 32px; width: 100%; justify-content: center; font-size: 15px;">
-                        [[DE_ICON_048]] Guardar Perfil de Estudio y Personaje
+                </section>
+              </div>
+                <div class="menu-footer">
+                    <button type="button" id="studio-preview-toggle" class="menu-secondary" aria-pressed="false" hidden>Ver en la oficina</button>
+                    <button type="submit" class="dock-btn btn-primary-action">
+                        Guardar perfil
                     </button>
                 </div>
             </form>
@@ -813,32 +822,59 @@
     </div>
 
     <!-- MODAL: PANEL INTERACTIVO DEDICADO DEL GRAFO DE NODOS Y DEUDA TÉCNICA (#modal-scope-dag) -->
-    <div id="modal-scope-dag" class="modal-backdrop">
-        <div class="modal-window" style="max-width: 980px; max-height: 90vh; overflow-y: auto;">
+    <div id="modal-scope-dag" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="scope-menu-title">
+        <div class="modal-window compact-menu scope-menu empire-window">
             <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_020]]</span> Árbol de Nodos (DAG) & Deuda Técnica</h2>
+                <div><p class="menu-kicker">DEV EMPIRE / INGENIERÍA</p><h2 class="modal-title" id="scope-menu-title">Arquitectura</h2></div>
                 <div style="display: flex; gap: 10px; align-items: center;">
                     <button type="button" id="btn-dag-modal-view-3d" class="btn-highlight-holo" style="padding: 6px 14px; font-size: 12px;">
-                        <span>[[DE_ICON_053]]</span> Proyección Holográfica 3D
+                        <span>[[DE_ICON_053]]</span> Vista 3D
                     </button>
-                    <button class="modal-close">&times;</button>
+                    <button class="modal-close" type="button" aria-label="Cerrar">&times;</button>
                 </div>
             </div>
 
-            <!-- Presets Bar -->
+            <div class="menu-tabs" role="tablist" aria-label="Arquitectura">
+                <button type="button" role="tab" id="scope-tab-modules" aria-selected="true" aria-controls="scope-modules">Módulos</button>
+                <button type="button" role="tab" id="scope-tab-diagnostics" aria-selected="false" aria-controls="scope-diagnostics" tabindex="-1">Diagnóstico</button>
+            </div>
+            <div class="menu-scroll">
+                <section id="scope-modules" role="tabpanel" aria-labelledby="scope-tab-modules">
+                                <!-- Presets Bar -->
             <div class="dag-presets-bar">
-                <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Presets de Alcance:</span>
+                <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Configuración rápida</span>
                 <button type="button" class="preset-btn" data-preset="indie" title="Scope ligero, código limpio, desarrollo rápido">[[DE_ICON_022]] Indie Ágil</button>
                 <button type="button" class="preset-btn" data-preset="aa" title="Scope equilibrado, físicas y shaders">[[DE_ICON_001]] AA Equilibrado</button>
                 <button type="button" class="preset-btn" data-preset="aaa" title="Ray Tracing, físicas destructibles y red avanzada">[[DE_ICON_024]] AAA Ambicioso</button>
                 <button type="button" class="preset-btn" data-preset="qa" title="Prioridad en estabilidad y deuda técnica mínima">[[DE_ICON_021]] QA / Clean Code</button>
             </div>
 
-            <!-- Live Architecture Metrics Dashboard -->
+            <!-- DAG Nodes Groups in Modal: 7 Categorized Sections -->
+            <details class="dag-category-block" open><summary class="dag-category-title"><span>[[DE_ICON_054]]</span> Motor Gráfico & Renderizado</summary><div id="dag-modal-nodes-render" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_055]]</span> Físicas & Dinámica de Colisiones</summary><div id="dag-modal-nodes-physics" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_020]]</span> Netcode & Sincronización de Red</summary><div id="dag-modal-nodes-net" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_056]]</span> Inteligencia Artificial & Lógica</summary><div id="dag-modal-nodes-ai" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_045]]</span> Pipeline de Audio & Acústica</summary><div id="dag-modal-nodes-audio" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_057]]</span> Contenido & Estructura de Mundo</summary><div id="dag-modal-nodes-content" class="dag-nodes-grid"></div></details>
+
+            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_049]]</span> Sistemas & Jugabilidad Avanzada</summary><div id="dag-modal-nodes-systems" class="dag-nodes-grid"></div></details>
+
+            <!-- Backwards-compatibility hidden container -->
+            <div id="dag-modal-nodes-base" style="display: none;"></div>
+
+
+                </section>
+                <section id="scope-diagnostics" role="tabpanel" aria-labelledby="scope-tab-diagnostics" hidden>
+                                <!-- Live Architecture Metrics Dashboard -->
             <div class="dag-metrics-panel">
                 <div class="workload-bars">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Desglose de Carga (Workload Breakdown)</span>
+                        <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Carga por disciplina</span>
                         <span id="dag-modal-total-pts" style="font-size: 12px; font-weight: 800; color: var(--accent-cyan);">Total: 0 pts</span>
                     </div>
                     <div class="discipline-row">
@@ -869,8 +905,10 @@
                 </div>
 
                 <!-- Radar Chart: Balance en 5 Disciplinas -->
+                <details class="scope-radar">
+                <summary>Ver equilibrio entre disciplinas</summary>
                 <div class="radar-chart-container" title="Balance de Arquitectura en 5 Disciplinas">
-                    <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Balance Disciplinas</div>
+                    <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Equilibrio</div>
                     <svg viewBox="0 0 160 160" class="radar-svg" id="dag-modal-radar-svg">
                         <polygon points="80,20 137,61 115,129 45,129 23,61" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
                         <polygon points="80,35 123,66 106,116 54,116 37,66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
@@ -894,6 +932,7 @@
                         <text x="18" y="63" fill="#34d399" font-size="8" font-weight="700" text-anchor="end">QA</text>
                     </svg>
                 </div>
+                </details>
 
                 <div class="friction-gauge">
                     <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Indicador de Fricción</div>
@@ -920,60 +959,20 @@
             </div>
 
             <!-- Active Refactor Sprint Action -->
-            <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(0,210,255,0.06); border: 1px solid rgba(0,210,255,0.2); padding: 14px 20px; border-radius: 12px; margin-bottom: 20px;">
+            <div class="scope-maintenance">
                 <div>
                     <strong style="color: #fff; font-size: 14px;">Mantenimiento de Código Activo</strong>
                     <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Ordena a los ingenieros limpiar código para reducir -25 pts de deuda técnica y eliminar cuelgues antes del lanzamiento.</div>
                 </div>
                 <button type="button" id="btn-dag-modal-refactor" class="btn-refactor" title="Refactorizar deuda técnica">
-                    [[DE_ICON_058]] Pagar Deuda Técnica
+                    [[DE_ICON_058]] Refactorizar
                 </button>
             </div>
 
-            <!-- DAG Nodes Groups in Modal: 7 Categorized Sections -->
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_054]]</span> Motor Gráfico & Renderizado</div>
-                <div id="dag-modal-nodes-render" class="dag-nodes-grid"></div>
-            </div>
 
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_055]]</span> Físicas & Dinámica de Colisiones</div>
-                <div id="dag-modal-nodes-physics" class="dag-nodes-grid"></div>
+                </section>
             </div>
-
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_020]]</span> Netcode & Sincronización de Red</div>
-                <div id="dag-modal-nodes-net" class="dag-nodes-grid"></div>
-            </div>
-
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_056]]</span> Inteligencia Artificial & Lógica</div>
-                <div id="dag-modal-nodes-ai" class="dag-nodes-grid"></div>
-            </div>
-
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_045]]</span> Pipeline de Audio & Acústica</div>
-                <div id="dag-modal-nodes-audio" class="dag-nodes-grid"></div>
-            </div>
-
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_057]]</span> Contenido & Estructura de Mundo</div>
-                <div id="dag-modal-nodes-content" class="dag-nodes-grid"></div>
-            </div>
-
-            <div class="dag-category-block">
-                <div class="dag-category-title"><span>[[DE_ICON_049]]</span> Sistemas & Jugabilidad Avanzada</div>
-                <div id="dag-modal-nodes-systems" class="dag-nodes-grid"></div>
-            </div>
-
-            <!-- Backwards-compatibility hidden container -->
-            <div id="dag-modal-nodes-base" style="display: none;"></div>
-
-            <div style="margin-top: 24px; text-align: right;">
-                <button type="button" class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 10px 32px;">
-                    [[DE_ICON_149]] Guardar Arquitectura
-                </button>
-            </div>
+            <div class="menu-footer"><button type="button" class="menu-secondary" onclick="closeAllModals()">Volver al juego</button></div>
         </div>
     </div>
 
@@ -1096,13 +1095,22 @@
         </div>
     </div>
 
-    <div id="modal-marketing" class="modal-backdrop">
-        <div class="modal-window marketing-window">
+    <div id="modal-marketing" class="modal-backdrop" role="region" aria-labelledby="marketing-menu-title">
+        <div class="modal-window marketing-window compact-menu empire-window">
             <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_033]]</span> Marketing y Comunidad</h2>
-                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+                <div><p class="menu-kicker">DEV EMPIRE / DIFUSIÓN</p><h2 class="modal-title" id="marketing-menu-title">Marketing y comunidad</h2></div>
+                <span class="mkt-edition empire-label"></span>
+                <button class="empire-button empire-button--quiet mkt-back" data-workspace-back type="button" onclick="closeAllModals()">
+                    <svg viewBox="0 0 20 20" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M17 10H4m0 0 5-5m-5 5 5 5"/></svg>
+                    Volver al estudio
+                </button>
             </div>
-            <div id="marketing-hub-content"></div>
+            <div class="menu-tabs" role="tablist" aria-label="Marketing">
+                <button type="button" id="mkt-tab-campaigns" role="tab" aria-controls="mkt-campaigns" aria-selected="true">Campañas</button>
+                <button type="button" id="mkt-tab-creators" role="tab" aria-controls="mkt-creators" aria-selected="false" tabindex="-1">Creadores</button>
+                <button type="button" id="mkt-tab-community" role="tab" aria-controls="mkt-community" aria-selected="false" tabindex="-1">Red V</button>
+            </div>
+            <div id="marketing-hub-content" class="menu-scroll"></div>
         </div>
     </div>
 
@@ -1116,23 +1124,25 @@
         </div>
     </div>
 
-    <div id="modal-community-workshop" class="modal-backdrop">
-        <div class="modal-window workshop-window">
+    <div id="modal-community-workshop" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="workshop-menu-title">
+        <div class="modal-window workshop-window compact-menu empire-window">
             <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_034]]</span> Workshop de la Comunidad & Ecosistema de Mods</h2>
-                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+                <div><p class="menu-kicker">DEV EMPIRE / MODS</p><h2 class="modal-title" id="workshop-menu-title">Taller de la comunidad</h2></div>
+                <button class="modal-close" type="button" onclick="closeAllModals()" aria-label="Cerrar">&times;</button>
             </div>
-            <div class="workshop-nav-tabs">
-                <button type="button" id="tab-workshop-games" class="workshop-tab-btn active" onclick="switchWorkshopTab('games')">[[DE_ICON_001]] Mods de tus Juegos</button>
-                <button type="button" id="tab-workshop-simulator" class="workshop-tab-btn" onclick="switchWorkshopTab('simulator')">[[DE_ICON_020]] Mods del Simulador (Editor & Datos)</button>
+            <div class="menu-tabs" role="tablist" aria-label="Taller">
+                <button type="button" id="tab-workshop-games" role="tab" aria-selected="true" aria-controls="workshop-games-view">Mis juegos</button>
+                <button type="button" id="tab-workshop-simulator" role="tab" aria-selected="false" tabindex="-1" aria-controls="workshop-simulator-view">Paquetes</button>
             </div>
-            <div id="workshop-games-view">
+            <div class="menu-scroll">
+            <div id="workshop-games-view" role="tabpanel" aria-labelledby="tab-workshop-games">
                 <p class="workshop-intro">Activa APIs de modding en juegos compatibles para desatar mods populares (+150% ventas residuales), conversiones totales virales y engagement de la comunidad.</p>
                 <div id="community-workshop-games"></div>
             </div>
-            <div id="workshop-simulator-view" style="display: none;">
-                <p class="workshop-intro">El simulador está desacoplado mediante arquitectura orientada a datos (JSON). Puedes inyectar consolas reales, creadores célebres y eventos contextuales.</p>
+            <div id="workshop-simulator-view" role="tabpanel" aria-labelledby="tab-workshop-simulator" hidden>
+                <p class="workshop-intro">Amplía el catálogo con plataformas, creadores y eventos de la comunidad.</p>
                 <div id="community-simulator-mods"></div>
+            </div>
             </div>
         </div>
     </div>
@@ -1355,15 +1365,15 @@
     <!-- MODAL: HISTORIAL & TOP 10 RIVAL LEADERBOARD -->
     <div id="modal-history" class="modal-backdrop">
         <div class="modal-window" style="max-width: 860px;">
-            <div class="modal-header">
-                <h2 class="modal-title"><span>[[DE_ICON_012]]</span> Top 10 Ranking de Ventas Global & Catálogo</h2>
+            <div class="modal-header chart-header">
+                <div><span class="chart-eyebrow">DEV EMPIRE · PULSO DE LA INDUSTRIA</span><h2 class="modal-title">La lista de éxitos</h2><p>Los juegos que lideran las ventas esta semana</p></div>
                 <button class="modal-close">&times;</button>
             </div>
 
-            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-gold);">Top 10 Tabla de Éxitos Semanales de la Industria</h3>
+            <div class="chart-section-heading"><div><span>CLASIFICACIÓN GLOBAL</span><h3>Top 10 semanal</h3></div><span class="chart-live">ACTUALIZACIÓN SEMANAL</span></div>
             <div id="chart-leaderboard-container" style="margin-bottom: 24px; overflow-x: auto;"></div>
 
-            <h3 style="font-size: 15px; margin-bottom: 10px; color: var(--accent-cyan);">Historial de Videojuegos Creados por tu Estudio</h3>
+            <div class="chart-section-heading chart-library"><div><span>TU ESTUDIO</span><h3>Catálogo de lanzamientos</h3></div></div>
             <div id="games-history-list" class="cards-list"></div>
         </div>
     </div>
@@ -1498,9 +1508,9 @@
     </div>
 
     <!-- MODAL: ESCENA VISUAL INTERACTIVA DE LA MEGA GAMES EXPO (E3 / G-STAR) -->
-    <div id="modal-expo-scene" class="modal-backdrop">
-        <div class="modal-window expo-scene-window" style="max-width: 860px; width: 95%;">
-            <div class="expo-scene-header" style="text-align: center; margin-bottom: 12px;">
+    <div id="modal-expo-scene" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="expo-scene-title">
+        <div class="modal-window expo-scene-window">
+            <div class="expo-scene-header">
                 <div id="expo-scene-badge" class="expo-scene-badge">[[DE_ICON_001]] CONVENCIÓN INTERNACIONAL DE VIDEOJUEGOS</div>
                 <h2 id="expo-scene-title" class="modal-title" style="margin-top: 4px;">Electronic Entertainment Expo (E3)</h2>
                 <div id="expo-booth-subtitle" style="font-size: 13px; color: var(--text-secondary);">Pabellón de Exposiciones · Stand Oficial del Estudio</div>
@@ -1523,7 +1533,7 @@
                         </div>
                         <div class="expo-screen screen-right"></div>
                     </div>
-                    <div class="expo-booth-props" id="expo-booth-props"></div>
+                    <div class="expo-booth-props" id="expo-booth-props" aria-hidden="true"></div>
                 </div>
 
                 <!-- Animated Hallway Crowd Floor -->
@@ -1533,7 +1543,7 @@
             </div>
 
             <!-- Mid-Event Interactive Actions -->
-            <div style="display: flex; gap: 12px; justify-content: center; margin: 14px 0;">
+            <div class="expo-action-strip">
                 <button id="btn-expo-merch" class="dock-btn" onclick="expoDistributeMerch()" style="font-size: 13px; padding: 8px 16px;">
                     [[DE_ICON_071]] Repartir Merchandising ($600)
                 </button>
@@ -1575,12 +1585,12 @@
             </div>
 
             <!-- Summary Finish Footer -->
-            <div id="expo-summary-footer" style="display: none; margin-top: 16px; padding: 14px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; text-align: center;">
+            <div id="expo-summary-footer" class="expo-results" style="display: none;">
                 <div id="expo-summary-text" style="font-size: 14px; color: #fff; margin-bottom: 10px; line-height: 1.4;">
                     ¡La feria ha concluido con un éxito arrollador! Tu stand atrajo la atención de la prensa internacional y de miles de entusiastas.
                 </div>
                 <button class="dock-btn btn-primary-action" onclick="finishExpoScene()" style="padding: 10px 30px; margin: 0 auto;">
-                    [[DE_ICON_073]] Concluir Feria y Aplicar Resultados
+                    Aplicar resultados
                 </button>
             </div>
         </div>
@@ -1686,11 +1696,11 @@
     </div>
 
     <!-- MODAL: PORTADA DE PRENSA Y REVISTA RETRO / PORTAL DIGITAL (SUBAGENTE 4) -->
-    <div id="modal-marketing-press-cover" class="modal-backdrop">
+    <div id="modal-marketing-press-cover" class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Portada de prensa">
         <div class="modal-window press-cover-modal-window" style="max-width: 680px; background: transparent; border: none; box-shadow: none; padding: 0;">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
                 <button type="button" class="dock-btn btn-danger-action" onclick="if (typeof window.closePressCoverModal === 'function') window.closePressCoverModal(true); else closeAllModals();" style="padding: 6px 14px; font-weight: 700;">
-                    ✕ Cerrar Portada
+                    Cerrar portada
                 </button>
             </div>
             <div id="press-cover-display-container"></div>
@@ -1716,5 +1726,26 @@
     <script src="/vendor/UnrealBloomPass.js"></script>
 
     <script type="module" src="/src/main.js"></script>
+
+    <dialog id="retire-game-dialog" class="game-dialog" aria-labelledby="retire-game-title" aria-describedby="retire-game-description">
+        <form id="retire-game-form">
+            <p class="menu-kicker">CATÁLOGO / FIN DE VENTAS</p>
+            <h2 id="retire-game-title">Retirar de las tiendas</h2>
+            <p id="retire-game-description">Dejarás de vender <strong id="retire-game-name"></strong>. Se detendrán sus costes recurrentes y sus cifras quedarán registradas en el historial.</p>
+            <div class="dialog-actions"><button type="button" data-dialog-cancel autofocus>Cancelar</button><button type="submit" class="dialog-danger">Retirar juego</button></div>
+        </form>
+    </dialog>
+    <dialog id="license-engine-dialog" class="game-dialog" aria-labelledby="license-engine-title">
+        <form id="license-engine-form" novalidate>
+            <p class="menu-kicker">TECNOLOGÍA / LICENCIAS</p>
+            <h2 id="license-engine-title">Licenciar motor</h2>
+            <label for="license-studio-name">Estudio que recibe la licencia</label>
+            <input type="text" id="license-studio-name" class="form-input" autofocus>
+            <label for="license-monthly-fee">Regalía mensual ($)</label>
+            <input type="number" id="license-monthly-fee" class="form-input" min="0" step="any" value="4500">
+            <p id="license-form-error" role="alert"></p>
+            <div class="dialog-actions"><button type="button" data-dialog-cancel>Cancelar</button><button type="submit" class="dialog-primary">Licenciar</button></div>
+        </form>
+    </dialog>
 </body>
 </html>

@@ -1,6 +1,10 @@
 import './ui-icons.js';
 import { initializeIPUI, refreshIPWizard } from './ip-ui.js';
 import { initializeRivalUI } from './rival-ui.js';
+import {
+    marketingBriefArt, marketingChannelState, marketingEdition, marketingMoney, marketingNumber,
+    marketingText, renderMarketingChannels, renderMarketingHistory, renderMarketingInspector
+} from './marketing-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -131,6 +135,8 @@ document.addEventListener('DOMContentLoaded', () => {
     populateProjectWizard();
     initDAGArchitectureUI();
     initCompanyCreatorModal();
+    initCompactMenuControls();
+    initGameDialogs();
     initializeMainMenu();
 
     // 4. Bind Game State Listeners
@@ -357,8 +363,9 @@ function setGameSpeed(speed) {
 
 function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
         const officeModal = document.getElementById('modal-offices');
-        if (officeModal.classList.contains('active')) {
+        if (officeModal?.classList.contains('active')) {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 closeAllModals();
@@ -373,11 +380,11 @@ function setupKeyboardShortcuts() {
             }
             return;
         }
+        if (document.querySelector('.modal-backdrop.active .compact-menu')) return;
         if (appState !== STATE_PLAYING) {
             if (e.key === 'Escape' && creatingNewGame) closeAllModals();
             return;
         }
-        if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
         // Ignore if user is currently typing inside an input or textarea
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
             return;
@@ -572,6 +579,17 @@ function setupUIControls() {
 
     // Delegación de eventos para botones de Marketing y Streamers (evita desenganche al repintar)
     document.addEventListener('click', (e) => {
+        const cover = e.target.closest('[data-press-cover]');
+        if (cover) {
+            window.showMarketingPressCover(cover.dataset.pressCover);
+            return;
+        }
+        const channel = e.target.closest('[data-mkt-channel]');
+        if (channel) {
+            selectedMarketingChannel = channel.dataset.mktChannel;
+            updateMarketingChannelSelection();
+            return;
+        }
         const mktBtn = e.target.closest('.btn-run-marketing');
         if (mktBtn && !mktBtn.hasAttribute('onclick')) {
             e.preventDefault();
@@ -1663,6 +1681,10 @@ function renderDAGNodes() {
             if (!targetEl) return;
 
             const card = document.createElement('div');
+            card.dataset.nodeId = node.id;
+            card.tabIndex = 0;
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-pressed', String(isActive));
             card.className = 'dag-node-card' +
                 (isActive ? ' active' : '') +
                 (isAvailable ? ' available' : '') +
@@ -2082,22 +2104,25 @@ function renderHUD(state) {
     }
 
     // Studio Title & Logo
-    const titleEl = document.getElementById('studio-title');
-    if (titleEl) {
-        const hint = document.createElement('span');
-        hint.className = 'studio-edit-hint';
-        hint.textContent = '[[DE_ICON_002]]';
-        titleEl.replaceChildren(`${state.companyName} `, hint);
-    }
+    const titleEl = document.getElementById('studio-title-text');
+    if (titleEl && titleEl.textContent !== state.companyName) titleEl.textContent = state.companyName;
     const logoEl = document.getElementById('studio-logo');
-    if (logoEl) logoEl.innerText = state.companyLogo;
+    if (logoEl.dataset.logo !== state.companyLogo) {
+        logoEl.dataset.logo = state.companyLogo;
+        logoEl.textContent = state.companyLogo;
+    }
 
     // Top Bar Stats
     document.getElementById('stat-funds').innerText = `$${Math.floor(state.funds).toLocaleString()}`;
     document.getElementById('stat-fans').innerText = state.fans.toLocaleString();
     document.getElementById('stat-rp').innerText = state.researchPoints;
     const histYear = state.getHistoricalYear ? state.getHistoricalYear() : (1981 + state.year);
-    document.getElementById('stat-calendar').innerHTML = `[[DE_ICON_066]] <strong>${histYear}</strong> (Año ${state.year}), M<strong>${state.month}</strong> S<strong>${state.week}</strong>`;
+    const calendarEl = document.getElementById('stat-calendar');
+    const calendarKey = `${histYear}:${state.year}:${state.month}:${state.week}`;
+    if (calendarEl.dataset.date !== calendarKey) {
+        calendarEl.dataset.date = calendarKey;
+        calendarEl.innerHTML = `[[DE_ICON_066]] <strong>${histYear}</strong> (Año ${state.year}), M<strong>${state.month}</strong> S<strong>${state.week}</strong>`;
+    }
 
     // Refresh research modal live counters if open
     const modalResearch = document.getElementById('modal-research');
@@ -2170,10 +2195,7 @@ function renderHUD(state) {
         const hiddenVal = document.getElementById('pts-hidden-debt');
 
         if (healthPill) {
-            healthPill.className = `point-pill pill-debt-health status-${healthStatus}`;
-        }
-        if (healthIcon) {
-            healthIcon.innerText = healthStatus === 'clean' ? '[[DE_ICON_023]]' : (healthStatus === 'moderate' ? '[[DE_ICON_116]]' : '[[DE_ICON_115]]');
+            healthPill.className = `pill-debt-health status-${healthStatus}`;
         }
         if (debtStatus) {
             debtStatus.innerText = healthStatus === 'clean' ? 'Limpio' : (healthStatus === 'moderate' ? 'Fricción Moderada' : 'Deuda Crítica');
@@ -2183,11 +2205,11 @@ function renderHUD(state) {
         }
         if (hiddenBadge && hiddenVal) {
             if (hiddenDebt > 0.5) {
-                hiddenBadge.style.display = 'inline-block';
+                hiddenBadge.hidden = false;
                 hiddenVal.innerText = hiddenDebt;
                 hiddenBadge.title = `Deuda técnica oculta detectada gradualmente por testers de QA (+${hiddenDebt} pts)`;
             } else {
-                hiddenBadge.style.display = 'none';
+                hiddenBadge.hidden = true;
             }
         }
 
@@ -2223,16 +2245,16 @@ function renderHUD(state) {
         // Refactor toggle button state (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
         const refactorBtn = document.getElementById('btn-toggle-refactor');
         if (refactorBtn) {
-            if (proj.devMode === 'refactor') {
-                refactorBtn.classList.add('active');
-                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizando... (Click para Normal)';
-            } else {
-                refactorBtn.classList.remove('active');
-                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizar Código';
-            }
+            const active = proj.devMode === 'refactor';
+            refactorBtn.setAttribute('aria-pressed', String(active));
+            const label = active ? 'Volver a desarrollo' : 'Refactorizar';
+            if (refactorBtn.textContent !== label) refactorBtn.textContent = label;
         }
 
-        document.getElementById('proj-progress-fill').style.width = `${proj.overallProgress}%`;
+        const progress = Math.max(0, Math.min(100, proj.overallProgress || 0));
+        document.getElementById('proj-progress-fill').style.width = progress + '%';
+        document.getElementById('proj-progress-value').textContent = Math.floor(progress) + '%';
+        projBar.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(Math.floor(progress)));
 
         const stageNames = {
             1: 'Fase 1: Motor Gráfico & Guion',
@@ -2278,17 +2300,34 @@ function renderHUD(state) {
     }
 
     const offersContainer = document.getElementById('project-offers-container');
-    if (offersContainer) {
-        const project = state.currentProject;
-        if (project?.offers?.length) {
-            offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel"><strong>[[DE_ICON_117]] Propuestas comerciales (${state.getHistoricalYear()})</strong><p>Revisa el anticipo, las comisiones y las restricciones antes de firmar. Solo puedes aceptar un acuerdo por proyecto.</p><div class="contract-offer-list">${project.offers.map(offer => `<article class="contract-offer-card"><div><b>${offer.title}</b><p>${offer.detail}</p></div><button class="dock-btn btn-primary-action" onclick="reviewBusinessOffer('${offer.id}')">Revisar términos</button></article>`).join('')}</div></div>`;
-        } else if (project?.acceptedOffer) {
-            offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel">[[DE_ICON_096]] Acuerdo aceptado: ${project.acceptedOffer.title} · Anticipo $${project.acceptedOffer.amount.toLocaleString()}</div>`;
-        } else {
-            offersContainer.style.display = 'none';
-        }
+    const offersList = document.getElementById('project-offers-list');
+    const funding = document.getElementById('project-funding');
+    const offer = state.currentProject?.acceptedOffer;
+    const fundingLabel = offer ? 'Financiación: ' + offer.title + (offer.amount ? ' · Anticipo $' + offer.amount.toLocaleString('es-ES') : '') : '';
+    funding.hidden = !offer;
+    if (funding.textContent !== fundingLabel) funding.textContent = fundingLabel;
+    offersContainer.hidden = !pendingOffers.length;
+    if (!pendingOffers.length) offersContainer.open = false;
+    const offersKey = JSON.stringify(pendingOffers.map(({ id, title, detail }) => [id, title, detail]));
+    if (offersList.dataset.offers !== offersKey) {
+        offersList.dataset.offers = offersKey;
+        document.getElementById('project-offers-label').textContent = 'Propuestas comerciales (' + pendingOffers.length + ')';
+        offersList.replaceChildren(...pendingOffers.map(offer => {
+            const row = document.createElement('article');
+            row.className = 'contract-offer-card';
+            const description = document.createElement('div');
+            const title = document.createElement('b');
+            const detail = document.createElement('p');
+            title.textContent = offer.title;
+            detail.textContent = offer.detail;
+            description.append(title, detail);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Revisar términos';
+            button.addEventListener('click', () => window.reviewBusinessOffer(offer.id));
+            row.append(description, button);
+            return row;
+        }));
     }
     // Post-Launch Emergency Patch Crisis Banner (Punto 5)
     const patchBanner = document.getElementById('emergency-patch-banner');
@@ -2398,35 +2437,66 @@ function renderLiveOps() {
     }).join('');
 }
 
+let marketingContext;
+let selectedMarketingChannel;
+
+function updateMarketingChannelSelection() {
+    const { options, project } = marketingContext;
+    const option = options.find(item => item.id === selectedMarketingChannel);
+    const state = option && marketingChannelState(option, project, game.funds);
+    const inspector = document.getElementById('mkt-inspector');
+    const viewKey = option ? option.id + ':' + state.kind : 'empty';
+    if (inspector.dataset.view !== viewKey) {
+        const restoreFocus = inspector.contains(document.activeElement);
+        inspector.innerHTML = renderMarketingInspector(option, state);
+        inspector.dataset.view = viewKey;
+        if (restoreFocus) {
+            const selected = [...document.querySelectorAll('[data-mkt-channel]')].find(button => button.dataset.mktChannel === selectedMarketingChannel);
+            selected?.focus({ preventScroll: true });
+        }
+    }
+    document.querySelectorAll('#mkt-campaigns [data-mkt-channel]').forEach(button => {
+        const pressed = String(button.dataset.mktChannel === selectedMarketingChannel);
+        if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
+    });
+}
+
+
 function renderMarketingHub() {
     const container = document.getElementById('marketing-hub-content');
     if (!container) return;
     const project = game.currentProject;
     const year = game.getHistoricalYear();
-    const options = typeof game.getMarketingOptions === 'function' ? (game.getMarketingOptions() || []) : [];
+    const modal = container.closest('.modal-backdrop');
+    const selectedTab = modal.querySelector('[role="tab"][aria-selected="true"]');
+    const focusedAction = container.contains(document.activeElement) ? document.activeElement : null;
+    const scrollTop = container.scrollTop;
+    const historyOpen = container.querySelector('.mkt-history')?.open;
+    const options = game.getMarketingOptions();
+    marketingContext = { project, year, options };
+    if (!options.some(option => option.id === selectedMarketingChannel)) {
+        selectedMarketingChannel = (options.find(option => option.available) || options[0])?.id;
+    }
+    const [editionLabel, editionArt] = marketingEdition(year);
+    modal.querySelector('.mkt-edition').textContent = year + ' / ' + editionLabel;
     const priorTargetId = document.getElementById('marketing-key-game')?.value;
-    const campaigns = options.map(option => {
-        const locked = option.available === false;
-        const title = option.label || option.name || option.title || option.id;
-        const note = locked ? `[[DE_ICON_093]] Disponible en ${option.year || 'una era posterior'}` : (option.description || option.detail || 'Promoción de prelanzamiento');
-        const cost = Number(option.cost || 0);
-        return `<article class="marketing-action-card"><div><b>${title}</b><p>${note}</p>${!locked && cost ? `<small>Coste: $${cost.toLocaleString()}</small>` : ''}</div><button type="button" class="dock-btn btn-primary-action btn-run-marketing ${locked || !project ? 'btn-soft-disabled' : ''}" data-method-id="${option.id}" onclick="window.runMarketingMethod('${option.id}')">${locked ? '[[DE_ICON_093]] Bloqueado' : '[[DE_ICON_099]] Lanzar campaña'}</button></article>`;
-    }).join('');
     const targetGames = [ ...(project ? [{ id: project.id || `project:${project.name}`, name: `${project.name} (en desarrollo)`, isProject: true }] : []), ...game.gamesHistory.map(item => ({ id: item.id, name: item.name })) ];
     const selectedTargetId = targetGames.some(item => String(item.id) === String(priorTargetId)) ? priorTargetId : targetGames[0]?.id;
     const creators = typeof game.getCreatorProfiles === 'function'
         ? (game.getCreatorProfiles(selectedTargetId) || [])
         : (game.creatorProfiles || game.streamerProfiles || game.creators || []);
     const targetSelect = targetGames.length
-        ? `<label class="marketing-key-target">Juego para las claves <select id="marketing-key-game" class="form-select" onchange="window.refreshMarketingHub()">${targetGames.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedTargetId) ? 'selected' : ''}>${item.name}</option>`).join('')}</select></label>`
+        ? `<label class="marketing-key-target">Juego para las claves <select id="marketing-key-game" class="form-select" onchange="window.refreshMarketingHub()">${targetGames.map(item => `<option value="${marketingText(item.id)}" ${String(item.id) === String(selectedTargetId) ? 'selected' : ''}>${marketingText(item.name)}</option>`).join('')}</select></label>`
         : '<p class="marketing-empty">Crea o lanza un juego para enviar claves promocionales.</p>';
     const creatorCards = creators.length ? creators.map(creator => {
         const followers = Number(creator.followers || creator.audience || creator.viewers || 0);
         const genres = creator.genres || creator.preferences || creator.genrePreferences || [];
         const unavailable = creator.available === false || creator.alreadySent;
-        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${Number(creator.fee || 0).toLocaleString()}`);
-        return `<article class="marketing-creator-card"><div><b>${creator.name || 'Creador'}</b><span>${creator.platform || 'Plataforma de streaming'} · ${followers.toLocaleString()} seguidores</span><small>Preferencias: ${Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas'}</small><small>${availability}</small></div><button type="button" class="dock-btn btn-send-streamer-key ${unavailable ? 'btn-soft-disabled' : ''}" data-creator-id="${creator.id}" onclick="window.sendMarketingKeys('${creator.id}')">[[DE_ICON_001]] Enviar clave</button></article>`;
+        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${marketingNumber(Number(creator.fee || 0) + 25)}`);
+        return `<article class="marketing-creator-card"><span class="mkt-creator-icon" aria-hidden="true">[[DE_ICON_115]]</span><div><b>${marketingText(creator.name || 'Creador')}</b><p>${marketingText(creator.platform || 'Plataforma de streaming')} · ${followers.toLocaleString('es-ES')} seguidores</p><small>Preferencias: ${marketingText(Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas')} · ${availability}</small></div><button type="button" class="empire-button btn-send-streamer-key" data-creator-id="${marketingText(creator.id)}" ${unavailable || !targetGames.length ? 'disabled' : ''}>${creator.alreadySent ? 'Enviada' : 'Enviar clave'}</button></article>`;
     }).join('') : '<p class="marketing-empty">Los perfiles de creadores aparecerán cuando se desbloquee el streaming.</p>';
+    const futureCreators = creators.length && creators.every(creator => creator.available === false);
+    const earliestYear = Math.min(...creators.map(creator => Number(creator.yearUnlocked) || Infinity));
     const recentGameFeed = game.gamesHistory.slice(0, 5).flatMap(item => [
         ...(item.marketingFeed || []),
         ...(item.socialFeed || [])
@@ -2437,28 +2507,117 @@ function renderMarketingHub() {
         ...(game.marketingFeed || []),
         ...(game.socialFeed || [])
     ].slice(-10).reverse();
-    const feedMarkup = feed.length ? feed.map(post => `<li><span>${post.icon || '[[DE_ICON_103]]'}</span><div><b>${post.author || post.handle || post.source || 'Comunidad'}</b><p>${post.text || post.message || post.content || ''}</p><small>${post.time || post.date || ''}</small></div></li>`).join('') : '<li class="marketing-empty">Aún no hay comentarios. El feed reaccionará a tus campañas y lanzamientos.</li>';
-    const broadcasts = game.streamerBroadcasts || [];
-    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>[[DE_ICON_115]]</span><div><b>${show.creatorName || show.name || 'Creador'} está retransmitiendo</b><p>${show.gameName || 'Tu juego'} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
+    const feedMarkup = feed.length ? feed.map((post, index) => {
+        const author = String(post.author || post.handle || post.source || 'Comunidad');
+        const handle = String(post.handle || author).normalize('NFD').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        const replies = Array.isArray(post.replies) ? post.replies : [];
+        return `<article class="v-post">
+            <div class="v-avatar v-avatar-${index % 3}" aria-hidden="true">${marketingText(author.slice(0, 2).toUpperCase())}</div>
+            <div class="v-post-body"><header><strong>${marketingText(author)}</strong>${handle ? `<span>@${marketingText(handle)}</span>` : ''}</header>
+                <p>${marketingText(post.text || post.message || post.content || '')}</p>
+                <div class="v-post-meta">${marketingText(post.time || post.date || '')}</div>
+                ${replies.length ? `<details class="v-replies"><summary>Respuestas · ${replies.length}</summary>${replies.map(reply => `<div class="v-reply"><strong>${marketingText(reply.author)}</strong><p>${marketingText(reply.text)}</p></div>`).join('')}</details>` : ''}
+            </div>
+        </article>`;
+    }).join('') : '<p class="empire-empty">Aún no hay publicaciones. Aquí aparecerán las reacciones a tus campañas y lanzamientos.</p>';
+    const broadcasts = [...(game.streamerBroadcasts || []), ...game.gamesHistory.flatMap(item => (item.streamerBroadcasts || []).map(show => ({ ...show, gameName: item.name })))];
+    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>[[DE_ICON_115]]</span><div><b>${marketingText(show.creatorName || show.name || 'Creador')}</b><p>${marketingText(show.gameName || 'Tu juego')} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
     const approvalGames = game.gamesHistory.filter(item => item.userApproval !== undefined || item.reviewBombing);
-    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · [[DE_ICON_016]] Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
+    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${marketingText(item.name)}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · [[DE_ICON_016]] Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
 
     const archive = game.marketingPressArchive || [];
-    const pressArchiveMarkup = archive.length ? `<section class="marketing-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><h3 style="margin: 0;">[[DE_ICON_061]] Archivo de Cobertura y Portadas de Prensa (${archive.length})</h3><span style="font-size: 11px; color: var(--accent-gold);">Colección Histórica</span></div><p class="marketing-section-note">Haz clic en cualquier portada histórica para ampliarla en detalle.</p><div class="marketing-press-gallery">${archive.map(cover => `<div class="press-gallery-card ${cover.period}" onclick="window.showMarketingPressCover('${cover.id}')"><div class="press-gallery-badge">${cover.priceBadge}</div><div class="press-gallery-pub">${cover.publicationName}</div><strong class="press-gallery-head">${cover.headline}</strong><div class="press-gallery-footer"><span>[[DE_ICON_001]] ${cover.gameName || 'Juego'}</span><span>Año ${cover.year}</span></div></div>`).join('')}</div></section>` : '';
+    const pressArchiveMarkup = archive.length ? `<section class="marketing-section">
+        <h3>Archivo de prensa</h3><p class="marketing-section-note">Selecciona una portada para ampliarla.</p>
+        <div class="marketing-press-gallery">${archive.map(cover => `<button type="button" class="press-gallery-card ${marketingText(cover.period)}" data-press-cover="${marketingText(cover.id)}">
+            <span class="press-gallery-badge">${marketingText(cover.priceBadge)}</span><span class="press-gallery-pub">${marketingText(cover.publicationName)}</span>
+            <strong class="press-gallery-head">${marketingText(cover.headline)}</strong>
+            <span class="press-gallery-footer"><span>${marketingText(cover.gameName || 'Juego')}</span><span>Año ${marketingText(cover.year)}</span></span>
+        </button>`).join('')}</div>
+    </section>` : '';
 
-    container.innerHTML = `<div class="marketing-summary"><span id="mkt-summary-year">[[DE_ICON_066]] Era ${year}</span><span id="mkt-summary-project">Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span id="mkt-summary-hype">Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span id="mkt-summary-wishlists">Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>[[DE_ICON_099]] Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>[[DE_ICON_105]] Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>[[DE_ICON_115]] En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>[[DE_ICON_103]] Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div>${pressArchiveMarkup}<section class="marketing-section"><h3>[[DE_ICON_005]] Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
+
+    container.innerHTML = `
+        <section id="mkt-campaigns" role="tabpanel" aria-labelledby="mkt-tab-campaigns" hidden>
+            <header class="mkt-brief">
+                <div class="mkt-brief-copy">
+                    <span class="empire-label">Proyecto en promoción</span>
+                    <h3>${marketingText(project?.name || 'Sin proyecto activo')}</h3>
+                    <p>${project ? [project.genre?.name, project.platform?.name].filter(Boolean).map(marketingText).join(' · ') : 'Inicia un juego para lanzar tu primera campaña.'}</p>
+                    <span class="empire-status" id="mkt-summary-state"></span>
+                </div>
+                ${marketingBriefArt(editionArt)}
+                <div class="mkt-brief-metrics">
+                    <div><span>Expectación</span><strong class="empire-number" id="mkt-summary-hype"></strong></div>
+                    <div><span>Reconocimiento</span><strong class="empire-number" id="mkt-summary-awareness"></strong></div>
+                    ${options.some(option => option.id === 'digital_demo' && option.available) ? '<div><span>Lista de deseos</span><strong class="empire-number" id="mkt-summary-wishlists"></strong></div>' : ''}
+                    <div><span>Tesorería disponible</span><strong class="empire-number" id="mkt-summary-funds"></strong></div>
+                </div>
+            </header>
+            <div class="mkt-operation">
+                <section class="mkt-catalog"><h3>Canales de difusión</h3>
+                    <div class="mkt-channel-list">${renderMarketingChannels(options, selectedMarketingChannel, project, game.funds)}</div>
+                </section>
+                <section class="mkt-inspector" id="mkt-inspector" aria-label="Detalle de campaña"></section>
+            </div>
+            ${renderMarketingHistory(project, game.gamesHistory)}
+        </section>
+        <section id="mkt-creators" role="tabpanel" aria-labelledby="mkt-tab-creators" hidden>
+            <header class="mkt-subhead"><span class="empire-label">Relaciones con creadores</span><h3>Claves promocionales</h3><p>Elige un juego y busca creadores afines a su género.</p></header>
+            ${futureCreators ? `<div class="creator-era"><span>EN EL HORIZONTE</span><strong>El streaming aún no ha llegado</strong><p>${Number.isFinite(earliestYear) ? 'Primeros creadores disponibles en ' + earliestYear + '.' : 'Disponible en una era posterior.'}</p></div>
+                <details class="future-creators"><summary>Ver próximos creadores (${creators.length})</summary><div class="marketing-creator-list">${creatorCards}</div></details>` : `${targetSelect}<div class="marketing-creator-list">${creatorCards}</div>`}
+        </section>
+        <section id="mkt-community" role="tabpanel" aria-labelledby="mkt-tab-community" hidden>
+            <div class="v-network"><header class="v-masthead"><svg class="v-logo" viewBox="0 0 48 48" aria-label="V"><path d="M5 8h12l9 23L37 8h7L27 42h-9Z" fill="currentColor"/><path d="m7 8 16 34" stroke="#0f172a" stroke-width="2"/></svg><div><h3>La conversación empieza aquí.</h3><p>Juegos, opiniones y gente con mucho que decir.</p></div><span class="v-network-label">RED V</span></header><div class="v-layout"><section class="v-timeline" aria-label="Publicaciones de V"><div class="v-timeline-title">Para ti <span>Comunidad del juego</span></div>${feedMarkup}</section><aside class="v-sidebar"><span class="menu-kicker">EN TU ÓRBITA</span><h3>El pulso del estudio</h3><p>Las campañas y los lanzamientos traerán nuevas voces a tu comunidad.</p><p class="v-disclaimer">V es la comunidad ficticia de Dev Empire.</p></aside></div></div>
+            <details class="future-creators"><summary>Retransmisiones${broadcasts.length ? ' · ' + broadcasts.length : ''}</summary><ul class="marketing-feed-list">${broadcastMarkup}</ul></details>
+            ${pressArchiveMarkup}<section class="marketing-section"><h3>Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>
+        </section>`;
+    selectCompactMenuTab(selectedTab);
+    if (historyOpen && container.querySelector('.mkt-history')) container.querySelector('.mkt-history').open = true;
+    updateMarketingChannelSelection();
+    container.scrollTop = scrollTop;
+    if (focusedAction) {
+        const actions = [...container.querySelectorAll('button, select')];
+        const replacement = actions.find(action => (
+            (focusedAction.id && action.id === focusedAction.id) ||
+            (focusedAction.dataset.creatorId && action.dataset.creatorId === focusedAction.dataset.creatorId) ||
+            (focusedAction.dataset.methodId && action.dataset.methodId === focusedAction.dataset.methodId) ||
+            (focusedAction.dataset.mktChannel && action.dataset.mktChannel === focusedAction.dataset.mktChannel)
+        ));
+        (replacement && !replacement.disabled ? replacement : selectedTab)?.focus({ preventScroll: true });
+    }
+    updateMarketingHubCounters();
 }
 
 function updateMarketingHubCounters() {
-    const yearEl = document.getElementById('mkt-summary-year');
-    const projEl = document.getElementById('mkt-summary-project');
-    const hypeEl = document.getElementById('mkt-summary-hype');
-    const wishEl = document.getElementById('mkt-summary-wishlists');
     const project = game.currentProject;
-    if (yearEl) yearEl.textContent = `[[DE_ICON_066]] Era ${game.getHistoricalYear()}`;
-    if (projEl) projEl.innerHTML = `Proyecto: <b>${project?.name || 'ninguno activo'}</b>`;
-    if (hypeEl) hypeEl.innerHTML = `Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b>`;
-    if (wishEl) wishEl.innerHTML = `Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b>`;
+    const year = game.getHistoricalYear();
+    if (marketingContext?.project !== project || marketingContext?.year !== year) {
+        renderMarketingHub();
+        return;
+    }
+    const actionCount = project?.marketingActions?.length || 0;
+    const counters = {
+        state: !project ? 'En espera' : actionCount ? actionCount + (actionCount === 1 ? ' campaña ejecutada' : ' campañas ejecutadas') : 'Sin campañas ejecutadas',
+        hype: project ? marketingNumber(project.marketingHype || project.hype) + ' pts' : '—',
+        awareness: project ? marketingNumber(project.brandAwareness) + ' / 100' : '—',
+        wishlists: project ? marketingNumber(project.wishlists) : '—',
+        funds: marketingMoney(Math.floor(game.funds))
+    };
+    Object.entries(counters).forEach(([key, value]) => {
+        const field = document.getElementById('mkt-summary-' + key);
+        if (field && field.textContent !== value) field.textContent = value;
+    });
+    const stateKey = [game.funds, project?.overallProgress >= 50, actionCount].join(':');
+    if (marketingContext.stateKey !== stateKey) {
+        marketingContext.stateKey = stateKey;
+        document.querySelectorAll('#mkt-campaigns [data-mkt-channel]').forEach((button, index) => {
+            const state = marketingChannelState(marketingContext.options[index], project, game.funds);
+            if (button.dataset.state === state.kind) return;
+            button.dataset.state = state.kind;
+            button.querySelector('.mkt-channel-state').textContent = state.label;
+        });
+        updateMarketingChannelSelection();
+    }
 }
 
 function renderIndustryNews(state = game) {
@@ -2673,46 +2832,19 @@ function renderSimulatorMods() {
 
     container.innerHTML = `
         <div class="simulator-mods-dashboard">
-            <div class="sim-stats-grid">
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_001]]</span>
-                    <div>
-                        <strong>${platforms.length}</strong> Consolas Activas
-                        <small style="display:block;color:var(--text-secondary);">${moddedPlatforms.length} consolas por mods</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_105]]</span>
-                    <div>
-                        <strong>${streamers.length}</strong> Creadores de Contenido
-                        <small style="display:block;color:var(--text-secondary);">${moddedStreamers.length} creadores por mods</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_061]]</span>
-                    <div>
-                        <strong>${events.length}</strong> Crisis y Eventos Dinámicos
-                        <small style="display:block;color:var(--text-secondary);">Catálogo Data-Driven JSON</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_013]]</span>
-                    <div>
-                        <strong>${installed.length}</strong> Paquetes Instalados
-                        <small style="display:block;color:var(--text-secondary);">Ecosistema de modding vivo</small>
-                    </div>
-                </div>
-            </div>
-
+            <header class="workshop-package-head">
+                <div><h3>Biblioteca de paquetes</h3><p>Instala contenido oficial o añade tus propios archivos.</p></div>
+                <strong>${installed.length} instalados</strong>
+            </header>
             <div class="sim-mod-actions-toolbar">
                 <button type="button" class="dock-btn btn-primary-action" onclick="window.loadSimulatorModSample()">
-                    [[DE_ICON_022]] Cargar Pack Oficial: Marcas Reales & Creadores Famosos
+                    [[DE_ICON_022]] Instalar pack oficial
                 </button>
                 <button type="button" class="dock-btn" onclick="document.getElementById('sim-mod-file-input').click()">
-                    [[DE_ICON_121]] Importar Mod Personalizado (.JSON)
+                    [[DE_ICON_121]] Importar JSON
                 </button>
                 <button type="button" class="dock-btn" onclick="window.exportSimulatorModTemplate()">
-                    [[DE_ICON_048]] Exportar Plantilla JSON de Modding
+                    [[DE_ICON_048]] Descargar plantilla
                 </button>
                 <input type="file" id="sim-mod-file-input" accept=".json" style="display:none;" onchange="window.importSimulatorModFile(event)">
             </div>
@@ -2735,42 +2867,26 @@ function renderSimulatorMods() {
                         `).join('')}
                     </div>
                 ` : `
-                    <p class="workshop-empty">No hay paquetes externos instalados todavía. Pulsa <b>"Cargar Pack Oficial"</b> o importa tu propio archivo JSON para expandir consolas reales (Sega Genesis, GBC, PS5 Pro, Switch 2, Steam Deck) y streamers (Ibai, Auronplay, Rubius).</p>
+                    <p class="workshop-empty">Todavía no has instalado paquetes. Puedes empezar con el pack oficial o importar el tuyo.</p>
                 `}
             </div>
 
-            <div class="active-catalog-preview">
-                <h3 style="margin: 16px 0 8px; font-size: 15px; color: #e2e8f0;">[[DE_ICON_037]] Plataformas y Consolas Disponibles en el Motor</h3>
+            <details class="active-catalog-preview">
+                <summary>Catálogo · ${platforms.length} plataformas (${moddedPlatforms.length} de mods), ${streamers.length} creadores (${moddedStreamers.length} de mods), ${events.length} eventos</summary>
                 <div class="platforms-pill-grid">
                     ${platforms.map(p => `
                         <span class="platform-chip ${p.isModded ? 'chip-mod' : ''}">
-                            ${p.icon || '[[DE_ICON_001]]'} ${p.name} (Era ${p.eraUnlocked}) ${p.isModded ? '<b>[MOD]</b>' : ''}
+                            ${p.icon || '[[DE_ICON_001]]'} ${p.name} ${p.releaseYear ? `· ${p.releaseYear}` : p.eraUnlocked ? `· Era ${p.eraUnlocked}` : ''} ${p.isModded ? '<b>[MOD]</b>' : ''}
                         </span>
                     `).join('')}
                 </div>
-            </div>
+            </details>
         </div>
     `;
 }
 
 window.switchWorkshopTab = function(tabName) {
-    const gamesView = document.getElementById('workshop-games-view');
-    const simView = document.getElementById('workshop-simulator-view');
-    const tabGames = document.getElementById('tab-workshop-games');
-    const tabSim = document.getElementById('tab-workshop-simulator');
-
-    if (tabName === 'simulator') {
-        if (gamesView) gamesView.style.display = 'none';
-        if (simView) simView.style.display = 'block';
-        tabGames?.classList.remove('active');
-        tabSim?.classList.add('active');
-        renderSimulatorMods();
-    } else {
-        if (gamesView) gamesView.style.display = 'block';
-        if (simView) simView.style.display = 'none';
-        tabGames?.classList.add('active');
-        tabSim?.classList.remove('active');
-    }
+    selectCompactMenuTab(document.getElementById(tabName === 'simulator' ? 'tab-workshop-simulator' : 'tab-workshop-games'));
 };
 
 window.loadSimulatorModSample = function() {
@@ -3570,17 +3686,50 @@ window.upgradeStudioEngine = function(engineId) {
     if (result.success) renderTechTree();
 };
 
-window.licenseStudioEngine = function(engineId) {
-    const studio = window.prompt('Nombre del estudio que recibirá la licencia:');
-    if (!studio) return;
-    const fee = Number(window.prompt('Regalía mensual ($):', '4500'));
-    if (!Number.isFinite(fee) || fee <= 0) {
-        showToast('Introduce una regalía mensual mayor que cero.', 'warn');
-        return;
+let engineToLicense;
+let gameToRetire;
+
+function initGameDialogs() {
+    for (const dialog of document.querySelectorAll('.game-dialog')) {
+        dialog.querySelector('[data-dialog-cancel]').addEventListener('click', () => dialog.close());
     }
-    const result = game.licenseInHouseEngineToStudio(engineId, studio.trim(), fee);
-    showToast(result.message, result.success ? 'success' : 'warn');
-    if (result.success) renderTechTree();
+    document.getElementById('retire-game-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const gameId = gameToRetire;
+        document.getElementById('retire-game-dialog').close();
+        retireConfirmedGame(gameId);
+    });
+    document.getElementById('license-engine-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const studioInput = document.getElementById('license-studio-name');
+        const feeInput = document.getElementById('license-monthly-fee');
+        const error = document.getElementById('license-form-error');
+        const studio = studioInput.value.trim();
+        const fee = feeInput.valueAsNumber;
+        if (!studio || !Number.isFinite(fee) || fee <= 0) {
+            error.textContent = !studio ? 'Introduce el nombre del estudio.' : 'La regalía mensual debe ser mayor que cero.';
+            (!studio ? studioInput : feeInput).focus();
+            return;
+        }
+        const result = game.licenseInHouseEngineToStudio(engineToLicense, studio, fee);
+        if (!result.success) {
+            error.textContent = result.message;
+            return;
+        }
+        document.getElementById('license-engine-dialog').close();
+        showToast(result.message, 'success');
+        renderTechTree();
+        if (document.activeElement === document.body) {
+            document.querySelector('#modal-research.active .modal-close')?.focus({ preventScroll: true });
+        }
+    });
+}
+
+window.licenseStudioEngine = function(engineId) {
+    engineToLicense = engineId;
+    document.getElementById('license-engine-form').reset();
+    document.getElementById('license-form-error').textContent = '';
+    document.getElementById('license-engine-dialog').showModal();
 };
 
 window.startTechResearch = function(techId) {
@@ -3728,17 +3877,16 @@ function renderTop10Leaderboard() {
     `;
 
     game.top10Chart.slice(0, 10).forEach(item => {
-        let trendIcon = '<span class="trend-arrow same">▬</span>';
-        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up">[[DE_ICON_151]]</span>';
-        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down">[[DE_ICON_152]]</span>';
-        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new">[[DE_ICON_148]]</span>';
+        let trendIcon = '<span class="trend-arrow same" title="Sin cambios" aria-label="Sin cambios">—</span>';
+        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up" title="Sube" aria-label="Sube">[[DE_ICON_151]]</span>';
+        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down" title="Baja" aria-label="Baja">[[DE_ICON_152]]</span>';
+        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new" title="Nuevo" aria-label="Nuevo">[[DE_ICON_148]]</span>';
 
-        const rowClass = item.isPlayer ? 'leaderboard-row player-row' : 'leaderboard-row';
-        const rankColor = item.rank === 1 ? 'var(--accent-gold)' : (item.rank <= 3 ? 'var(--accent-cyan)' : '#fff');
+        const rowClass = `leaderboard-row rank-${item.rank}${item.isPlayer ? ' player-row' : ''}`;
 
         html += `
             <tr class="${rowClass}">
-                <td style="font-weight: 900; color: ${rankColor};">${trendIcon} #${item.rank}</td>
+                <td><div class="chart-rank"><strong>${String(item.rank).padStart(2, '0')}</strong>${trendIcon}</div></td>
                 <td><strong style="color: #fff;">${item.title}</strong></td>
                 <td style="color: var(--text-secondary); font-size: 13px;">${item.dev}</td>
                 <td style="text-align: right; font-weight: 700; color: var(--accent-cyan);">${item.weeklySales.toLocaleString()}</td>
@@ -3802,9 +3950,12 @@ window.generateReport = function(gameId) {
 window.retireGameFromHistory = function(gameId) {
     const g = game.gamesHistory.find(item => item.id === gameId);
     if (!g) return;
-    if (!confirm(`¿Estás seguro de que deseas retirar "${g.name}" de las tiendas? Se detendrán costes recurrentes y se congelarán sus cifras definitivas.`)) {
-        return;
-    }
+    gameToRetire = gameId;
+    document.getElementById('retire-game-name').textContent = g.name;
+    document.getElementById('retire-game-dialog').showModal();
+};
+
+function retireConfirmedGame(gameId) {
     const res = game.retireGameFromMarket(gameId);
     if (res.success) {
         showToast(res.message, 'info');
@@ -3812,8 +3963,8 @@ window.retireGameFromHistory = function(gameId) {
 
         // 1. Desmontar y cerrar el modal emergente de la gráfica de ventas si está activo
         const chartModal = document.getElementById('modal-sales-chart');
-        if (chartModal && (chartModal.classList.contains('active') || chartModal.style.display !== 'none')) {
-            closeModal('modal-sales-chart');
+        if (chartModal?.classList.contains('active')) {
+            closeAllModals();
         }
 
         // 2. Si el juego retirado era el activo en el HUD widget, reasignar al siguiente activo o desmontar
@@ -3824,6 +3975,10 @@ window.retireGameFromHistory = function(gameId) {
 
         // 3. Actualizar o desmontar widget del HUD en vivo
         if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
+        if (document.activeElement === document.body) {
+            (document.querySelector('#modal-history.active .modal-close') || document.getElementById('btn-history'))
+                ?.focus({ preventScroll: true });
+        }
     } else {
         showToast(res.message, 'warn');
     }
@@ -4548,22 +4703,31 @@ function startExpoVisitorLoop() {
         const p = document.createElement('div');
         p.className = 'expo-visitor';
 
-        const avatar = avatars[Math.floor(Math.random() * avatars.length)];
+        const variant = Math.floor(Math.random() * avatars.length);
+        const avatar = avatars[variant];
         const startX = -30;
         const targetX = 890;
         const duration = 2800 + Math.random() * 1200;
         const pauseTime = 900 + Math.random() * 600;
 
-        p.innerHTML = `<span class="expo-visitor-avatar">${avatar}</span>`;
+        const jackets = ['#b5745d', '#6c8e9f', '#be9663', '#7e8d6a', '#927d9f'];
+        const skin = ['#deb391', '#aa7453', '#e4bf9d', '#84573f'][variant % 4];
+        p.innerHTML = `<svg class="expo-visitor-art" viewBox="0 0 18 26" aria-hidden="true" shape-rendering="crispEdges">
+            <path d="M5 18h8v6H5z M4 24h4v2H4z M10 24h4v2h-4z" fill="#202832"/>
+            <path d="M4 10h10v3h2v7H2v-7h2z" fill="${jackets[variant % jackets.length]}"/>
+            <path d="M5 3h8v7H5z M7 10h4v2H7z" fill="${skin}"/>
+            <path d="M5 2h8v2h1v3h-2V5H5z" fill="#302526"/>
+            <path d="M8 13h2v7H8z" fill="#16191e" opacity=".35"/>
+        </svg>`;
         floor.appendChild(p);
 
         // Animate pedestrian walking from left to right
         const startTime = Date.now();
-        const pauseAt = 280 + Math.random() * 260; // Middle booth area
+        const pauseAt = duration * (.40 + Math.random() * .18); // Middle booth area
 
         const step = () => {
             const elapsed = Date.now() - startTime;
-            if (elapsed > duration + pauseTime) {
+            if (!p.isConnected || elapsed > duration + pauseTime) {
                 if (p.parentNode) p.parentNode.removeChild(p);
                 return;
             }
@@ -4583,7 +4747,7 @@ function startExpoVisitorLoop() {
                 curX = startX + (postPause / duration) * (targetX - startX);
             }
 
-            p.style.left = `${curX}px`;
+            p.style.transform = `translateX(${curX}px)`;
             requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
@@ -4608,7 +4772,7 @@ function startExpoVisitorLoop() {
                 footer.style.display = 'block';
                 const summaryText = document.getElementById('expo-summary-text');
                 if (summaryText) {
-                    summaryText.innerHTML = `[[DE_ICON_040]] <b>¡Convención finalizada con éxito rotundo!</b><br>Tu stand acogió a <b>${expoSession.visitors.toLocaleString()}</b> visitantes, sumó <b>+${expoSession.fans.toLocaleString()} nuevos fans devotos</b>, generó <b>${expoSession.press} artículos de prensa</b> y disparó el Hype global en <b>+${expoSession.hype}</b>.`;
+                    summaryText.textContent = 'La feria ha terminado. Aplica los resultados para volver al estudio.';
                 }
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
             }
@@ -4718,14 +4882,24 @@ let localCustomization = {
     accessory: 'glasses_retro'
 };
 let localLogo = '[[DE_ICON_001]]';
+let studioPreviewDirty = false;
+
+function previewStudioAppearance() {
+    studioPreviewDirty = true;
+    world?.updateCharacterMesh(0, localCustomization, { preview: true });
+}
 
 function initCompanyCreatorModal() {
     // Populate Logo Picker
     const logoContainer = document.getElementById('company-logo-picker');
     if (logoContainer) {
         logoContainer.innerHTML = '';
-        COMPANY_LOGOS.forEach(logo => {
-            const item = document.createElement('div');
+        const names = ['Mando', 'Cohete', 'Arcade', 'Robot', 'Disquete', 'Rayo', 'Monitor', 'Corona', 'Escudo', 'Diamante'];
+        COMPANY_LOGOS.forEach((logo, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.dataset.logo = logo;
+            item.setAttribute('aria-label', names[index]);
             item.className = 'logo-option' + (logo === game.companyLogo ? ' active' : '');
             item.innerText = logo;
             item.addEventListener('click', () => {
@@ -4754,7 +4928,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-skin .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.skin = sw.dataset.skin;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4765,7 +4939,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-hair-style .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.hairStyle = btn.dataset.style;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4776,7 +4950,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-hair-color .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.hairColor = sw.dataset.color;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4787,7 +4961,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-shirt-style .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.shirtStyle = btn.dataset.shirt;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4798,7 +4972,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-shirt-color .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.shirtColor = sw.dataset.color;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4809,7 +4983,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-accessory .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.accessory = btn.dataset.acc;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4842,13 +5016,14 @@ function initCompanyCreatorModal() {
                 characterCustomization: { ...localCustomization }
             });
 
+            studioPreviewDirty = false;
             if (startsNewGame) {
                 creatingNewGame = false;
                 void enterGameplay({ checkpoint: true });
                 soundEngine.playLevelUp();
                 return;
             }
-            world.updateCharacterMesh(0, localCustomization);
+            if (world) world.updateCharacterMesh(0, localCustomization);
             closeAllModals();
             showToast(`[[DE_ICON_073]] ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
             if (soundEngine) soundEngine.playLevelUp();
@@ -4874,7 +5049,7 @@ function openCompanyCreatorModal(newGame = false) {
 
     // Sync active classes
     document.querySelectorAll('.logo-option').forEach(l => {
-        l.classList.toggle('active', l.innerText === localLogo);
+        l.classList.toggle('active', l.dataset.logo === localLogo);
     });
     document.querySelectorAll('#picker-skin .color-swatch').forEach(s => {
         s.classList.toggle('active', s.dataset.skin === localCustomization.skin);
@@ -4895,6 +5070,8 @@ function openCompanyCreatorModal(newGame = false) {
         b.classList.toggle('active', b.dataset.acc === localCustomization.accessory);
     });
 
+    selectCompactMenuTab(document.getElementById('studio-tab-identity'));
+    syncStudioSelection();
     openModal('modal-company-creator');
     if (newGame) {
         world.updateCharacterMesh(0, localCustomization);
@@ -4903,6 +5080,86 @@ function openCompanyCreatorModal(newGame = false) {
 }
 
 // --- MODAL HELPERS ---
+
+let compactMenuTrigger;
+
+function selectCompactMenuTab(tab) {
+    if (!tab) return;
+    const modal = tab.closest('.compact-menu');
+    for (const button of modal.querySelectorAll('[role="tab"]')) {
+        const selected = button === tab;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(button.getAttribute('aria-controls'));
+        if (panel) panel.hidden = !selected;
+    }
+    modal.querySelector('.menu-scroll').scrollTop = 0;
+    const preview = modal.querySelector('#studio-preview-toggle');
+    if (preview) preview.hidden = tab.id !== 'studio-tab-look';
+}
+
+function syncStudioSelection() {
+    document.querySelectorAll('.studio-menu :is(.logo-option, .pill-option, .color-swatch)').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.classList.contains('active')));
+    });
+}
+
+function toggleOfficePreview(visible) {
+    const button = document.getElementById('studio-preview-toggle');
+    button.closest('.modal-backdrop').classList.toggle('office-preview', visible);
+    button.textContent = visible ? 'Volver a editar' : 'Ver en la oficina';
+    button.setAttribute('aria-pressed', String(visible));
+}
+
+function initCompactMenuControls() {
+    for (const menu of document.querySelectorAll('.compact-menu')) {
+        menu.addEventListener('click', event => {
+            const tab = event.target.closest('[role="tab"]');
+            if (tab) selectCompactMenuTab(tab);
+            if (event.target.closest('#studio-preview-toggle')) {
+                toggleOfficePreview(!menu.closest('.modal-backdrop').classList.contains('office-preview'));
+            }
+            if (event.target.closest('.studio-menu :is(.logo-option, .pill-option, .color-swatch)')) syncStudioSelection();
+        });
+    }
+    document.getElementById('form-company-creator').addEventListener('invalid', event => {
+        if (event.target.closest('#studio-identity')) selectCompactMenuTab(document.getElementById('studio-tab-identity'));
+    }, true);
+    document.addEventListener('keydown', event => {
+        if (document.querySelector('.game-dialog[open]')) return;
+        const pressCover = document.getElementById('modal-marketing-press-cover');
+        if (event.key === 'Escape' && pressCover.classList.contains('active')) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.closePressCoverModal(true);
+            return;
+        }
+        const menu = document.querySelector('.modal-backdrop.active .compact-menu');
+        if (!menu) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (menu.closest('.office-preview')) toggleOfficePreview(false);
+            else closeAllModals();
+        } else if (event.key === 'Tab') {
+            const focusable = [...menu.querySelectorAll('button, input, select, summary, a[href], [tabindex]')].filter(item =>
+                item.tabIndex >= 0 && !item.disabled && item.getClientRects().length);
+            const first = focusable[0], last = focusable.at(-1);
+            if (!menu.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first)?.focus();
+            }
+        } else if (event.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const tabs = [...menu.querySelectorAll('[role="tab"]')];
+            const index = tabs.indexOf(event.target);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+                (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            selectCompactMenuTab(tabs[next]);
+            tabs[next].focus();
+        }
+    }, true);
+}
 
 function openModal(id) {
     closeAllModals();
@@ -4915,19 +5172,31 @@ function openModal(id) {
     }
     const modal = document.getElementById(id);
     if (modal) {
+        const opener = document.activeElement;
         modal.style.display = 'flex';
         modal.classList.add('active');
+        if (modal.querySelector('.compact-menu')) {
+            compactMenuTrigger = opener;
+            modal.querySelector('.modal-close, [data-workspace-back]')?.focus({ preventScroll: true });
+        }
         if (soundEngine) soundEngine.playClick();
     }
 }
 
 function closeAllModals() {
     const cancelNewGame = creatingNewGame && document.getElementById('modal-company-creator').classList.contains('active');
-    const closedOffices = document.getElementById('modal-offices').classList.contains('active');
+    const closedOffices = document.getElementById('modal-offices')?.classList.contains('active');
+    if (studioPreviewDirty) {
+        world?.updateCharacterMesh(0, game.characterCustomization, { preview: true });
+        studioPreviewDirty = false;
+    }
+    if (document.getElementById('modal-company-creator').classList.contains('office-preview')) toggleOfficePreview(false);
     document.querySelectorAll('.modal-backdrop').forEach(m => {
         m.style.display = 'none';
         m.classList.remove('active');
     });
+    compactMenuTrigger?.focus({ preventScroll: true });
+    compactMenuTrigger = null;
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
     if (closedOffices) document.getElementById('btn-upgrade-office').focus();
@@ -4952,6 +5221,9 @@ window.closePressCoverModal = function(returnToMarketing = true) {
         if (mktModal) {
             mktModal.style.display = 'flex';
             mktModal.classList.add('active');
+            const selected = mktModal.querySelector('#mkt-campaigns:not([hidden]) .mkt-channel[aria-pressed="true"]');
+            (selected || mktModal.querySelector('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll: true });
+            compactMenuTrigger = document.getElementById('btn-marketing');
         }
     } else {
         closeAllModals();
@@ -5171,54 +5443,54 @@ window.showMarketingPressCover = function(coverOrId) {
     let coverHtml = '';
     if (cover.period === '80s') {
         coverHtml = `
-            <div class="press-cover-card cover-80s-retro ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-80s-retro ${marketingText(cover.styleClass)}">
                 <div class="cover-80s-masthead">
                     <div class="cover-80s-issue-line">
-                        <span>${cover.issue}</span>
-                        <span>${cover.tagline}</span>
-                        <span class="cover-price-tag">${cover.priceBadge}</span>
+                        <span>${marketingText(cover.issue)}</span>
+                        <span>${marketingText(cover.tagline)}</span>
+                        <span class="cover-price-tag">${marketingText(cover.priceBadge)}</span>
                     </div>
-                    <div class="cover-80s-title">${cover.publicationName}</div>
+                    <div class="cover-80s-title">${marketingText(cover.publicationName)}</div>
                 </div>
                 <div class="cover-80s-content">
-                    <div class="cover-star-burst">${cover.badgeTop}</div>
+                    <div class="cover-star-burst">${marketingText(cover.badgeTop)}</div>
                     <div class="cover-feature-box">
-                        <div class="cover-pill-badge">${cover.featureBadge}</div>
-                        <h1 class="cover-big-headline">${cover.headline}</h1>
-                        <p class="cover-lead-summary">${cover.subheadline}</p>
-                        <div class="cover-quote-banner">${cover.quote}</div>
+                        <div class="cover-pill-badge">${marketingText(cover.featureBadge)}</div>
+                        <h1 class="cover-big-headline">${marketingText(cover.headline)}</h1>
+                        <p class="cover-lead-summary">${marketingText(cover.subheadline)}</p>
+                        <div class="cover-quote-banner">${marketingText(cover.quote)}</div>
                     </div>
                     <div class="cover-80s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">[[DE_ICON_153]] ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">[[DE_ICON_153]] ${marketingText(tag)}</span>`).join('')}
                     </div>
                     <div class="cover-bottom-bar">
                         <span class="cover-barcode">||| | |||| ||| ||||||| | |||</span>
-                        <span>DEP. LEGAL B-${cover.year}92 · EDICIÓN NACIONAL</span>
+                        <span>DEP. LEGAL B-${marketingText(cover.year)}92 · EDICIÓN NACIONAL</span>
                     </div>
                 </div>
             </div>
         `;
     } else if (cover.period === '90s') {
         coverHtml = `
-            <div class="press-cover-card cover-90s-retro ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-90s-retro ${marketingText(cover.styleClass)}">
                 <div class="cover-90s-masthead">
                     <div class="cover-90s-issue-line">
-                        <span>${cover.issue}</span>
-                        <span>${cover.tagline}</span>
-                        <span class="cover-price-tag gold">${cover.priceBadge}</span>
+                        <span>${marketingText(cover.issue)}</span>
+                        <span>${marketingText(cover.tagline)}</span>
+                        <span class="cover-price-tag gold">${marketingText(cover.priceBadge)}</span>
                     </div>
-                    <div class="cover-90s-title">${cover.publicationName}</div>
+                    <div class="cover-90s-title">${marketingText(cover.publicationName)}</div>
                 </div>
                 <div class="cover-90s-content">
-                    <div class="cover-cd-burst">${cover.badgeTop}</div>
+                    <div class="cover-cd-burst">${marketingText(cover.badgeTop)}</div>
                     <div class="cover-feature-box-90s">
-                        <div class="cover-pill-badge neon">${cover.featureBadge}</div>
-                        <h1 class="cover-big-headline-90s">${cover.headline}</h1>
-                        <p class="cover-lead-summary">${cover.subheadline}</p>
-                        <div class="cover-quote-banner-90s">${cover.quote}</div>
+                        <div class="cover-pill-badge neon">${marketingText(cover.featureBadge)}</div>
+                        <h1 class="cover-big-headline-90s">${marketingText(cover.headline)}</h1>
+                        <p class="cover-lead-summary">${marketingText(cover.subheadline)}</p>
+                        <div class="cover-quote-banner-90s">${marketingText(cover.quote)}</div>
                     </div>
                     <div class="cover-90s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">[[DE_ICON_148]] ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">[[DE_ICON_148]] ${marketingText(tag)}</span>`).join('')}
                     </div>
                 </div>
             </div>
@@ -5226,30 +5498,30 @@ window.showMarketingPressCover = function(coverOrId) {
     } else {
         // Modern Digital 2000s Web Portal Article Layout
         coverHtml = `
-            <div class="press-cover-card cover-2000s-portal ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-2000s-portal ${marketingText(cover.styleClass)}">
                 <div class="portal-header-browser">
                     <div class="portal-dots"><span></span><span></span><span></span></div>
-                    <div class="portal-url">https://www.${cover.publicationName.toLowerCase()}/previews/${cover.year}/exclusive</div>
+                    <div class="portal-url">https://www.${marketingText(String(cover.publicationName || 'prensa').toLowerCase())}/previews/${marketingText(cover.year)}/exclusive</div>
                 </div>
                 <div class="portal-masthead">
-                    <div class="portal-brand">${cover.publicationName}</div>
-                    <div class="portal-sub-text">${cover.tagline}</div>
-                    <div class="portal-live-pill">${cover.priceBadge}</div>
+                    <div class="portal-brand">${marketingText(cover.publicationName)}</div>
+                    <div class="portal-sub-text">${marketingText(cover.tagline)}</div>
+                    <div class="portal-live-pill">${marketingText(cover.priceBadge)}</div>
                 </div>
                 <div class="portal-body">
                     <div class="portal-status-row">
-                        <span class="portal-trending-badge">${cover.badgeTop}</span>
-                        <span class="portal-date-stamp">${cover.issue}</span>
+                        <span class="portal-trending-badge">${marketingText(cover.badgeTop)}</span>
+                        <span class="portal-date-stamp">${marketingText(cover.issue)}</span>
                     </div>
-                    <h1 class="portal-title">${cover.headline}</h1>
+                    <h1 class="portal-title">${marketingText(cover.headline)}</h1>
                     <div class="portal-author-strip">
                         <span>Por Redacción Internacional · Periodismo del Videojuego</span>
-                        <span class="portal-score-badge">${cover.featureBadge}</span>
+                        <span class="portal-score-badge">${marketingText(cover.featureBadge)}</span>
                     </div>
-                    <p class="portal-lead">${cover.subheadline}</p>
-                    <div class="portal-quote-box">${cover.quote}</div>
+                    <p class="portal-lead">${marketingText(cover.subheadline)}</p>
+                    <div class="portal-quote-box">${marketingText(cover.quote)}</div>
                     <div class="portal-tags-list">
-                        ${(cover.tags || []).map(tag => `<span class="portal-tag-pill">#${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="portal-tag-pill">#${marketingText(tag)}</span>`).join('')}
                     </div>
                 </div>
             </div>
@@ -5258,4 +5530,5 @@ window.showMarketingPressCover = function(coverOrId) {
 
     container.innerHTML = coverHtml;
     openModal('modal-marketing-press-cover');
+    modal.querySelector('button')?.focus({ preventScroll: true });
 };
