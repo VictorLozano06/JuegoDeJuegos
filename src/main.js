@@ -1,3 +1,4 @@
+import './ui-icons.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -6,6 +7,7 @@ import { WorldEngine } from './world.js';
 import { createMainMenu } from './main-menu.js';
 import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
+import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -38,9 +40,10 @@ const techTreeManager = game.techTreeManager;
 let scopeDAG = new ScopeDAG(null, { techTreeManager });
 let debtManager = new TechnicalDebtModel();
 let pipelineManager = new EnginePipelineManager();
+const selectedHistoricalTechs = new Set();
 
 game.onResearchCompleted = (name) => {
-    showToast(`🎉 ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
+    showToast(`[[DE_ICON_073]] ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
     renderDAGNodes();
     renderTechTree();
 };
@@ -50,7 +53,7 @@ game.onEmployeeEvent = (event) => {
 game.onEngineRDCompleted = (engine) => {
     renderPipelineSelector();
     renderTechTree();
-    showToast(`🚀 Motor "${engine.name}" compilado y añadido al selector de proyectos.`, 'success');
+    showToast(`[[DE_ICON_024]] Motor "${engine.name}" compilado y añadido al selector de proyectos.`, 'success');
 };
 game.onEngineRPTick = (rpGain, leadIndex) => {
     if (world && typeof world.spawnFloatingRP === 'function') {
@@ -59,7 +62,7 @@ game.onEngineRPTick = (rpGain, leadIndex) => {
 };
 game.onPostMortemCompleted = (result, assignedIndex) => {
     if (result && result.success) {
-        showToast(`📊 ¡Análisis Post-Mortem de "${result.report.gameName}" finalizado! (+${result.rpGained} RP)`, 'success');
+        showToast(`[[DE_ICON_030]] ¡Análisis Post-Mortem de "${result.report.gameName}" finalizado! (+${result.rpGained} RP)`, 'success');
         if (world && typeof world.spawnFloatingRP === 'function') {
             world.spawnFloatingRP(assignedIndex || 0, result.rpGained);
         }
@@ -71,7 +74,7 @@ game.onPostMortemCompleted = (result, assignedIndex) => {
     }
 };
 game.onTopicResearchCompleted = (topicName, topicId, completedTopic) => {
-    showToast(`🎉 ¡Temática Desbloqueada! "${topicName}" ya está disponible para nuevos videojuegos.`, 'success');
+    showToast(`[[DE_ICON_073]] ¡Temática Desbloqueada! "${topicName}" ya está disponible para nuevos videojuegos.`, 'success');
     if (world && typeof world.spawnFloatingRP === 'function') {
         world.spawnFloatingRP(completedTopic?.employeeIndex || 0, 5);
     }
@@ -83,7 +86,7 @@ game.onTopicResearchCompleted = (topicName, topicId, completedTopic) => {
 };
 
 game.onGenreResearchCompleted = (genreName, genreId, completedGenre) => {
-    showToast(`🎮 ¡Género Desbloqueado! "${genreName}" ya está disponible para nuevos videojuegos.`, 'success');
+    showToast(`[[DE_ICON_001]] ¡Género Desbloqueado! "${genreName}" ya está disponible para nuevos videojuegos.`, 'success');
     if (world && typeof world.spawnFloatingRP === 'function') {
         world.spawnFloatingRP(completedGenre?.employeeIndex || 0, 8);
     }
@@ -134,7 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
         (state.pendingHeadhunts || []).forEach(offer => {
             if (notifiedHeadhuntEmployeeIds.has(offer.employeeId)) return;
             notifiedHeadhuntEmployeeIds.add(offer.employeeId);
-            showToast(`🧠 ${offer.rivalStudio} quiere fichar a ${offer.employeeName}. Responde en ${offer.deadlineWeeksRemaining ?? 3} semanas desde Gestión de Personal.`, 'warn');
+            showToast(`[[DE_ICON_056]] ${offer.rivalStudio} quiere fichar a ${offer.employeeName}. Responde en ${offer.deadlineWeeksRemaining ?? 3} semanas desde Gestión de Personal.`, 'warn');
         });
         const marketingModal = document.getElementById('modal-marketing');
         if (marketingModal?.classList.contains('active')) updateMarketingHubCounters();
@@ -211,6 +214,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
     lastExpoYearTriggered = 0;
     lastNotifiedProjectOfferKey = null;
     notifiedHeadhuntEmployeeIds.clear();
+    selectedHistoricalTechs.clear();
     window._pausedSpeedForNews = 0;
     if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
 
@@ -338,7 +342,7 @@ function setupKeyboardShortcuts() {
             return;
         }
 
-        const key = e.key.toLowerCase();
+        const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
 
         if (e.code === 'Space') {
             e.preventDefault();
@@ -380,7 +384,7 @@ function setupKeyboardShortcuts() {
             openCompanyCreatorModal();
         } else if (key === 'm') {
             const isMuted = soundEngine.toggleMute();
-            document.getElementById('audio-toggle').innerText = isMuted ? '🔇' : '🔊';
+            document.getElementById('audio-toggle').innerText = isMuted ? '[[DE_ICON_111]]' : '[[DE_ICON_008]]';
             showToast(isMuted ? 'Sonido silenciado' : 'Sonido activado', 'info');
         } else if (e.key === 'Escape') {
             closeAllModals();
@@ -404,7 +408,7 @@ function setupUIControls() {
     // Audio Mute toggle
     document.getElementById('audio-toggle').addEventListener('click', () => {
         const isMuted = soundEngine.toggleMute();
-        document.getElementById('audio-toggle').innerText = isMuted ? '🔇' : '🔊';
+        document.getElementById('audio-toggle').innerText = isMuted ? '[[DE_ICON_111]]' : '[[DE_ICON_008]]';
         showToast(isMuted ? 'Sonido silenciado' : 'Sonido activado', 'info');
     });
 
@@ -469,7 +473,7 @@ function setupUIControls() {
             if (res && res.success) {
                 renderHUD(game);
                 updateDAGMetricsUI();
-                showToast(`🧹 ${res.message}`, 'success');
+                showToast(`[[DE_ICON_058]] ${res.message}`, 'success');
             } else if (res && !res.success) {
                 showToast(res.message, 'warn');
             }
@@ -521,6 +525,7 @@ function setupUIControls() {
     });
     const projectPlatform = document.getElementById('select-platform');
     if (projectPlatform) projectPlatform.addEventListener('change', () => {
+        updatePlatformDetails();
         renderPublishingContractSelector();
     });
 
@@ -571,13 +576,13 @@ function setupUIControls() {
                 world.hideScopeDAG();
                 const holoHud = document.getElementById('hologram-overlay-bar');
                 if (holoHud) holoHud.style.display = 'none';
-                showToast('🏢 Proyección 3D apagada. Vista de oficina restaurada.', 'info');
+                showToast('[[DE_ICON_035]] Proyección 3D apagada. Vista de oficina restaurada.', 'info');
             } else {
                 const pipe = pipelineManager.getActivePipeline();
                 world.showScopeDAG(scopeDAG, pipe);
                 const holoHud = document.getElementById('hologram-overlay-bar');
                 if (holoHud) holoHud.style.display = 'flex';
-                showToast('🌐 Mesa Holográfica 3D activada.', 'info');
+                showToast('[[DE_ICON_020]] Mesa Holográfica 3D activada.', 'info');
             }
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
@@ -658,7 +663,7 @@ function setupUIControls() {
         }
     });
 
-    // Toggle Refactor Mode (Punto 4: [🛠 Refactorizar Código])
+    // Toggle Refactor Mode (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
     const refactorBtn = document.getElementById('btn-toggle-refactor');
     if (refactorBtn) {
         refactorBtn.addEventListener('click', () => {
@@ -668,9 +673,9 @@ function setupUIControls() {
             }
             const res = game.refactorTechDebt();
             if (res.mode === 'refactor') {
-                showToast('🛠️ Modo Refactorizar Activado: El avance de características se detiene (Progreso = 0%) para pagar deuda técnica.', 'success');
+                showToast('[[DE_ICON_015]] Modo Refactorizar Activado: El avance de características se detiene (Progreso = 0%) para pagar deuda técnica.', 'success');
             } else {
-                showToast('▶️ Modo Normal Reanudado: El equipo continúa implementando características del juego.', 'info');
+                showToast('[[DE_ICON_113]] Modo Normal Reanudado: El equipo continúa implementando características del juego.', 'info');
             }
             if (soundEngine) soundEngine.playClick();
             renderHUD(game);
@@ -683,7 +688,7 @@ function setupUIControls() {
         fixRegBtn.addEventListener('click', () => {
             if (game.currentProject) {
                 game.setProjectDevMode('refactor');
-                showToast('🛠️ Refactorización de emergencia activada para sanear el módulo desestabilizado.', 'warn');
+                showToast('[[DE_ICON_015]] Refactorización de emergencia activada para sanear el módulo desestabilizado.', 'warn');
                 renderHUD(game);
             }
         });
@@ -741,7 +746,7 @@ function setupDeveloperContextMenu() {
             if (menuRole) menuRole.textContent = emp.role || 'Desarrollador General';
             if (menuAvatar) {
                 const r = emp.role ? emp.role.toLowerCase() : '';
-                menuAvatar.textContent = r.includes('arte') || r.includes('diseño') ? '🎨' : (r.includes('qa') || r.includes('tester') ? '🛡️' : (r.includes('sonido') || r.includes('audio') ? '🎵' : '👨‍💻'));
+                menuAvatar.textContent = r.includes('arte') || r.includes('diseño') ? '[[DE_ICON_019]]' : (r.includes('qa') || r.includes('tester') ? '[[DE_ICON_021]]' : (r.includes('sonido') || r.includes('audio') ? '[[DE_ICON_114]]' : '[[DE_ICON_026]]'));
             }
 
             const currentStamina = typeof emp.stamina === 'number' ? emp.stamina : 100;
@@ -930,7 +935,7 @@ function populateProjectWizard() {
         if (isUnlocked) {
             opt.innerText = `${t.name} [Target: ${t.idealAudience}]`;
         } else {
-            opt.innerText = `🔒 ${t.name} (I+D: ${t.costRP || 20} RP)`;
+            opt.innerText = `[[DE_ICON_093]] ${t.name} (I+D: ${t.costRP || 20} RP)`;
             opt.disabled = true;
         }
         topicSelect.appendChild(opt);
@@ -960,7 +965,7 @@ function populateProjectWizard() {
         if (isUnlocked) {
             opt.innerText = g.name;
         } else {
-            opt.innerText = `🔒 ${g.name} (I+D: ${g.costRP || 30} RP)`;
+            opt.innerText = `[[DE_ICON_093]] ${g.name} (I+D: ${g.costRP || 30} RP)`;
             opt.disabled = true;
         }
         genreSelect.appendChild(opt);
@@ -1011,22 +1016,22 @@ function updateWizardSynergyBadge() {
     }) : { valid: true };
 
     let pillClass = 'pill-normal';
-    let pillIcon = '⚖️';
+    let pillIcon = '[[DE_ICON_097]]';
     let pillText = `Sinergia Estándar (1.0x): Combinación neutral entre ${topicObj?.name || topicId} y ${genreObj?.name || genreId}.`;
 
     if (syn.fit === 'OPTIMAL') {
         pillClass = 'pill-optimal';
-        pillIcon = '🌟';
+        pillIcon = '[[DE_ICON_040]]';
         pillText = `Sinergia Óptima (+35% Ventas y Hype): ¡${topicObj?.name || topicId} y ${genreObj?.name || genreId} encajan a la perfección!`;
     } else if (syn.fit === 'BAD') {
         pillClass = 'pill-bad';
-        pillIcon = '⚠️';
+        pillIcon = '[[DE_ICON_016]]';
         pillText = `Mala Sinergia (-40% Penalización): ${topicObj?.name || topicId} no conecta con la audiencia de ${genreObj?.name || genreId}.`;
     }
 
     let techWarning = '';
     if (!techCheck.valid) {
-        techWarning = `<div class="wizard-tech-warning">🔒 ${techCheck.message}</div>`;
+        techWarning = `<div class="wizard-tech-warning">[[DE_ICON_093]] ${techCheck.message}</div>`;
     }
 
     indicator.innerHTML = `
@@ -1041,10 +1046,51 @@ function updateWizardSynergyBadge() {
     `;
 }
 
+function renderHistoricalGraph(frame = false) {
+    const available = TECH_TREE_NODES.filter(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id));
+    if (!available.length) return false;
+    const minYear = Math.min(...available.map(n => n.eraYear));
+    const maxYear = Math.max(...available.map(n => n.eraYear));
+    const centerYear = (minYear + maxYear) / 2;
+    const categories = ['Graphics', 'Audio', 'Engine', 'Physics', 'AI', 'Network'];
+    const nodes = available.map(n => ({
+        ...n,
+        // 2.4 units per year exceeds the width of the 1.7-unit labels.
+        // Simultaneous nodes occupy separate vertical lanes within the category.
+        pos: [(n.eraYear - centerYear) * 2.4, 2 + categories.indexOf(n.category) * 3 + (n.position.z / 5) * 1.2, 0],
+        prerequisites: n.requiredNodes,
+        state: selectedHistoricalTechs.has(n.id) ? 'active' : 'available'
+    }));
+    world.renderScopeDAG3D(nodes, []);
+    if (frame) {
+        const width = Math.max(8, (maxYear - minYear) * 2.4 + 4);
+        const height = 21;
+        const halfFov = world.camera.fov * Math.PI / 360;
+        const distance = Math.max(height / (2 * Math.tan(halfFov)), width / (2 * Math.tan(halfFov) * world.camera.aspect)) + 10;
+        world.camera.far = Math.max(world.camera.far, distance + 80);
+        world.camera.updateProjectionMatrix();
+        world.controls.maxDistance = Math.max(35, distance + 20);
+        world.targetCamPos = world.cameraDagPos.clone().set(0, 10.5, distance);
+        world.targetLookAt = world.cameraDagTarget.clone().set(0, 10.5, 0);
+    }
+    return true;
+}
+
 function initDAGArchitectureUI() {
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
+
+    document.getElementById('btn-historical-graph')?.addEventListener('click', () => {
+        if (!world) return;
+        if (!TECH_TREE_NODES.some(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id))) { showToast('Investiga tecnologías históricas para verlas en el grafo.', 'warn'); return; }
+        closeAllModals();
+        world.showScopeDAG();
+        renderHistoricalGraph(true);
+        const hud = document.getElementById('hologram-overlay-bar');
+        if (hud) hud.style.display = 'flex';
+        showToast('Grafo histórico: selecciona módulos haciendo clic en ellos.', 'info');
+    });
 
     // Preset buttons binding (works in both #modal-new-game and #modal-scope-dag)
     document.querySelectorAll('.preset-btn').forEach(btn => {
@@ -1066,7 +1112,7 @@ function initDAGArchitectureUI() {
             }
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'flex';
-            showToast('🌐 Mesa Holográfica 3D encendida. Haz clic en los nodos para configurarlos.', 'info');
+            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida. Haz clic en los nodos para configurarlos.', 'info');
             if (soundEngine && soundEngine.playNodeToggle) {
                 soundEngine.playNodeToggle(true);
             }
@@ -1083,7 +1129,7 @@ function initDAGArchitectureUI() {
             }
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'flex';
-            showToast('🌐 Mesa Holográfica 3D encendida.', 'info');
+            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida.', 'info');
             if (soundEngine && soundEngine.playNodeToggle) {
                 soundEngine.playNodeToggle(true);
             }
@@ -1109,7 +1155,7 @@ function initDAGArchitectureUI() {
             if (world) world.hideScopeDAG();
             const holoHud = document.getElementById('hologram-overlay-bar');
             if (holoHud) holoHud.style.display = 'none';
-            showToast('🏢 Proyección apagada. Vista normal de oficina restaurada.', 'info');
+            showToast('[[DE_ICON_035]] Proyección apagada. Vista normal de oficina restaurada.', 'info');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
     }
@@ -1175,7 +1221,7 @@ function renderPipelineSelector() {
     if (container) {
         container.innerHTML = '';
         if (pipelineManager.availablePipelines.length === 0) {
-            container.innerHTML = `<div class="pipeline-card"><strong>🧪 Aún no tienes un motor propio</strong><p style="font-size:12px;color:var(--text-secondary)">En esta época no hay motores comerciales. Abre I+D y completa un proyecto de motor propio antes de iniciar un juego.</p></div>`;
+            container.innerHTML = `<div class="pipeline-card"><strong>[[DE_ICON_094]] Aún no tienes un motor propio</strong><p style="font-size:12px;color:var(--text-secondary)">En esta época no hay motores comerciales. Abre I+D y completa un proyecto de motor propio antes de iniciar un juego.</p></div>`;
         }
         pipelineManager.availablePipelines.forEach(pipe => {
             const card = document.createElement('div');
@@ -1185,7 +1231,7 @@ function renderPipelineSelector() {
             card.innerHTML = `
                 <div>
                     <span class="pipeline-badge ${isCommercial ? 'badge-commercial' : 'badge-inhouse'}">
-                        ${isCommercial ? '⚡ Motor Comercial' : '💎 Motor Propio (In-House)'}
+                        ${isCommercial ? '[[DE_ICON_022]] Motor Comercial' : '[[DE_ICON_059]] Motor Propio (In-House)'}
                     </span>
                     <strong style="display: block; font-size: 14px; color: #fff; margin-bottom: 4px;">${pipe.name}</strong>
                     <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">${pipe.desc}</p>
@@ -1222,11 +1268,11 @@ function renderPipelineSelector() {
         inhouseCard.classList.toggle('active', !isComm);
 
         if (btnComm) {
-            btnComm.innerText = isComm ? '✓ Motor Comercial Activo' : 'Seleccionar Motor Comercial';
+            btnComm.innerText = isComm ? '[[DE_ICON_149]] Motor Comercial Activo' : 'Seleccionar Motor Comercial';
             btnComm.className = 'dock-btn btn-pipeline-select' + (isComm ? ' btn-primary-action' : '');
         }
         if (btnInhouse) {
-            btnInhouse.innerText = !isComm ? '✓ Motor Propio Activo' : 'Seleccionar Motor Propio';
+            btnInhouse.innerText = !isComm ? '[[DE_ICON_149]] Motor Propio Activo' : 'Seleccionar Motor Propio';
             btnInhouse.className = 'dock-btn btn-pipeline-select' + (!isComm ? ' btn-primary-action' : '');
         }
     }
@@ -1245,7 +1291,7 @@ function renderBusinessModelSelector() {
     container.innerHTML = options.map(option => {
         const selected = selectedModel === option.id;
         const unavailable = !option.available;
-        const lock = unavailable ? (option.lockedYear ? `🔒 Disponible en ${option.year}` : `🔒 ${option.requirement || `Disponible en ${option.year}`}`) : 'Disponible';
+        const lock = unavailable ? (option.lockedYear ? `[[DE_ICON_093]] Disponible en ${option.year}` : `[[DE_ICON_093]] ${option.requirement || `Disponible en ${option.year}`}`) : 'Disponible';
         return `<label class="business-model-card ${selected ? 'selected' : ''} ${unavailable ? 'locked' : ''}"><input type="radio" name="business-model" value="${option.id}" ${selected ? 'checked' : ''} ${unavailable ? 'disabled' : ''}><span class="business-model-title">${option.label}</span><span class="business-model-description">${option.detail}</span><span class="business-model-lock">${lock}</span></label>`;
     }).join('');
 
@@ -1261,7 +1307,7 @@ function renderBusinessModelSelector() {
         const contentOptions = ['f2p', 'live_service'].includes(selectedModel) ? [allContentOptions[0]] : allContentOptions;
         contentSelect.innerHTML = contentOptions.map(item => {
             const locked = year < item.year;
-            return `<option value="${item.id}" ${locked ? 'disabled' : ''}>${locked ? '🔒 ' : ''}${item.title}${item.year > 1982 ? ` · ${item.year}` : ''}</option>`;
+            return `<option value="${item.id}" ${locked ? 'disabled' : ''}>${locked ? '[[DE_ICON_093]] ' : ''}${item.title}${item.year > 1982 ? ` · ${item.year}` : ''}</option>`;
         }).join('');
         const priorOption = contentOptions.find(item => item.id === prior);
         contentSelect.value = priorOption && priorOption.year <= year ? prior : 'none';
@@ -1274,7 +1320,7 @@ function renderBusinessModelSelector() {
         if (year < 1995) patchSupport.checked = false;
         const patchLabel = patchSupport.closest('label');
         if (patchLabel) patchLabel.lastChild.textContent = year < 1995
-            ? ' 🔒 Parches rudimentarios disponibles desde 1995'
+            ? ' [[DE_ICON_093]] Parches rudimentarios disponibles desde 1995'
             : ' Mantener soporte post-lanzamiento con parches';
     }
 }
@@ -1290,7 +1336,8 @@ function renderPublishingContractSelector() {
     const platformSelect = document.getElementById('select-platform');
     const platformId = platformSelect ? platformSelect.value : (game.platforms[0]?.id || 'pc_compatibles');
     const platform = (game.platforms || []).find(p => p.id === platformId) || game.platforms[0] || { devCost: 5000, name: 'PC' };
-    const baseDevCost = platform.devCost + (game.era === 1 ? 4000 : (game.era === 2 ? 14000 : 35000));
+    const kitCost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(platform) : platform.devCost;
+    const baseDevCost = kitCost + (game.era === 1 ? 4000 : (game.era === 2 ? 14000 : 35000));
 
     // Anticipos calculados
     const publisherAdvance = Math.max(15000, Math.round(baseDevCost * 0.65));
@@ -1302,29 +1349,29 @@ function renderPublishingContractSelector() {
         {
             id: 'self_publishing',
             title: 'Opción A: Autopublicación Indie',
-            icon: '💎',
+            icon: '[[DE_ICON_059]]',
             desc: 'Tu estudio asume el 100% de los costes de producción y el riesgo comercial del proyecto.',
             terms: [
-                { text: '✓ 100% de los beneficios netos para tu estudio', type: 'term-benefit' },
-                { text: '✓ Sin fechas límite impuestas ni penalizaciones por retraso', type: 'term-benefit' },
+                { text: '[[DE_ICON_149]] 100% de los beneficios netos para tu estudio', type: 'term-benefit' },
+                { text: '[[DE_ICON_149]] Sin fechas límite impuestas ni penalizaciones por retraso', type: 'term-benefit' },
                 { text: `Coste estimado: ~$${baseDevCost.toLocaleString()} (fondos propios)`, type: 'term-neutral' }
             ]
         },
         {
             id: 'publisher_advance',
             title: `Opción B: Contrato con ${publisherName}`,
-            icon: '🏢',
+            icon: '[[DE_ICON_035]]',
             desc: 'Un distribuidor adelanta fondos de desarrollo y asume la distribución física o digital masiva.',
             terms: [
                 { text: `+$${publisherAdvance.toLocaleString()} de anticipo financiero inmediato`, type: 'term-benefit' },
-                { text: '⏳ Fecha límite de entrega fijada: 48 semanas', type: 'term-caution' },
+                { text: '[[DE_ICON_060]] Fecha límite de entrega fijada: 48 semanas', type: 'term-caution' },
                 { text: 'El publisher retiene el 50% de royalties en ventas', type: 'term-cost' }
             ]
         },
         {
             id: 'platform_exclusive',
             title: `Opción C: ${exclusiveTitle}`,
-            icon: '🌟',
+            icon: '[[DE_ICON_040]]',
             desc: `Acuerdo con el fabricante para impulsar las ventas en ${platform.name} a cambio de exclusividad.`,
             terms: [
                 { text: `+$${platformGrant.toLocaleString()} de fondo de desarrollo garantizado`, type: 'term-benefit' },
@@ -1406,7 +1453,41 @@ function applyDAGPreset(presetId) {
     showToast(`Preset "${presetId.toUpperCase()}" aplicado al Árbol de Arquitectura${filteredNotice}`, 'success');
 }
 
+function updateHistoricalWarning(elementId, ids) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const result = calculateTechIncompatibility(ids);
+    el.style.display = result.incompatible ? 'block' : 'none';
+    el.textContent = result.incompatible
+        ? `Incompatibilidad Tecnológica Severa: Intentar acoplar tecnologías de eras tan distantes disparará los fallos y ralentizará el desarrollo. Brecha: ${result.gapYears} años · multiplicador: ×${result.multiplier.toFixed(2)}`
+        : '';
+}
+
+function renderHistoricalTechOptions() {
+    const container = document.getElementById('historical-tech-options');
+    if (!container) return;
+    container.replaceChildren();
+    const year = game.getHistoricalYear();
+    const nodes = TECH_TREE_NODES.filter(n => n.eraYear <= year && techTreeManager.isUnlocked(n.id));
+    for (const id of selectedHistoricalTechs) if (!nodes.some(n => n.id === id)) selectedHistoricalTechs.delete(id);
+    if (!nodes.length) container.textContent = 'Todavía no hay tecnologías históricas investigadas.';
+    nodes.forEach(node => {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex;align-items:center;gap:7px;color:#fff;font-size:12px';
+        const input = document.createElement('input');
+        input.type = 'checkbox'; input.checked = selectedHistoricalTechs.has(node.id);
+        input.addEventListener('change', () => {
+            if (input.checked) selectedHistoricalTechs.add(node.id); else selectedHistoricalTechs.delete(node.id);
+            updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+        });
+        label.append(input, document.createTextNode(`${node.name} (${node.eraYear})`));
+        container.appendChild(label);
+    });
+    updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+}
+
 function renderDAGNodes() {
+    renderHistoricalTechOptions();
     const containerGroups = [
         {
             render: document.getElementById('dag-nodes-render'),
@@ -1503,23 +1584,23 @@ function renderDAGNodes() {
             // Status Badge
             let statusHtml = '';
             if (isActive) {
-                statusHtml = isRegression ? '<span class="node-status-badge badge-regression">⚠️ REGRESIÓN</span>' : '<span class="node-status-badge badge-active">✓ ACTIVADO</span>';
+                statusHtml = isRegression ? '<span class="node-status-badge badge-regression">[[DE_ICON_016]] REGRESIÓN</span>' : '<span class="node-status-badge badge-active">[[DE_ICON_149]] ACTIVADO</span>';
             } else if (isAvailable) {
                 statusHtml = '<span class="node-status-badge badge-available">+ DISPONIBLE</span>';
             } else {
-                statusHtml = '<span class="node-status-badge badge-locked">🔒 BLOQUEADO</span>';
+                statusHtml = '<span class="node-status-badge badge-locked">[[DE_ICON_093]] BLOQUEADO</span>';
             }
 
             // Disciplines breakdown chips
             const netVal = node.workload.net !== undefined ? node.workload.net : (node.workload.network || 0);
             const disciplinesHtml = `
                 <div class="node-disciplines-row">
-                    <span class="node-chip chip-eng" title="Carga Engine">💻 ${node.workload.engine}</span>
-                    <span class="node-chip chip-game" title="Carga Gameplay">🎮 ${node.workload.gameplay}</span>
-                    <span class="node-chip chip-net" title="Carga Red">🌐 ${netVal}</span>
-                    <span class="node-chip chip-art" title="Carga Arte">🎨 ${node.workload.art}</span>
-                    <span class="node-chip chip-qa" title="Carga QA">🛡️ ${node.workload.qa}</span>
-                    <span class="node-chip chip-friction" title="Fricción Añadida">⚡ +${node.baseFriction}%</span>
+                    <span class="node-chip chip-eng" title="Carga Engine">[[DE_ICON_018]] ${node.workload.engine}</span>
+                    <span class="node-chip chip-game" title="Carga Gameplay">[[DE_ICON_001]] ${node.workload.gameplay}</span>
+                    <span class="node-chip chip-net" title="Carga Red">[[DE_ICON_020]] ${netVal}</span>
+                    <span class="node-chip chip-art" title="Carga Arte">[[DE_ICON_019]] ${node.workload.art}</span>
+                    <span class="node-chip chip-qa" title="Carga QA">[[DE_ICON_021]] ${node.workload.qa}</span>
+                    <span class="node-chip chip-friction" title="Fricción Añadida">[[DE_ICON_022]] +${node.baseFriction}%</span>
                 </div>
             `;
 
@@ -1530,11 +1611,11 @@ function renderDAGNodes() {
                     const pDef = SCOPE_NODES_CATALOG.find(n => n.id === pId);
                     const pName = pDef ? pDef.name : pId;
                     const met = scopeDAG.selectedNodeIds.has(pId);
-                    return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '✓' : '✗'} ${pName}</span>`;
+                    return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '[[DE_ICON_149]]' : '[[DE_ICON_150]]'} ${pName}</span>`;
                 }).join(' ');
                 reqsHtml = `<div class="node-req-row"><span style="opacity: 0.7;">Req:</span> ${pills}</div>`;
             } else {
-                reqsHtml = `<div class="node-req-row"><span class="req-pill req-ok">🌿 Base / Sin requisitos</span></div>`;
+                reqsHtml = `<div class="node-req-row"><span class="req-pill req-ok">[[DE_ICON_064]] Base / Sin requisitos</span></div>`;
             }
 
             card.innerHTML = `
@@ -1555,7 +1636,7 @@ function renderDAGNodes() {
                         const mDef = SCOPE_NODES_CATALOG.find(n => n.id === m);
                         return mDef ? mDef.name : m;
                     });
-                    showToast(`🔒 "${node.name}" está bloqueado. Requiere: ${missingNames.join(', ')}`, 'warn');
+                    showToast(`[[DE_ICON_093]] "${node.name}" está bloqueado. Requiere: ${missingNames.join(', ')}`, 'warn');
                     if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
                     return;
                 }
@@ -1661,8 +1742,8 @@ function updateDAGMetricsUI() {
     // Friction Badges
     const badgeClass = friction.frictionPercent >= 50 ? 'pill-critico' : (friction.frictionPercent >= 25 ? 'pill-moderado' : 'pill-optimo');
     const badgeText = friction.frictionPercent >= 50
-        ? `🔴 Fricción Crítica (+${friction.frictionPercent}%)`
-        : (friction.frictionPercent >= 25 ? `🟡 Fricción Moderada (+${friction.frictionPercent}%)` : `🟢 Acoplamiento Óptimo`);
+        ? `[[DE_ICON_115]] Fricción Crítica (+${friction.frictionPercent}%)`
+        : (friction.frictionPercent >= 25 ? `[[DE_ICON_116]] Fricción Moderada (+${friction.frictionPercent}%)` : `[[DE_ICON_023]] Acoplamiento Óptimo`);
 
     const badgeNewGame = document.getElementById('metric-friction-badge');
     if (badgeNewGame) {
@@ -1709,8 +1790,8 @@ function updateDAGMetricsUI() {
     // Tech Debt Status Tag
     const tagClass = currentDebt > 40 ? 'tag-critical' : (currentDebt > 15 ? 'tag-moderate' : 'tag-clean');
     const tagText = currentDebt > 40
-        ? '🔴 Deuda Crítica (Riesgo Regresiones)'
-        : (currentDebt > 15 ? '🟡 Deuda Moderada (Riesgo Medio)' : '🟢 Código Limpio (Riesgo Nulo)');
+        ? '[[DE_ICON_115]] Deuda Crítica (Riesgo Regresiones)'
+        : (currentDebt > 15 ? '[[DE_ICON_116]] Deuda Moderada (Riesgo Medio)' : '[[DE_ICON_023]] Código Limpio (Riesgo Nulo)');
 
     const tagNewGame = document.getElementById('metric-debt-status');
     if (tagNewGame) {
@@ -1761,6 +1842,15 @@ function updateDAGMetricsUI() {
 }
 
 function on3DNodeClicked(nodeId) {
+    if (nodeId.startsWith('tech_')) {
+        if (!techTreeManager.isUnlocked(nodeId)) return;
+        if (selectedHistoricalTechs.has(nodeId)) selectedHistoricalTechs.delete(nodeId); else selectedHistoricalTechs.add(nodeId);
+        renderHistoricalTechOptions();
+        const node = world.dagNodesMap.get(nodeId);
+        if (node) showToast(`${node.data.name}: ${selectedHistoricalTechs.has(nodeId) ? 'seleccionado' : 'retirado de la selección'}`, 'info');
+        renderHistoricalGraph();
+        return;
+    }
     const toggleRes = scopeDAG.toggleNode(nodeId);
     if (!toggleRes.success) {
         showToast(toggleRes.reason, 'warn');
@@ -1771,7 +1861,7 @@ function on3DNodeClicked(nodeId) {
     const pipe = pipelineManager.getActivePipeline();
     world.renderScopeDAG3D(scopeDAG, pipe);
     const nodeObj = scopeDAG.getNode(nodeId);
-    showToast(`🌐 Nodo "${nodeObj ? nodeObj.name : nodeId}" modificado en el DAG.`, 'info');
+    showToast(`[[DE_ICON_020]] Nodo "${nodeObj ? nodeObj.name : nodeId}" modificado en el DAG.`, 'info');
 }
 
 function setupStageTabs() {
@@ -1781,16 +1871,43 @@ function setupStageTabs() {
 function updatePlatformOptions() {
     const platformSelect = document.getElementById('select-platform');
     if (!platformSelect) return;
-    platformSelect.innerHTML = '';
+    const previous = platformSelect.value;
+    const year = game.getHistoricalYear();
     const platforms = typeof game.getPlatforms === 'function'
-        ? game.getPlatforms(game.era)
-        : (game.platforms || PLATFORMS).filter(p => (p.eraUnlocked || 1) <= game.era);
+        ? game.getPlatforms()
+        : (game.platforms || PLATFORMS);
+    platformSelect.replaceChildren();
     platforms.forEach(p => {
+        if (p.releaseYear != null && year < p.releaseYear) return;
+        if (p.releaseYear == null && (p.eraUnlocked || 1) > game.era) return;
+        const retired = p.status === 'RETIRED' || (p.retireYear != null && year >= p.retireYear);
+        const kitCost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(p) : (p.devKitCost ?? p.devCost ?? 0);
         const opt = document.createElement('option');
         opt.value = p.id;
-        opt.innerText = `${p.icon || '🎮'} ${p.name} ($${p.devCost.toLocaleString()})${p.isModded ? ' 🧩[MOD]' : ''}`;
+        opt.disabled = retired;
+        opt.textContent = `${p.name} · ${retired ? 'Retirada' : `DevKit $${kitCost.toLocaleString()}`}${p.isModded ? ' [MOD]' : ''}`;
         platformSelect.appendChild(opt);
     });
+    if ([...platformSelect.options].some(option => option.value === previous && !option.disabled)) {
+        platformSelect.value = previous;
+    }
+    updatePlatformDetails();
+}
+
+function updatePlatformDetails() {
+    const details = document.getElementById('platform-details');
+    const select = document.getElementById('select-platform');
+    if (!details || !select) return;
+    const platforms = typeof game.getPlatforms === 'function' ? game.getPlatforms() : (game.platforms || PLATFORMS);
+    const platform = platforms.find(p => p.id === select.value);
+    if (!platform) {
+        details.textContent = 'No hay plataformas disponibles para este año.';
+        return;
+    }
+    const cost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(platform) : (platform.devKitCost ?? platform.devCost ?? 0);
+    const royalty = platform.royaltyRate ?? platform.royalty ?? 0;
+    const share = Number(platform.marketShare);
+    details.textContent = `DevKit: $${cost.toLocaleString()} · Regalías: ${(royalty * 100).toLocaleString()}%${Number.isFinite(share) ? ` · Índice de mercado: ${(share * 100).toFixed(1)}%` : ''}${platform.type ? ` · ${platform.type}` : ''}`;
 }
 
 function updateEngineOptions() {
@@ -1837,6 +1954,7 @@ function startProjectFromWizard() {
 
     const result = game.startNewGameProject({
         name, topicId, genreId, platformId, targetAudience, dagConfig,
+        historicalTechIds: [...selectedHistoricalTechs],
         publishingContractType,
         businessModel, postLaunchContent, monetizationStyle, supportsPatches
     });
@@ -1850,9 +1968,9 @@ function startProjectFromWizard() {
         closeAllModals();
 
         if (result.contract && result.contract.amount > 0) {
-            showToast(`🤝 ¡Acuerdo firmado con ${result.contract.company}! Recibes un anticipo de +$${result.contract.amount.toLocaleString()}.`, 'success');
+            showToast(`[[DE_ICON_025]] ¡Acuerdo firmado con ${result.contract.company}! Recibes un anticipo de +$${result.contract.amount.toLocaleString()}.`, 'success');
         }
-        showToast(`🛠️ Comenzando desarrollo con arquitectura DAG de: "${name}"`, 'success');
+        showToast(`[[DE_ICON_015]] Comenzando desarrollo con arquitectura DAG de: "${name}"`, 'success');
         document.getElementById('input-game-name').value = '';
     } else {
         showToast(result.message, 'warn');
@@ -1867,7 +1985,7 @@ function renderHUD(state) {
         const offerKey = `${state.currentProject.name}:${pendingOffers.map(offer => offer.id).join(',')}`;
         if (offerKey !== lastNotifiedProjectOfferKey) {
             lastNotifiedProjectOfferKey = offerKey;
-            showToast(`📨 Nueva propuesta comercial para "${state.currentProject.name}". Revisa sus términos en el panel del proyecto.`, 'info');
+            showToast(`[[DE_ICON_117]] Nueva propuesta comercial para "${state.currentProject.name}". Revisa sus términos en el panel del proyecto.`, 'info');
         }
     } else {
         lastNotifiedProjectOfferKey = null;
@@ -1889,7 +2007,7 @@ function renderHUD(state) {
     document.getElementById('stat-fans').innerText = state.fans.toLocaleString();
     document.getElementById('stat-rp').innerText = state.researchPoints;
     const histYear = state.getHistoricalYear ? state.getHistoricalYear() : (1981 + state.year);
-    document.getElementById('stat-calendar').innerHTML = `📅 <strong>${histYear}</strong> (Año ${state.year}), M<strong>${state.month}</strong> S<strong>${state.week}</strong>`;
+    document.getElementById('stat-calendar').innerHTML = `[[DE_ICON_066]] <strong>${histYear}</strong> (Año ${state.year}), M<strong>${state.month}</strong> S<strong>${state.week}</strong>`;
 
     // Refresh research modal live counters if open
     const modalResearch = document.getElementById('modal-research');
@@ -1966,7 +2084,7 @@ function renderHUD(state) {
             healthPill.className = `point-pill pill-debt-health status-${healthStatus}`;
         }
         if (healthIcon) {
-            healthIcon.innerText = healthStatus === 'clean' ? '🟢' : (healthStatus === 'moderate' ? '🟡' : '🔴');
+            healthIcon.innerText = healthStatus === 'clean' ? '[[DE_ICON_023]]' : (healthStatus === 'moderate' ? '[[DE_ICON_116]]' : '[[DE_ICON_115]]');
         }
         if (debtStatus) {
             debtStatus.innerText = healthStatus === 'clean' ? 'Limpio' : (healthStatus === 'moderate' ? 'Fricción Moderada' : 'Deuda Crítica');
@@ -2013,15 +2131,15 @@ function renderHUD(state) {
             }
         }
 
-        // Refactor toggle button state (Punto 4: [🛠 Refactorizar Código])
+        // Refactor toggle button state (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
         const refactorBtn = document.getElementById('btn-toggle-refactor');
         if (refactorBtn) {
             if (proj.devMode === 'refactor') {
                 refactorBtn.classList.add('active');
-                refactorBtn.innerHTML = '🛠️ Refactorizando... (Click para Normal)';
+                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizando... (Click para Normal)';
             } else {
                 refactorBtn.classList.remove('active');
-                refactorBtn.innerHTML = '🛠️ Refactorizar Código';
+                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizar Código';
             }
         }
 
@@ -2041,26 +2159,26 @@ function renderHUD(state) {
             releaseBtn.style.display = 'block';
             releaseBtn.disabled = false;
             if (canLaunchBeta) {
-                releaseBtn.innerText = '🚀 Publicar en Acceso Anticipado (50–80%)';
+                releaseBtn.innerText = '[[DE_ICON_024]] Publicar en Acceso Anticipado (50–80%)';
                 releaseBtn.style.background = 'linear-gradient(135deg, #38bdf8, #2563eb)';
             } else if (proj.businessModel === 'early_access') {
                 if (proj.launchPhase === 'beta_live') {
                     const betaGame = state.gamesHistory.find(item => item.id === proj.earlyAccessGameId);
                     const weeksLeft = Math.max(0, 8 - (betaGame?.weeksOnMarket || 0));
-                    releaseBtn.innerText = weeksLeft ? `🚀 Lanzamiento 1.0 Oficial · ${weeksLeft} sem de beta` : '🚀 Lanzamiento 1.0 Oficial';
+                    releaseBtn.innerText = weeksLeft ? `[[DE_ICON_024]] Lanzamiento 1.0 Oficial · ${weeksLeft} sem de beta` : '[[DE_ICON_024]] Lanzamiento 1.0 Oficial';
                     releaseBtn.disabled = weeksLeft > 0;
                 } else {
-                    releaseBtn.innerText = '🚀 Lanzar 1.0 (sin beta pública)';
+                    releaseBtn.innerText = '[[DE_ICON_024]] Lanzar 1.0 (sin beta pública)';
                 }
                 releaseBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
             } else if (healthStatus === 'clean') {
-                releaseBtn.innerText = `🚀 Lanzar Videojuego (Código Limpio: ${visibleDebt} pts)`;
+                releaseBtn.innerText = `[[DE_ICON_024]] Lanzar Videojuego (Código Limpio: ${visibleDebt} pts)`;
                 releaseBtn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
             } else if (healthStatus === 'moderate') {
-                releaseBtn.innerText = `🚀 Lanzar Videojuego (Fricción Media: ${visibleDebt} pts)`;
+                releaseBtn.innerText = `[[DE_ICON_024]] Lanzar Videojuego (Fricción Media: ${visibleDebt} pts)`;
                 releaseBtn.style.background = 'linear-gradient(135deg, #f59e0b, #d97706)';
             } else {
-                releaseBtn.innerText = `⚠️ Lanzar con Riesgo (¡Deuda Crítica: ${visibleDebt} pts!)`;
+                releaseBtn.innerText = `[[DE_ICON_016]] Lanzar con Riesgo (¡Deuda Crítica: ${visibleDebt} pts!)`;
                 releaseBtn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
             }
         } else {
@@ -2075,10 +2193,10 @@ function renderHUD(state) {
         const project = state.currentProject;
         if (project?.offers?.length) {
             offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel"><strong>📨 Propuestas comerciales (${state.getHistoricalYear()})</strong><p>Revisa el anticipo, las comisiones y las restricciones antes de firmar. Solo puedes aceptar un acuerdo por proyecto.</p><div class="contract-offer-list">${project.offers.map(offer => `<article class="contract-offer-card"><div><b>${offer.title}</b><p>${offer.detail}</p></div><button class="dock-btn btn-primary-action" onclick="reviewBusinessOffer('${offer.id}')">Revisar términos</button></article>`).join('')}</div></div>`;
+            offersContainer.innerHTML = `<div class="business-offer-panel"><strong>[[DE_ICON_117]] Propuestas comerciales (${state.getHistoricalYear()})</strong><p>Revisa el anticipo, las comisiones y las restricciones antes de firmar. Solo puedes aceptar un acuerdo por proyecto.</p><div class="contract-offer-list">${project.offers.map(offer => `<article class="contract-offer-card"><div><b>${offer.title}</b><p>${offer.detail}</p></div><button class="dock-btn btn-primary-action" onclick="reviewBusinessOffer('${offer.id}')">Revisar términos</button></article>`).join('')}</div></div>`;
         } else if (project?.acceptedOffer) {
             offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel">✅ Acuerdo aceptado: ${project.acceptedOffer.title} · Anticipo $${project.acceptedOffer.amount.toLocaleString()}</div>`;
+            offersContainer.innerHTML = `<div class="business-offer-panel">[[DE_ICON_096]] Acuerdo aceptado: ${project.acceptedOffer.title} · Anticipo $${project.acceptedOffer.amount.toLocaleString()}</div>`;
         } else {
             offersContainer.style.display = 'none';
         }
@@ -2102,7 +2220,7 @@ function renderHUD(state) {
     const check = state.canUpgradeOffice();
     if (state.era < 3) {
         upgradeBtn.style.display = 'flex';
-        upgradeBtn.innerHTML = `🏢 ${check.name} ($${check.cost.toLocaleString()})`;
+        upgradeBtn.innerHTML = `[[DE_ICON_035]] ${check.name} ($${check.cost.toLocaleString()})`;
         upgradeBtn.disabled = !check.canUpgrade;
         upgradeBtn.title = check.canUpgrade ? '¡Listo para expandirte a una sede mayor!' : 'Requiere más fondos y juegos exitosos publicados.';
     } else {
@@ -2195,11 +2313,11 @@ function renderLiveOps() {
         const eaProject = game.currentProject?.earlyAccessGameId === item.id ? game.currentProject : null;
         const officialReady = item.weeksOnMarket >= 8 && eaProject?.stage >= 4;
         const officialButton = item.isEarlyAccess && !item.officialReleased
-            ? `<button class="dock-btn btn-primary-action" onclick="launchOfficialGameVersion('${item.id}')" ${!officialReady ? 'disabled' : ''}>🚀 Lanzamiento 1.0 Oficial${item.weeksOnMarket < 8 ? ` · ${8 - item.weeksOnMarket} sem de beta` : (eaProject?.stage < 4 ? ' · termina el pulido' : '')}</button>` : '';
+            ? `<button class="dock-btn btn-primary-action" onclick="launchOfficialGameVersion('${item.id}')" ${!officialReady ? 'disabled' : ''}>[[DE_ICON_024]] Lanzamiento 1.0 Oficial${item.weeksOnMarket < 8 ? ` · ${8 - item.weeksOnMarket} sem de beta` : (eaProject?.stage < 4 ? ' · termina el pulido' : '')}</button>` : '';
         const priorAssignment = previousAssignments.get(`season-programmers-${item.id}`) || '1';
         const seasonButton = item.businessModel === 'live_service' && !item.serversClosed
-            ? `<div class="liveops-actions"><label>Programadores para la temporada <select id="season-programmers-${item.id}" class="form-select" style="width:auto;display:inline-block">${Array.from({ length: Math.max(1, game.employees.length) }, (_, i) => `<option value="${i + 1}" ${Number(priorAssignment) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label><button class="dock-btn" onclick="launchGameBattlePass('${item.id}')" ${item.weeksOnMarket < item.nextSeasonWeek ? 'disabled' : ''}>🎟️ Pase de Batalla ${item.weeksOnMarket >= item.nextSeasonWeek ? 'disponible' : `en ${item.nextSeasonWeek - item.weeksOnMarket} sem`}</button></div>` : '';
-        return `<article class="liveops-game-card"><div class="liveops-card-header"><div><h3>${item.name}</h3><span>${modelName} · Estado: ${item.lifecycleState}</span></div><strong>${(item.mau || 0).toLocaleString()} MAU</strong></div>${graph}<div class="liveops-metrics"><span>Instalaciones: ${(item.installationsTotal || 0).toLocaleString()}</span><span>Conversión: ${Math.round((item.conversionRate || 0) * 100)}%</span><span>Ingreso mensual: $${(item.monthlyServiceRevenue || 0).toLocaleString()}</span><span>Coste mensual: $${(item.monthlyServiceCosts || 0).toLocaleString()}</span><b>Balance neto: $${(item.monthlyNetBalance || 0).toLocaleString()}</b><span>Paciencia: ${item.communityPatience ?? 100}% · Sin parche: ${item.weeksWithoutContentPatch || 0} sem</span></div><div class="liveops-actions">${officialButton}<button class="dock-btn" onclick="deployGameContentPatch('${item.id}')">🧩 Publicar parche ($6.000+)</button>${seasonButton}${['f2p', 'live_service'].includes(item.businessModel) && !item.serversClosed ? `<button class="dock-btn btn-refactor" onclick="closeGameLiveServers('${item.id}')">🛑 Cerrar Servidores / Descontinuar Juego</button>` : ''}</div></article>`;
+            ? `<div class="liveops-actions"><label>Programadores para la temporada <select id="season-programmers-${item.id}" class="form-select" style="width:auto;display:inline-block">${Array.from({ length: Math.max(1, game.employees.length) }, (_, i) => `<option value="${i + 1}" ${Number(priorAssignment) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label><button class="dock-btn" onclick="launchGameBattlePass('${item.id}')" ${item.weeksOnMarket < item.nextSeasonWeek ? 'disabled' : ''}>[[DE_ICON_118]] Pase de Batalla ${item.weeksOnMarket >= item.nextSeasonWeek ? 'disponible' : `en ${item.nextSeasonWeek - item.weeksOnMarket} sem`}</button></div>` : '';
+        return `<article class="liveops-game-card"><div class="liveops-card-header"><div><h3>${item.name}</h3><span>${modelName} · Estado: ${item.lifecycleState}</span></div><strong>${(item.mau || 0).toLocaleString()} MAU</strong></div>${graph}<div class="liveops-metrics"><span>Instalaciones: ${(item.installationsTotal || 0).toLocaleString()}</span><span>Conversión: ${Math.round((item.conversionRate || 0) * 100)}%</span><span>Ingreso mensual: $${(item.monthlyServiceRevenue || 0).toLocaleString()}</span><span>Coste mensual: $${(item.monthlyServiceCosts || 0).toLocaleString()}</span><b>Balance neto: $${(item.monthlyNetBalance || 0).toLocaleString()}</b><span>Paciencia: ${item.communityPatience ?? 100}% · Sin parche: ${item.weeksWithoutContentPatch || 0} sem</span></div><div class="liveops-actions">${officialButton}<button class="dock-btn" onclick="deployGameContentPatch('${item.id}')">[[DE_ICON_034]] Publicar parche ($6.000+)</button>${seasonButton}${['f2p', 'live_service'].includes(item.businessModel) && !item.serversClosed ? `<button class="dock-btn btn-refactor" onclick="closeGameLiveServers('${item.id}')">[[DE_ICON_119]] Cerrar Servidores / Descontinuar Juego</button>` : ''}</div></article>`;
     }).join('');
 }
 
@@ -2213,9 +2331,9 @@ function renderMarketingHub() {
     const campaigns = options.map(option => {
         const locked = option.available === false;
         const title = option.label || option.name || option.title || option.id;
-        const note = locked ? `🔒 Disponible en ${option.year || 'una era posterior'}` : (option.description || option.detail || 'Promoción de prelanzamiento');
+        const note = locked ? `[[DE_ICON_093]] Disponible en ${option.year || 'una era posterior'}` : (option.description || option.detail || 'Promoción de prelanzamiento');
         const cost = Number(option.cost || 0);
-        return `<article class="marketing-action-card"><div><b>${title}</b><p>${note}</p>${!locked && cost ? `<small>Coste: $${cost.toLocaleString()}</small>` : ''}</div><button type="button" class="dock-btn btn-primary-action btn-run-marketing ${locked || !project ? 'btn-soft-disabled' : ''}" data-method-id="${option.id}" onclick="window.runMarketingMethod('${option.id}')">${locked ? '🔒 Bloqueado' : '📢 Lanzar campaña'}</button></article>`;
+        return `<article class="marketing-action-card"><div><b>${title}</b><p>${note}</p>${!locked && cost ? `<small>Coste: $${cost.toLocaleString()}</small>` : ''}</div><button type="button" class="dock-btn btn-primary-action btn-run-marketing ${locked || !project ? 'btn-soft-disabled' : ''}" data-method-id="${option.id}" onclick="window.runMarketingMethod('${option.id}')">${locked ? '[[DE_ICON_093]] Bloqueado' : '[[DE_ICON_099]] Lanzar campaña'}</button></article>`;
     }).join('');
     const targetGames = [ ...(project ? [{ id: project.id || `project:${project.name}`, name: `${project.name} (en desarrollo)`, isProject: true }] : []), ...game.gamesHistory.map(item => ({ id: item.id, name: item.name })) ];
     const selectedTargetId = targetGames.some(item => String(item.id) === String(priorTargetId)) ? priorTargetId : targetGames[0]?.id;
@@ -2229,8 +2347,8 @@ function renderMarketingHub() {
         const followers = Number(creator.followers || creator.audience || creator.viewers || 0);
         const genres = creator.genres || creator.preferences || creator.genrePreferences || [];
         const unavailable = creator.available === false || creator.alreadySent;
-        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `🔒 Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${Number(creator.fee || 0).toLocaleString()}`);
-        return `<article class="marketing-creator-card"><div><b>${creator.name || 'Creador'}</b><span>${creator.platform || 'Plataforma de streaming'} · ${followers.toLocaleString()} seguidores</span><small>Preferencias: ${Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas'}</small><small>${availability}</small></div><button type="button" class="dock-btn btn-send-streamer-key ${unavailable ? 'btn-soft-disabled' : ''}" data-creator-id="${creator.id}" onclick="window.sendMarketingKeys('${creator.id}')">🎮 Enviar clave</button></article>`;
+        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${Number(creator.fee || 0).toLocaleString()}`);
+        return `<article class="marketing-creator-card"><div><b>${creator.name || 'Creador'}</b><span>${creator.platform || 'Plataforma de streaming'} · ${followers.toLocaleString()} seguidores</span><small>Preferencias: ${Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas'}</small><small>${availability}</small></div><button type="button" class="dock-btn btn-send-streamer-key ${unavailable ? 'btn-soft-disabled' : ''}" data-creator-id="${creator.id}" onclick="window.sendMarketingKeys('${creator.id}')">[[DE_ICON_001]] Enviar clave</button></article>`;
     }).join('') : '<p class="marketing-empty">Los perfiles de creadores aparecerán cuando se desbloquee el streaming.</p>';
     const recentGameFeed = game.gamesHistory.slice(0, 5).flatMap(item => [
         ...(item.marketingFeed || []),
@@ -2242,16 +2360,16 @@ function renderMarketingHub() {
         ...(game.marketingFeed || []),
         ...(game.socialFeed || [])
     ].slice(-10).reverse();
-    const feedMarkup = feed.length ? feed.map(post => `<li><span>${post.icon || '💬'}</span><div><b>${post.author || post.handle || post.source || 'Comunidad'}</b><p>${post.text || post.message || post.content || ''}</p><small>${post.time || post.date || ''}</small></div></li>`).join('') : '<li class="marketing-empty">Aún no hay comentarios. El feed reaccionará a tus campañas y lanzamientos.</li>';
+    const feedMarkup = feed.length ? feed.map(post => `<li><span>${post.icon || '[[DE_ICON_103]]'}</span><div><b>${post.author || post.handle || post.source || 'Comunidad'}</b><p>${post.text || post.message || post.content || ''}</p><small>${post.time || post.date || ''}</small></div></li>`).join('') : '<li class="marketing-empty">Aún no hay comentarios. El feed reaccionará a tus campañas y lanzamientos.</li>';
     const broadcasts = game.streamerBroadcasts || [];
-    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>🔴</span><div><b>${show.creatorName || show.name || 'Creador'} está retransmitiendo</b><p>${show.gameName || 'Tu juego'} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
+    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>[[DE_ICON_115]]</span><div><b>${show.creatorName || show.name || 'Creador'} está retransmitiendo</b><p>${show.gameName || 'Tu juego'} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
     const approvalGames = game.gamesHistory.filter(item => item.userApproval !== undefined || item.reviewBombing);
-    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · ⚠️ Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
+    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · [[DE_ICON_016]] Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
 
     const archive = game.marketingPressArchive || [];
-    const pressArchiveMarkup = archive.length ? `<section class="marketing-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><h3 style="margin: 0;">📰 Archivo de Cobertura y Portadas de Prensa (${archive.length})</h3><span style="font-size: 11px; color: var(--accent-gold);">Colección Histórica</span></div><p class="marketing-section-note">Haz clic en cualquier portada histórica para ampliarla en detalle.</p><div class="marketing-press-gallery">${archive.map(cover => `<div class="press-gallery-card ${cover.period}" onclick="window.showMarketingPressCover('${cover.id}')"><div class="press-gallery-badge">${cover.priceBadge}</div><div class="press-gallery-pub">${cover.publicationName}</div><strong class="press-gallery-head">${cover.headline}</strong><div class="press-gallery-footer"><span>🎮 ${cover.gameName || 'Juego'}</span><span>Año ${cover.year}</span></div></div>`).join('')}</div></section>` : '';
+    const pressArchiveMarkup = archive.length ? `<section class="marketing-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><h3 style="margin: 0;">[[DE_ICON_061]] Archivo de Cobertura y Portadas de Prensa (${archive.length})</h3><span style="font-size: 11px; color: var(--accent-gold);">Colección Histórica</span></div><p class="marketing-section-note">Haz clic en cualquier portada histórica para ampliarla en detalle.</p><div class="marketing-press-gallery">${archive.map(cover => `<div class="press-gallery-card ${cover.period}" onclick="window.showMarketingPressCover('${cover.id}')"><div class="press-gallery-badge">${cover.priceBadge}</div><div class="press-gallery-pub">${cover.publicationName}</div><strong class="press-gallery-head">${cover.headline}</strong><div class="press-gallery-footer"><span>[[DE_ICON_001]] ${cover.gameName || 'Juego'}</span><span>Año ${cover.year}</span></div></div>`).join('')}</div></section>` : '';
 
-    container.innerHTML = `<div class="marketing-summary"><span id="mkt-summary-year">📅 Era ${year}</span><span id="mkt-summary-project">Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span id="mkt-summary-hype">Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span id="mkt-summary-wishlists">Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>📢 Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>🎥 Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>🔴 En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>💬 Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div>${pressArchiveMarkup}<section class="marketing-section"><h3>⭐ Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
+    container.innerHTML = `<div class="marketing-summary"><span id="mkt-summary-year">[[DE_ICON_066]] Era ${year}</span><span id="mkt-summary-project">Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span id="mkt-summary-hype">Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span id="mkt-summary-wishlists">Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>[[DE_ICON_099]] Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>[[DE_ICON_105]] Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>[[DE_ICON_115]] En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>[[DE_ICON_103]] Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div>${pressArchiveMarkup}<section class="marketing-section"><h3>[[DE_ICON_005]] Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
 }
 
 function updateMarketingHubCounters() {
@@ -2260,7 +2378,7 @@ function updateMarketingHubCounters() {
     const hypeEl = document.getElementById('mkt-summary-hype');
     const wishEl = document.getElementById('mkt-summary-wishlists');
     const project = game.currentProject;
-    if (yearEl) yearEl.textContent = `📅 Era ${game.getHistoricalYear()}`;
+    if (yearEl) yearEl.textContent = `[[DE_ICON_066]] Era ${game.getHistoricalYear()}`;
     if (projEl) projEl.innerHTML = `Proyecto: <b>${project?.name || 'ninguno activo'}</b>`;
     if (hypeEl) hypeEl.innerHTML = `Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b>`;
     if (wishEl) wishEl.innerHTML = `Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b>`;
@@ -2297,10 +2415,10 @@ function renderIndustryNews(state = game) {
             ? (typeof choice.cost === 'number' ? `$${Number(choice.cost).toLocaleString()}` : choice.cost)
             : '';
         const risks = Array.isArray(choice.risks) && choice.risks.length
-            ? choice.risks.map(r => `<span class="choice-risk-tag">⚠️ ${r}</span>`).join(' ')
+            ? choice.risks.map(r => `<span class="choice-risk-tag">[[DE_ICON_016]] ${r}</span>`).join(' ')
             : '';
-        const time = choice.timeWeeks ? `<span class="choice-time-tag">⏱️ +${choice.timeWeeks} sem</span>` : '';
-        const costTag = cost ? `<span class="choice-cost-tag">💰 ${cost}</span>` : '<span class="choice-cost-tag gratis">💰 Sin coste</span>';
+        const time = choice.timeWeeks ? `<span class="choice-time-tag">[[DE_ICON_075]] +${choice.timeWeeks} sem</span>` : '';
+        const costTag = cost ? `<span class="choice-cost-tag">[[DE_ICON_042]] ${cost}</span>` : '<span class="choice-cost-tag gratis">[[DE_ICON_042]] Sin coste</span>';
 
         return `
             <article class="industry-choice-card">
@@ -2314,7 +2432,7 @@ function renderIndustryNews(state = game) {
                 </div>
                 <div class="choice-action-col">
                     <button type="button" class="dock-btn btn-primary-action" onclick="resolveIndustryChoice('${event.id}','${choice.id}')">
-                        ${isRetro ? '✍️ Firmar Decisión' : '⚡ Ejecutar Orden'}
+                        ${isRetro ? '[[DE_ICON_120]] Firmar Decisión' : '[[DE_ICON_022]] Ejecutar Orden'}
                     </button>
                 </div>
             </article>
@@ -2322,8 +2440,8 @@ function renderIndustryNews(state = game) {
     }).join('');
 
     const kicker = isRetro
-        ? `📰 THE GAMING GAZETTE · EDICIÓN EXTRAORDINARIA DE PRENSA · AÑO ${year}`
-        : `🔴 BREAKING NEWS WIRE · MERCADOS GLOBALES EN VIVO · AÑO ${year}`;
+        ? `[[DE_ICON_061]] THE GAMING GAZETTE · EDICIÓN EXTRAORDINARIA DE PRENSA · AÑO ${year}`
+        : `[[DE_ICON_115]] BREAKING NEWS WIRE · MERCADOS GLOBALES EN VIVO · AÑO ${year}`;
 
     content.innerHTML = `
         <div class="industry-news-kicker">${kicker}</div>
@@ -2364,7 +2482,7 @@ function renderCommunityWorkshop() {
     if (!titles.length) {
         gamesContainer.innerHTML = `
             <div class="business-offer-panel" style="text-align: center; padding: 30px;">
-                <span style="font-size: 38px;">🧩</span>
+                <span style="font-size: 38px;">[[DE_ICON_034]]</span>
                 <h3 style="margin: 10px 0;">Aún no has publicado ningún videojuego</h3>
                 <p style="color: var(--text-secondary); font-size: 13px;">Lanza tu primer juego en el mercado para poder integrar la API oficial de modding y activar su Workshop comunitario.</p>
             </div>
@@ -2387,12 +2505,12 @@ function renderCommunityWorkshop() {
         let statusBadge = '';
         if (enabled) {
             statusBadge = workshop.compatibilityBroken
-                ? '<span class="workshop-badge badge-broken">⚠️ Compatibilidad rota por parche</span>'
-                : '<span class="workshop-badge badge-active">✓ API y mods compatibles</span>';
+                ? '<span class="workshop-badge badge-broken">[[DE_ICON_016]] Compatibilidad rota por parche</span>'
+                : '<span class="workshop-badge badge-active">[[DE_ICON_149]] API y mods compatibles</span>';
         } else if (eligible) {
-            statusBadge = '<span class="workshop-badge badge-ready">⚡ API Investigada · Listo para activar</span>';
+            statusBadge = '<span class="workshop-badge badge-ready">[[DE_ICON_022]] API Investigada · Listo para activar</span>';
         } else {
-            statusBadge = `<span class="workshop-badge badge-locked">🔒 ${result.status}</span>`;
+            statusBadge = `<span class="workshop-badge badge-locked">[[DE_ICON_093]] ${result.status}</span>`;
         }
 
         const engagementVal = Number(workshop.engagement || 0);
@@ -2406,8 +2524,8 @@ function renderCommunityWorkshop() {
             ? `<ul class="workshop-mod-list">${mods.slice(0, 4).map(mod => `
                 <li class="${mod.popular ? 'popular-mod-item' : ''}">
                     <div>
-                        <b>${mod.popular ? '🌟 ' : '🧩 '}${mod.name || 'Mod comunitario'}</b>
-                        <small style="display:block; color:var(--text-secondary);">Creador: @${mod.creator || 'Modder'} · ${mod.compatible ? '✓ Compatible' : '⚠️ Roto'}</small>
+                        <b>${mod.popular ? '[[DE_ICON_040]] ' : '[[DE_ICON_034]] '}${mod.name || 'Mod comunitario'}</b>
+                        <small style="display:block; color:var(--text-secondary);">Creador: @${mod.creator || 'Modder'} · ${mod.compatible ? '[[DE_ICON_149]] Compatible' : '[[DE_ICON_016]] Roto'}</small>
                     </div>
                     <span>${Number(mod.downloads || 0).toLocaleString()} descargas</span>
                 </li>`).join('')}</ul>`
@@ -2415,13 +2533,13 @@ function renderCommunityWorkshop() {
 
         const action = !enabled
             ? `<button type="button" class="dock-btn btn-primary-action" onclick="enableGameWorkshop('${title.id}')" ${!canEnable ? 'disabled' : ''}>
-                🧩 Activar Soporte Workshop (${title.moddingApiIncluded ? '$8,000+' : '$15,000+'})
+                [[DE_ICON_034]] Activar Soporte Workshop (${title.moddingApiIncluded ? '$8,000+' : '$15,000+'})
                </button>`
             : (workshop.compatibilityBroken
                 ? `<button type="button" class="dock-btn btn-primary-action btn-danger" onclick="updateGameModTools('${title.id}')">
-                    🛠️ Publicar Herramientas de Actualización (Restaurar compatibilidad)
+                    [[DE_ICON_015]] Publicar Herramientas de Actualización (Restaurar compatibilidad)
                    </button>`
-                : '<span class="workshop-compatible">✓ Ecosistema Comunitario Óptimo</span>');
+                : '<span class="workshop-compatible">[[DE_ICON_149]] Ecosistema Comunitario Óptimo</span>');
 
         return `
             <article class="workshop-game-card ${workshop.compatibilityBroken ? 'card-warning' : ''}">
@@ -2480,28 +2598,28 @@ function renderSimulatorMods() {
         <div class="simulator-mods-dashboard">
             <div class="sim-stats-grid">
                 <div class="sim-stat-card">
-                    <span class="stat-icon">🎮</span>
+                    <span class="stat-icon">[[DE_ICON_001]]</span>
                     <div>
                         <strong>${platforms.length}</strong> Consolas Activas
                         <small style="display:block;color:var(--text-secondary);">${moddedPlatforms.length} consolas por mods</small>
                     </div>
                 </div>
                 <div class="sim-stat-card">
-                    <span class="stat-icon">🎥</span>
+                    <span class="stat-icon">[[DE_ICON_105]]</span>
                     <div>
                         <strong>${streamers.length}</strong> Creadores de Contenido
                         <small style="display:block;color:var(--text-secondary);">${moddedStreamers.length} creadores por mods</small>
                     </div>
                 </div>
                 <div class="sim-stat-card">
-                    <span class="stat-icon">📰</span>
+                    <span class="stat-icon">[[DE_ICON_061]]</span>
                     <div>
                         <strong>${events.length}</strong> Crisis y Eventos Dinámicos
                         <small style="display:block;color:var(--text-secondary);">Catálogo Data-Driven JSON</small>
                     </div>
                 </div>
                 <div class="sim-stat-card">
-                    <span class="stat-icon">📦</span>
+                    <span class="stat-icon">[[DE_ICON_013]]</span>
                     <div>
                         <strong>${installed.length}</strong> Paquetes Instalados
                         <small style="display:block;color:var(--text-secondary);">Ecosistema de modding vivo</small>
@@ -2511,19 +2629,19 @@ function renderSimulatorMods() {
 
             <div class="sim-mod-actions-toolbar">
                 <button type="button" class="dock-btn btn-primary-action" onclick="window.loadSimulatorModSample()">
-                    ⚡ Cargar Pack Oficial: Marcas Reales & Creadores Famosos
+                    [[DE_ICON_022]] Cargar Pack Oficial: Marcas Reales & Creadores Famosos
                 </button>
                 <button type="button" class="dock-btn" onclick="document.getElementById('sim-mod-file-input').click()">
-                    📂 Importar Mod Personalizado (.JSON)
+                    [[DE_ICON_121]] Importar Mod Personalizado (.JSON)
                 </button>
                 <button type="button" class="dock-btn" onclick="window.exportSimulatorModTemplate()">
-                    💾 Exportar Plantilla JSON de Modding
+                    [[DE_ICON_048]] Exportar Plantilla JSON de Modding
                 </button>
                 <input type="file" id="sim-mod-file-input" accept=".json" style="display:none;" onchange="window.importSimulatorModFile(event)">
             </div>
 
             <div class="installed-packages-section">
-                <h3 style="margin: 14px 0 8px; font-size: 15px; color: #e2e8f0;">📦 Paquetes de Comunidad Instalados</h3>
+                <h3 style="margin: 14px 0 8px; font-size: 15px; color: #e2e8f0;">[[DE_ICON_013]] Paquetes de Comunidad Instalados</h3>
                 ${installed.length ? `
                     <div class="installed-mod-list">
                         ${installed.map(pkg => `
@@ -2545,11 +2663,11 @@ function renderSimulatorMods() {
             </div>
 
             <div class="active-catalog-preview">
-                <h3 style="margin: 16px 0 8px; font-size: 15px; color: #e2e8f0;">🕹️ Plataformas y Consolas Disponibles en el Motor</h3>
+                <h3 style="margin: 16px 0 8px; font-size: 15px; color: #e2e8f0;">[[DE_ICON_037]] Plataformas y Consolas Disponibles en el Motor</h3>
                 <div class="platforms-pill-grid">
                     ${platforms.map(p => `
                         <span class="platform-chip ${p.isModded ? 'chip-mod' : ''}">
-                            ${p.icon || '🎮'} ${p.name} (Era ${p.eraUnlocked}) ${p.isModded ? '<b>[MOD]</b>' : ''}
+                            ${p.icon || '[[DE_ICON_001]]'} ${p.name} (Era ${p.eraUnlocked}) ${p.isModded ? '<b>[MOD]</b>' : ''}
                         </span>
                     `).join('')}
                 </div>
@@ -2654,7 +2772,7 @@ window.refreshMarketingHub = renderMarketingHub;
 
 window.runMarketingMethod = function(methodId) {
     if (!game.currentProject) {
-        showToast('⚠️ Se requiere un proyecto en desarrollo activo para lanzar campañas publicitarias.', 'warn');
+        showToast('[[DE_ICON_016]] Se requiere un proyecto en desarrollo activo para lanzar campañas publicitarias.', 'warn');
         return;
     }
     const option = (game.getMarketingOptions ? game.getMarketingOptions() : []).find(item => item.id === methodId);
@@ -2663,20 +2781,20 @@ window.runMarketingMethod = function(methodId) {
         return;
     }
     if (option.available === false) {
-        showToast(`🔒 Este canal publicitario estará disponible a partir del año ${option.year || 'una era posterior'}.`, 'warn');
+        showToast(`[[DE_ICON_093]] Este canal publicitario estará disponible a partir del año ${option.year || 'una era posterior'}.`, 'warn');
         return;
     }
     if ((game.currentProject.marketingActions || []).some(item => item.id === methodId)) {
-        showToast('⚠️ Ya has utilizado este canal publicitario para tu proyecto actual.', 'warn');
+        showToast('[[DE_ICON_016]] Ya has utilizado este canal publicitario para tu proyecto actual.', 'warn');
         return;
     }
     if (['cd_demo', 'e3_trailer', 'digital_demo'].includes(methodId) && game.currentProject.overallProgress < 50) {
-        showToast('⏳ Se requiere completar al menos el 50% del desarrollo antes de publicar demos o trailers jugables.', 'warn');
+        showToast('[[DE_ICON_060]] Se requiere completar al menos el 50% del desarrollo antes de publicar demos o trailers jugables.', 'warn');
         return;
     }
     const cost = Number(option.cost || 0);
     if (game.funds < cost) {
-        showToast(`💸 Fondos insuficientes: La campaña requiere $${cost.toLocaleString()} y dispones de $${Math.floor(game.funds).toLocaleString()}.`, 'warn');
+        showToast(`[[DE_ICON_122]] Fondos insuficientes: La campaña requiere $${cost.toLocaleString()} y dispones de $${Math.floor(game.funds).toLocaleString()}.`, 'warn');
         return;
     }
 
@@ -2687,7 +2805,7 @@ window.runMarketingMethod = function(methodId) {
 
     const result = game.runProjectMarketing(methodId);
     if (result && result.success !== false) {
-        showToast(result.message || '📢 ¡Campaña de marketing lanzada con éxito!', 'success');
+        showToast(result.message || '[[DE_ICON_099]] ¡Campaña de marketing lanzada con éxito!', 'success');
         if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         renderMarketingHub();
         renderHUD(game);
@@ -2706,7 +2824,7 @@ window.sendMarketingKeys = function(creatorId) {
 
     const targetGames = [ ...(game.currentProject ? [{ id: game.currentProject.id || `project:${game.currentProject.name}`, name: `${game.currentProject.name} (en desarrollo)` }] : []), ...game.gamesHistory.map(item => ({ id: item.id, name: item.name })) ];
     if (!targetGames.length) {
-        showToast('⚠️ Debes tener un juego activo en desarrollo o lanzado para enviar claves.', 'warn');
+        showToast('[[DE_ICON_016]] Debes tener un juego activo en desarrollo o lanzado para enviar claves.', 'warn');
         return;
     }
     const targetSelect = document.getElementById('marketing-key-game');
@@ -2714,16 +2832,16 @@ window.sendMarketingKeys = function(creatorId) {
     const creators = typeof game.getCreatorProfiles === 'function' ? game.getCreatorProfiles(targetId) : (game.creatorProfiles || []);
     const creator = creators.find(c => c.id === creatorId);
     if (creator && creator.alreadySent) {
-        showToast(`ℹ️ Ya le has enviado claves promocionales a ${creator.name} para este juego.`, 'info');
+        showToast(`[[DE_ICON_123]] Ya le has enviado claves promocionales a ${creator.name} para este juego.`, 'info');
         return;
     }
     if (creator && creator.available === false) {
-        showToast(`🔒 Este creador estará disponible en ${creator.yearUnlocked || 'una era posterior'}.`, 'warn');
+        showToast(`[[DE_ICON_093]] Este creador estará disponible en ${creator.yearUnlocked || 'una era posterior'}.`, 'warn');
         return;
     }
     const fee = Number(creator?.fee || 0);
     if (game.funds < fee) {
-        showToast(`💸 Fondos insuficientes: El envío a ${creator?.name || 'este creador'} cuesta $${fee.toLocaleString()} y dispones de $${Math.floor(game.funds).toLocaleString()}.`, 'warn');
+        showToast(`[[DE_ICON_122]] Fondos insuficientes: El envío a ${creator?.name || 'este creador'} cuesta $${fee.toLocaleString()} y dispones de $${Math.floor(game.funds).toLocaleString()}.`, 'warn');
         return;
     }
 
@@ -2734,7 +2852,7 @@ window.sendMarketingKeys = function(creatorId) {
 
     const result = game.sendStreamerKeys(targetId, creatorId, 1);
     if (result && result.success !== false) {
-        showToast(result.message || '🎮 Clave promocional enviada.', 'success');
+        showToast(result.message || '[[DE_ICON_001]] Clave promocional enviada.', 'success');
         if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         renderMarketingHub();
         renderHUD(game);
@@ -2749,7 +2867,7 @@ function handleOfficeUpgrade() {
         world.buildOffice(res.newEra);
         world.syncEmployees(game.employees);
         updatePlatformOptions();
-        showToast(`🎉 ¡ENHORABUENA! Tu empresa se ha mudado a: ${res.name}`, 'success');
+        showToast(`[[DE_ICON_073]] ¡ENHORABUENA! Tu empresa se ha mudado a: ${res.name}`, 'success');
         if (soundEngine) soundEngine.playFanfare(9.5);
     } else {
         showToast(res.message, 'warn');
@@ -2838,7 +2956,7 @@ function renderRecruitment() {
             const weeksRemaining = offer.deadlineWeeksRemaining;
             const deadlineLabel = weeksRemaining !== undefined ? `${weeksRemaining} semanas` : `${offer.deadlineDaysRemaining ?? offer.daysRemaining ?? 21} días`;
             const proposedSalary = offer.offeredSalary || offer.counterofferSalary || 0;
-            return `<article class="hr-headhunt-card"><div><b>🧠 Oferta rival por ${name}</b><small>Salario propuesto: $${Number(proposedSalary).toLocaleString()}/mes · ${deadlineLabel} para responder</small></div><div><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','match')">Igualar oferta</button><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','bonus')">Bonus puntual</button><button class="staff-action-btn hr-danger-btn" onclick="resolveHeadhuntAction('${employeeId}','let_go')">Dejar marchar</button></div></article>`;
+            return `<article class="hr-headhunt-card"><div><b>[[DE_ICON_056]] Oferta rival por ${name}</b><small>Salario propuesto: $${Number(proposedSalary).toLocaleString()}/mes · ${deadlineLabel} para responder</small></div><div><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','match')">Igualar oferta</button><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','bonus')">Bonus puntual</button><button class="staff-action-btn hr-danger-btn" onclick="resolveHeadhuntAction('${employeeId}','let_go')">Dejar marchar</button></div></article>`;
         }).join('');
     }
 
@@ -2852,7 +2970,7 @@ function renderRecruitment() {
         const stressResistance = emp.stressResistance ?? 50;
         const morale = emp.morale ?? 70;
         const stress = emp.stress ?? 0;
-        const statusIcon = emp.burnoutState === 'total' ? '🔥' : (emp.burnoutState === 'risk' ? '⚡' : (staminaPct < 40 ? '☕' : (morale >= 80 ? '💡' : '')));
+        const statusIcon = emp.burnoutState === 'total' ? '[[DE_ICON_003]]' : (emp.burnoutState === 'risk' ? '[[DE_ICON_022]]' : (staminaPct < 40 ? '[[DE_ICON_029]]' : (morale >= 80 ? '[[DE_ICON_028]]' : '')));
         const speedRating = emp.speedRating ?? Math.round((emp.speed || 1) * 75);
 
         const card = document.createElement('div');
@@ -2864,9 +2982,9 @@ function renderRecruitment() {
                 <span style="font-size: 11px; color: var(--accent-cyan);">[${emp.trait}]</span>
                 <span class="hr-status-icon">${statusIcon}</span>
                 <div style="font-size: 12px; color: var(--text-secondary); margin: 3px 0;">
-                    ${emp.role} · ${experience} • 💻 Tech: <strong>${emp.tech}</strong> | 🎨 Design: <strong>${emp.design}</strong> | ⚡ Vel: <strong>${speedRating}</strong>
+                    ${emp.role} · ${experience} • [[DE_ICON_018]] Tech: <strong>${emp.tech}</strong> | [[DE_ICON_019]] Design: <strong>${emp.design}</strong> | [[DE_ICON_022]] Vel: <strong>${speedRating}</strong>
                 </div>
-                <div class="hr-employee-metrics"><span>🙂 Moral: ${Math.round(morale)}%</span><span>⚡ Estrés: ${Math.round(stress)}%</span><span>🛡️ Resistencia: ${stressResistance}</span><span>🤒 Baja: ${emp.sickWeeksRemaining || 0} sem</span><span>📆 Crunch: ${emp.continuousCrunchWeeks || 0} sem</span></div>
+                <div class="hr-employee-metrics"><span>[[DE_ICON_124]] Moral: ${Math.round(morale)}%</span><span>[[DE_ICON_022]] Estrés: ${Math.round(stress)}%</span><span>[[DE_ICON_021]] Resistencia: ${stressResistance}</span><span>[[DE_ICON_125]] Baja: ${emp.sickWeeksRemaining || 0} sem</span><span>[[DE_ICON_126]] Crunch: ${emp.continuousCrunchWeeks || 0} sem</span></div>
                 <div class="stamina-container">
                     <span style="font-size: 11px; color: var(--text-secondary);">Energía:</span>
                     <div class="stamina-bar">
@@ -2879,11 +2997,11 @@ function renderRecruitment() {
             </div>
             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
                 <span style="font-weight: 700; color: var(--accent-green); font-size: 13px;">$${emp.salary.toLocaleString()}/mes</span>
-                <div class="hr-salary-controls"><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 0.9)})">−10%</button><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 1.1)})">+10%</button>${emp.isLead ? '<b class="hr-lead-badge">⭐ Líder</b>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${emp.id}')">⭐ Liderazgo</button>`}</div>
+                <div class="hr-salary-controls"><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 0.9)})">−10%</button><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 1.1)})">+10%</button>${emp.isLead ? '<b class="hr-lead-badge">[[DE_ICON_005]] Líder</b>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${emp.id}')">[[DE_ICON_005]] Liderazgo</button>`}</div>
                 <div style="display: flex; gap: 6px;">
-                    <button class="staff-action-btn" onclick="sendOnVacation('${emp.id}')" title="Restaura 100% de energía">🏖️ Vacaciones ($2k)</button>
-                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'tech')" title="+8 Tech permanentemente">💻 +8 Tech</button>
-                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'design')" title="+8 Design permanentemente">🎨 +8 Des</button>
+                    <button class="staff-action-btn" onclick="sendOnVacation('${emp.id}')" title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones ($2k)</button>
+                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'tech')" title="+8 Tech permanentemente">[[DE_ICON_018]] +8 Tech</button>
+                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'design')" title="+8 Design permanentemente">[[DE_ICON_019]] +8 Des</button>
                 </div>
             </div>
         `;
@@ -2920,7 +3038,7 @@ function renderRecruitment() {
                 <strong style="font-size: 15px; color: #fff;">${c.name}</strong> 
                 <span style="font-size: 12px; color: var(--accent-cyan);">[${c.trait}]</span>
                 <div style="font-size: 13px; color: var(--text-secondary); margin-top: 3px;">
-                    ${c.role} · ${c.experience || c.level || 'Mid'} • 💻 Tech: <strong>${c.tech}</strong> | 🎨 Design: <strong>${c.design}</strong> | ⚡ Vel: <strong>${c.speedRating ?? Math.round((c.speed || 1) * 75)}</strong> | 🛡️ Estrés: <strong>${c.stressResistance ?? 50}</strong>
+                    ${c.role} · ${c.experience || c.level || 'Mid'} • [[DE_ICON_018]] Tech: <strong>${c.tech}</strong> | [[DE_ICON_019]] Design: <strong>${c.design}</strong> | [[DE_ICON_022]] Vel: <strong>${c.speedRating ?? Math.round((c.speed || 1) * 75)}</strong> | [[DE_ICON_021]] Estrés: <strong>${c.stressResistance ?? 50}</strong>
                 </div>
                 <div style="font-size: 11px; color: var(--text-secondary); font-style: italic; margin-top: 2px;">
                     ${c.desc || ''}
@@ -2943,7 +3061,7 @@ window.hireCandidate = function(name) {
     if (res.success) {
         world.syncEmployees(game.employees);
         renderRecruitment();
-        showToast(`🎉 ¡${candidate.name} se ha unido al equipo de desarrollo!`, 'success');
+        showToast(`[[DE_ICON_073]] ¡${candidate.name} se ha unido al equipo de desarrollo!`, 'success');
     } else {
         showToast(res.message, 'warn');
     }
@@ -2974,7 +3092,7 @@ window.refreshCandidates = function() {
         : game.refreshCandidates(budget);
     if (res.success) {
         renderRecruitment();
-        showToast("🔄 Bolsa de empleo actualizada con nuevos candidatos.", 'info');
+        showToast("[[DE_ICON_062]] Bolsa de empleo actualizada con nuevos candidatos.", 'info');
     } else {
         showToast(res.message, 'warn');
     }
@@ -3075,7 +3193,7 @@ function setupTechBranchFilterTabs() {
         toggleBtn.onclick = () => {
             const isHidden = panel.style.display === 'none' || panel.style.display === '';
             panel.style.display = isHidden ? 'block' : 'none';
-            if (toggleIcon) toggleIcon.innerText = isHidden ? 'Plegar ▲' : 'Desplegar ▼';
+            if (toggleIcon) toggleIcon.innerText = isHidden ? 'Plegar [[DE_ICON_151]]' : 'Desplegar [[DE_ICON_152]]';
         };
     }
 }
@@ -3126,7 +3244,7 @@ function renderTechTree() {
                             <div>
                                 <strong style="font-size: 15px; color: #fff;">Proyecto en Curso: "${ar.nodeName}"</strong>
                                 <div style="font-size: 12px; color: var(--accent-cyan); margin-top: 2px;">
-                                    ⏱️ Quedan ${ar.weeksRemaining} semana${ar.weeksRemaining === 1 ? '' : 's'} para concluir el desarrollo
+                                    [[DE_ICON_075]] Quedan ${ar.weeksRemaining} semana${ar.weeksRemaining === 1 ? '' : 's'} para concluir el desarrollo
                                 </div>
                             </div>
                         </div>
@@ -3141,7 +3259,7 @@ function renderTechTree() {
             activeContainer.innerHTML = `
                 <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
                     <span style="font-size: 12px; color: var(--text-secondary);">
-                        💡 No hay ningún proyecto de I+D activo. Selecciona un módulo <strong>INVESTIGABLE</strong> para iniciar el desarrollo con tu equipo.
+                        [[DE_ICON_028]] No hay ningún proyecto de I+D activo. Selecciona un módulo <strong>INVESTIGABLE</strong> para iniciar el desarrollo con tu equipo.
                     </span>
                     <span class="node-status-badge badge-available">Equipo Listo</span>
                 </div>
@@ -3156,7 +3274,7 @@ function renderTechTree() {
             const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
             return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados ($20.000 + $4.000/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
         }).join('');
-        enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>🛠️ I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
+        enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
     }
 
     // 3. Competitor Hardware Reverse Engineering Grid
@@ -3173,13 +3291,13 @@ function renderTechTree() {
             
             let actionHtml = '';
             if (isDismantled) {
-                actionHtml = `<span style="font-size: 11px; font-weight: 700; color: var(--accent-green);">✓ Desmantelado (+${item.rpGain} RP)</span>`;
+                actionHtml = `<span style="font-size: 11px; font-weight: 700; color: var(--accent-green);">[[DE_ICON_149]] Desmantelado (+${item.rpGain} RP)</span>`;
             } else if (!isAvailableByYear) {
-                actionHtml = `<span style="font-size: 11px; color: var(--accent-red); font-weight: 700;">🔒 Bloqueado (Año ${item.minYear})</span>`;
+                actionHtml = `<span style="font-size: 11px; color: var(--accent-red); font-weight: 700;">[[DE_ICON_093]] Bloqueado (Año ${item.minYear})</span>`;
             } else {
                 actionHtml = `
                     <button class="dock-btn btn-primary-action" style="padding: 5px 12px; font-size: 11px;" ${!canAfford ? 'disabled style="opacity:0.5;"' : ''} onclick="dismantleHardware('${item.id}')">
-                        🔧 Desmantelar ($${item.costMoney.toLocaleString()})
+                        [[DE_ICON_106]] Desmantelar ($${item.costMoney.toLocaleString()})
                     </button>
                 `;
             }
@@ -3209,13 +3327,13 @@ function renderTechTree() {
         branchesContainer.innerHTML = '';
 
         const branchDefs = [
-            { id: 'render', name: 'Motor Gráfico & Renderizado', icon: '🖥️' },
-            { id: 'physics', name: 'Físicas & Colisiones Cinemáticas', icon: '⚛️' },
-            { id: 'netcode', name: 'Netcode & Sincronización de Red', icon: '🌐' },
-            { id: 'ai', name: 'Inteligencia Artificial & Lógica', icon: '🧠' },
-            { id: 'audio', name: 'Pipeline Acústico & Audio Espacial', icon: '🎧' },
-            { id: 'content', name: 'Contenido & Estructura de Mundo', icon: '🗺️' },
-            { id: 'systems', name: 'Sistemas Avanzados & Jugabilidad', icon: '⚙️' }
+            { id: 'render', name: 'Motor Gráfico & Renderizado', icon: '[[DE_ICON_054]]' },
+            { id: 'physics', name: 'Físicas & Colisiones Cinemáticas', icon: '[[DE_ICON_055]]' },
+            { id: 'netcode', name: 'Netcode & Sincronización de Red', icon: '[[DE_ICON_020]]' },
+            { id: 'ai', name: 'Inteligencia Artificial & Lógica', icon: '[[DE_ICON_056]]' },
+            { id: 'audio', name: 'Pipeline Acústico & Audio Espacial', icon: '[[DE_ICON_045]]' },
+            { id: 'content', name: 'Contenido & Estructura de Mundo', icon: '[[DE_ICON_057]]' },
+            { id: 'systems', name: 'Sistemas Avanzados & Jugabilidad', icon: '[[DE_ICON_049]]' }
         ];
 
         branchDefs.forEach(branch => {
@@ -3223,7 +3341,7 @@ function renderTechTree() {
                 return;
             }
 
-            const branchNodes = SCOPE_NODES_CATALOG.filter(n => {
+            const branchNodes = mgr.catalog.filter(n => {
                 if (branch.id === 'netcode') return n.category === 'netcode' || n.category === 'net';
                 return n.category === branch.id;
             });
@@ -3251,13 +3369,13 @@ function renderTechTree() {
 
                 // Status Badge
                 let badgeClass = 'badge-locked';
-                let badgeLabel = '🔒 Bloqueado';
+                let badgeLabel = '[[DE_ICON_093]] Bloqueado';
                 if (isUnlocked) {
                     badgeClass = 'badge-unlocked';
-                    badgeLabel = '✓ Desbloqueado';
+                    badgeLabel = '[[DE_ICON_149]] Desbloqueado';
                 } else if (isInvestigable) {
                     badgeClass = 'badge-investigable';
-                    badgeLabel = '⚡ Investigable';
+                    badgeLabel = '[[DE_ICON_022]] Investigable';
                 }
 
                 // Requirements preview
@@ -3265,14 +3383,14 @@ function renderTechTree() {
                 let prereqHtml = '';
                 if (prereqs.length > 0) {
                     const pills = prereqs.map(pId => {
-                        const pDef = SCOPE_NODES_CATALOG.find(x => x.id === pId);
+                        const pDef = mgr.catalogMap.get(pId);
                         const pName = pDef ? pDef.name : pId;
                         const met = mgr.isUnlocked(pId);
-                        return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '✓' : '✗'} ${pName}</span>`;
+                        return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '[[DE_ICON_149]]' : '[[DE_ICON_150]]'} ${pName}</span>`;
                     }).join(' ');
                     prereqHtml = `<div class="tech-prereq-row"><span style="opacity: 0.7;">Req:</span> ${pills}</div>`;
                 } else {
-                    prereqHtml = `<div class="tech-prereq-row"><span class="req-pill req-ok">🌿 Fundación Base</span></div>`;
+                    prereqHtml = `<div class="tech-prereq-row"><span class="req-pill req-ok">[[DE_ICON_064]] Fundación Base</span></div>`;
                 }
 
                 // Action button or status description
@@ -3280,14 +3398,14 @@ function renderTechTree() {
                 if (isUnlocked) {
                     actionArea = `
                         <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--accent-green); padding: 8px 0;">
-                            ✓ Integrado en el catálogo de producción
+                            [[DE_ICON_149]] Integrado en el catálogo de producción
                         </div>
                     `;
                 } else if (isInvestigable) {
-                    const canAffordRP = game.researchPoints >= (node.costRP || 30);
+                    const canAffordRP = game.researchPoints >= (node.costRP ?? 30);
                     const isBusy = game.activeResearch !== null;
                     const disabled = !canAffordRP || isBusy;
-                    const btnText = isBusy ? '⏳ Equipo Ocupado en I+D' : (!canAffordRP ? `RP Insuficiente (${node.costRP} RP)` : `🔬 Iniciar Investigación (${node.costRP} RP)`);
+                    const btnText = isBusy ? '[[DE_ICON_060]] Equipo Ocupado en I+D' : (!canAffordRP ? `RP Insuficiente (${node.costRP} RP)` : `[[DE_ICON_006]] Iniciar Investigación (${node.costRP} RP)`);
 
                     actionArea = `
                         <button class="btn-start-research" ${disabled ? 'disabled' : ''} onclick="startTechResearch('${node.id}')">
@@ -3298,7 +3416,7 @@ function renderTechTree() {
                     // Locked: show exact reason
                     let reasonText = stateInfo.reason;
                     if (stateInfo.isHistoricalLock) {
-                        reasonText = `🔒 Tecnología Desconocida (Aparición: Año ${stateInfo.minYear})`;
+                        reasonText = `[[DE_ICON_093]] Tecnología Desconocida (Aparición: Año ${stateInfo.minYear})`;
                     }
                     actionArea = `
                         <div style="font-size: 11px; color: var(--accent-red); padding: 8px 0; line-height: 1.3;">
@@ -3308,7 +3426,7 @@ function renderTechTree() {
                 }
 
                 // Name: if historical lock, display "Tecnología Desconocida" according to requirements!
-                const displayName = stateInfo.isHistoricalLock ? `🔒 Tecnología Desconocida (Tier ${node.tier})` : `${node.icon} ${node.name}`;
+                const displayName = stateInfo.isHistoricalLock ? `[[DE_ICON_093]] Tecnología Desconocida (Tier ${node.tier})` : `${node.icon} ${node.name}`;
                 const displayDesc = stateInfo.isHistoricalLock ? `Esta tecnología aún no ha sido descubierta por la industria de los videojuegos. Estará disponible a partir del año histórico ${stateInfo.minYear}.` : node.desc;
 
                 card.innerHTML = `
@@ -3318,7 +3436,7 @@ function renderTechTree() {
                             <span class="tech-status-badge ${badgeClass}">${badgeLabel}</span>
                         </div>
                         <div class="tech-meta-row">
-                            <span class="tech-meta-item">📅 ${node.eraName || 'Era 8-bit'}</span>
+                            <span class="tech-meta-item">[[DE_ICON_066]] ${node.eraName || 'Era 8-bit'}</span>
                             <span class="tech-meta-item">Año min: ${node.minYear || 1982}</span>
                             <span class="tech-meta-item" style="color: var(--accent-cyan); font-weight: 700;">Coste: ${node.costRP || 0} RP</span>
                         </div>
@@ -3342,7 +3460,7 @@ function renderTechTree() {
     const checkContainer = document.getElementById('engine-features-checkboxes');
     if (checkContainer) {
         checkContainer.innerHTML = '';
-        SCOPE_NODES_CATALOG.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
+        mgr.catalog.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
             const lbl = document.createElement('label');
             lbl.style.display = 'flex';
             lbl.style.alignItems = 'center';
@@ -3353,6 +3471,9 @@ function renderTechTree() {
             lbl.innerHTML = `<input type="checkbox" name="engine-feat" value="${node.id}" ${index < 3 ? 'checked' : ''}> ${node.icon} ${node.name}`;
             checkContainer.appendChild(lbl);
         });
+        const refreshWarning = () => updateHistoricalWarning('engine-historical-warning', Array.from(checkContainer.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value).filter(id => id.startsWith('tech_')));
+        checkContainer.onchange = refreshWarning;
+        refreshWarning();
     }
     const genreContainer = document.getElementById('engine-specialty-genres');
     if (genreContainer && !genreContainer.dataset.rendered) {
@@ -3364,7 +3485,7 @@ function renderTechTree() {
 
 window.upgradeStudioEngine = function(engineId) {
     const selectedNodes = Array.from(document.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value);
-    const result = game.upgradeInHouseEngine(engineId, selectedNodes);
+    const result = game.upgradeInHouseEngine(engineId, selectedNodes.filter(id => !id.startsWith('tech_')), selectedNodes.filter(id => id.startsWith('tech_')));
     showToast(result.message, result.success ? 'success' : 'warn');
     if (result.success) renderTechTree();
 };
@@ -3423,12 +3544,13 @@ document.getElementById('form-custom-engine').addEventListener('submit', (e) => 
     }
 
     const affineGenres = Array.from(document.querySelectorAll('input[name="engine-genre"]:checked')).map(el => el.value);
-    const res = game.startInHouseEngineRD({ name, bakedNodes: checked, affineGenres });
+    const historicalTechIds = checked.filter(id => id.startsWith('tech_'));
+    const res = game.startInHouseEngineRD({ name, bakedNodes: checked.filter(id => !id.startsWith('tech_')), historicalTechIds, affineGenres });
     if (res.success) {
         updateEngineOptions();
         renderTechTree();
         renderPipelineSelector();
-        showToast(res.message || `⚙️ ¡Nuevo motor "${name}" compilado con éxito!`, 'success');
+        showToast(res.message || `[[DE_ICON_049]] ¡Nuevo motor "${name}" compilado con éxito!`, 'success');
         document.getElementById('input-engine-name').value = '';
     } else {
         showToast(res.message, 'warn');
@@ -3456,31 +3578,31 @@ function renderHistoryAndCharts() {
 
         let statusPill = '';
         if (g.retired) {
-            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4);">📦 Retirado (${g.retiredYear || ''})</span>`;
+            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(148, 163, 184, 0.2); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.4);">[[DE_ICON_013]] Retirado (${g.retiredYear || ''})</span>`;
         } else if (g.lifecycleState === 'long_tail') {
-            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(251, 191, 36, 0.18); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45);">⏳ Cola Larga</span>`;
+            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(251, 191, 36, 0.18); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.45);">[[DE_ICON_060]] Cola Larga</span>`;
         } else {
-            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45);">🔥 En Pico de Ventas</span>`;
+            statusPill = `<span style="display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; background: rgba(56, 189, 248, 0.18); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.45);">[[DE_ICON_003]] En Pico de Ventas</span>`;
         }
 
         let postMortemBtn = '';
         if (g.postMortemReport) {
-            postMortemBtn = `<button class="staff-action-btn" style="border-color: #a855f7; color: #d8b4fe;" onclick="showPostMortemModal('${g.id}')">📊 Ver Informe</button>`;
+            postMortemBtn = `<button class="staff-action-btn" style="border-color: #a855f7; color: #d8b4fe;" onclick="showPostMortemModal('${g.id}')">[[DE_ICON_030]] Ver Informe</button>`;
         } else if (g.postMortemInProgress) {
-            postMortemBtn = `<button class="staff-action-btn" disabled style="opacity: 0.7; border-color: rgba(255,255,255,0.2);">⏳ Analizando...</button>`;
+            postMortemBtn = `<button class="staff-action-btn" disabled style="opacity: 0.7; border-color: rgba(255,255,255,0.2);">[[DE_ICON_060]] Analizando...</button>`;
         } else {
-            postMortemBtn = `<button class="staff-action-btn" onclick="startPostMortem('${g.id}')">📝 Crear Informe (+RP)</button>`;
+            postMortemBtn = `<button class="staff-action-btn" onclick="startPostMortem('${g.id}')">[[DE_ICON_011]] Crear Informe (+RP)</button>`;
         }
 
         const retireBtn = !g.retired
-            ? `<button class="staff-action-btn" style="border-color: #ef4444; color: #f87171;" onclick="retireGameFromHistory('${g.id}')" title="Retirar permanentemente del mercado">📦 Retirar</button>`
+            ? `<button class="staff-action-btn" style="border-color: #ef4444; color: #f87171;" onclick="retireGameFromHistory('${g.id}')" title="Retirar permanentemente del mercado">[[DE_ICON_013]] Retirar</button>`
             : '';
 
         card.innerHTML = `
             <div style="flex: 1;">
                 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
                     <strong style="font-size: 16px; color: #fff;">${g.name}</strong> 
-                    <span class="score-badge ${g.score >= 8 ? 'high' : (g.score >= 6 ? 'med' : 'low')}" style="font-size: 12px;">★ ${g.score}</span>
+                    <span class="score-badge ${g.score >= 8 ? 'high' : (g.score >= 6 ? 'med' : 'low')}" style="font-size: 12px;">[[DE_ICON_148]] ${g.score}</span>
                     ${statusPill}
                 </div>
                 <div style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">
@@ -3495,8 +3617,8 @@ function renderHistoryAndCharts() {
                     </div>
                 </div>
                 <div style="display: flex; gap: 6px;">
-                    <button class="staff-action-btn" onclick="focusGameInLiveWidget('${g.id}')" title="Fijar y ver en el widget flotante del HUD">📌 HUD</button>
-                    <button class="staff-action-btn" onclick="openSalesChartModal('${g.id}')" title="Ver gráfica interactiva de ventas semanales">📈 Gráfica</button>
+                    <button class="staff-action-btn" onclick="focusGameInLiveWidget('${g.id}')" title="Fijar y ver en el widget flotante del HUD">[[DE_ICON_127]] HUD</button>
+                    <button class="staff-action-btn" onclick="openSalesChartModal('${g.id}')" title="Ver gráfica interactiva de ventas semanales">[[DE_ICON_012]] Gráfica</button>
                     ${postMortemBtn}
                     ${retireBtn}
                 </div>
@@ -3527,9 +3649,9 @@ function renderTop10Leaderboard() {
 
     game.top10Chart.slice(0, 10).forEach(item => {
         let trendIcon = '<span class="trend-arrow same">▬</span>';
-        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up">▲</span>';
-        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down">▼</span>';
-        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new">★</span>';
+        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up">[[DE_ICON_151]]</span>';
+        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down">[[DE_ICON_152]]</span>';
+        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new">[[DE_ICON_148]]</span>';
 
         const rowClass = item.isPlayer ? 'leaderboard-row player-row' : 'leaderboard-row';
         const rankColor = item.rank === 1 ? 'var(--accent-gold)' : (item.rank <= 3 ? 'var(--accent-cyan)' : '#fff');
@@ -3578,7 +3700,7 @@ window.showPostMortemModal = function(gameId) {
 
     if (!report) return showToast('No se pudo cargar el informe.', 'warn');
 
-    document.getElementById('pm-title').innerHTML = `<span>📊</span> Informe Post-Mortem: "${report.gameName}"`;
+    document.getElementById('pm-title').innerHTML = `<span>[[DE_ICON_030]]</span> Informe Post-Mortem: "${report.gameName}"`;
     document.getElementById('pm-rp-gain').innerText = `+${report.rpGained} Puntos de Investigación Obtenidos`;
     document.getElementById('pm-synergy-text').innerText = report.synergy || '';
     document.getElementById('pm-audience-text').innerText = report.audience || '';
@@ -3687,10 +3809,10 @@ window.renderSelectedGameSalesChart = function() {
     document.getElementById('kpi-peak-rank').innerText = `Mejor puesto: #${bestRank}`;
 
     const lifecycleNames = {
-        peak: '🔥 En Pico de Ventas',
-        long_tail: '⏳ Cola Larga (Residual)',
-        retired: '📦 Retirado del Mercado',
-        early_access_beta: '🧪 Acceso Anticipado'
+        peak: '[[DE_ICON_003]] En Pico de Ventas',
+        long_tail: '[[DE_ICON_060]] Cola Larga (Residual)',
+        retired: '[[DE_ICON_013]] Retirado del Mercado',
+        early_access_beta: '[[DE_ICON_094]] Acceso Anticipado'
     };
     const stateLabel = g.retired ? 'Retirado' : (g.lifecycleState === 'long_tail' ? 'Cola Larga' : 'Pico de Ventas');
     document.getElementById('kpi-lifecycle-state').innerText = stateLabel;
@@ -3698,7 +3820,7 @@ window.renderSelectedGameSalesChart = function() {
 
     const pill = document.getElementById('chart-game-status-pill');
     if (pill) {
-        pill.innerText = lifecycleNames[g.lifecycleState] || (g.retired ? '📦 Retirado' : '🔥 Activo');
+        pill.innerText = lifecycleNames[g.lifecycleState] || (g.retired ? '[[DE_ICON_013]] Retirado' : '[[DE_ICON_003]] Activo');
         pill.style.background = g.retired ? 'rgba(148,163,184,0.18)' : (g.lifecycleState === 'long_tail' ? 'rgba(251,191,36,0.18)' : 'rgba(56,189,248,0.18)');
         pill.style.color = g.retired ? '#94a3b8' : (g.lifecycleState === 'long_tail' ? '#fbbf24' : '#38bdf8');
         pill.style.borderColor = g.retired ? 'rgba(148,163,184,0.4)' : (g.lifecycleState === 'long_tail' ? 'rgba(251,191,36,0.45)' : 'rgba(56,189,248,0.45)');
@@ -3718,20 +3840,20 @@ window.renderSelectedGameSalesChart = function() {
     const retireBtn = document.getElementById('btn-chart-retire');
     if (retireBtn) {
         retireBtn.disabled = Boolean(g.retired);
-        retireBtn.innerText = g.retired ? '✓ Retirado del Mercado' : '📦 Retirar Juego del Mercado';
+        retireBtn.innerText = g.retired ? '[[DE_ICON_149]] Retirado del Mercado' : '[[DE_ICON_013]] Retirar Juego del Mercado';
         retireBtn.style.opacity = g.retired ? '0.5' : '1';
     }
 
     const pmBtn = document.getElementById('btn-chart-postmortem');
     if (pmBtn) {
         if (g.postMortemReport) {
-            pmBtn.innerText = '📊 Ver Informe Post-Mortem';
+            pmBtn.innerText = '[[DE_ICON_030]] Ver Informe Post-Mortem';
             pmBtn.disabled = false;
         } else if (g.postMortemInProgress) {
-            pmBtn.innerText = '⏳ Analizando datos...';
+            pmBtn.innerText = '[[DE_ICON_060]] Analizando datos...';
             pmBtn.disabled = true;
         } else {
-            pmBtn.innerText = '📝 Crear Informe del Juego';
+            pmBtn.innerText = '[[DE_ICON_011]] Crear Informe del Juego';
             pmBtn.disabled = false;
         }
     }
@@ -3870,13 +3992,13 @@ window.renderSelectedGameSalesChart = function() {
         // Milestone Badges
         if (d.viralMultiplier > 1.25) {
             ctx.font = '14px sans-serif';
-            ctx.fillText('⭐', x, yUnits - 14);
+            ctx.fillText('[[DE_ICON_005]]', x, yUnits - 14);
         } else if (d.industryMultiplier < 0.8) {
             ctx.font = '14px sans-serif';
-            ctx.fillText('⚠️', x, yUnits + 20);
+            ctx.fillText('[[DE_ICON_016]]', x, yUnits + 20);
         } else if (d.hasPopularMods) {
             ctx.font = '14px sans-serif';
-            ctx.fillText('🧩', x, yUnits - 14);
+            ctx.fillText('[[DE_ICON_034]]', x, yUnits - 14);
         }
     });
 
@@ -3906,9 +4028,9 @@ window.renderSelectedGameSalesChart = function() {
             tooltip.style.top = `${(e.clientY - rect.top) - 10}px`;
 
             let eventNotes = '';
-            if (point.viralMultiplier > 1.25) eventNotes += '<div>⭐ Impulso viral de streamers</div>';
-            if (point.industryMultiplier < 0.8) eventNotes += '<div>⚠️ Impacto de crisis en el mercado</div>';
-            if (point.hasPopularMods) eventNotes += '<div>🧩 +150% boost por mods populares</div>';
+            if (point.viralMultiplier > 1.25) eventNotes += '<div>[[DE_ICON_005]] Impulso viral de streamers</div>';
+            if (point.industryMultiplier < 0.8) eventNotes += '<div>[[DE_ICON_016]] Impacto de crisis en el mercado</div>';
+            if (point.hasPopularMods) eventNotes += '<div>[[DE_ICON_034]] +150% boost por mods populares</div>';
 
             tooltip.innerHTML = `
                 <div style="font-weight: 800; color: #38bdf8; margin-bottom: 4px;">Semana ${point.weekNumber} (${point.calendarYear || ''})</div>
@@ -4034,17 +4156,17 @@ function updateLiveSalesWidget() {
     document.getElementById('hud-sales-revenue').innerText = `$${Math.floor(target.revenueTotal || 0).toLocaleString()}`;
     document.getElementById('hud-sales-cost').innerText = `$${Math.floor(target.devCost || 0).toLocaleString()}`;
     const fansVal = target.fansGained || Math.floor((target.score || 7) * 20);
-    document.getElementById('hud-sales-fans').innerText = `+${fansVal.toLocaleString()} ⭐`;
+    document.getElementById('hud-sales-fans').innerText = `+${fansVal.toLocaleString()} [[DE_ICON_005]]`;
     document.getElementById('hud-sales-hype').innerText = `${Math.round(target.marketingHype || target.hype || 0)}`;
 
     // Week label & weekly velocity
     const weekLabelEl = document.getElementById('hud-sales-week-label');
     if (target.retired) {
-        weekLabelEl.innerText = `📦 Retirado del mercado`;
+        weekLabelEl.innerText = `[[DE_ICON_013]] Retirado del mercado`;
     } else if (target.lifecycleState === 'long_tail') {
-        weekLabelEl.innerText = `⏳ Cola Larga · Sem ${target.weeksOnMarket}`;
+        weekLabelEl.innerText = `[[DE_ICON_060]] Cola Larga · Sem ${target.weeksOnMarket}`;
     } else {
-        weekLabelEl.innerText = `🔥 Semana ${target.weeksOnMarket} de ventas`;
+        weekLabelEl.innerText = `[[DE_ICON_003]] Semana ${target.weeksOnMarket} de ventas`;
     }
 
     const lastWeekSales = target.unitsSoldLastWeek || 0;
@@ -4054,13 +4176,13 @@ function updateLiveSalesWidget() {
     const pmBtn = document.getElementById('hud-sales-pm-btn');
     if (pmBtn) {
         if (target.postMortemReport) {
-            pmBtn.innerText = '📊 Ver Informe';
+            pmBtn.innerText = '[[DE_ICON_030]] Ver Informe';
             pmBtn.disabled = false;
         } else if (target.postMortemInProgress) {
-            pmBtn.innerText = '⏳ Analizando...';
+            pmBtn.innerText = '[[DE_ICON_060]] Analizando...';
             pmBtn.disabled = true;
         } else {
-            pmBtn.innerText = '📝 Informe (+RP)';
+            pmBtn.innerText = '[[DE_ICON_011]] Informe (+RP)';
             pmBtn.disabled = false;
         }
     }
@@ -4068,7 +4190,7 @@ function updateLiveSalesWidget() {
     const retireBtn = document.getElementById('hud-sales-retire-btn');
     if (retireBtn) {
         retireBtn.disabled = Boolean(target.retired);
-        retireBtn.innerText = target.retired ? '✓ Retirado' : '📦 Retirar';
+        retireBtn.innerText = target.retired ? '[[DE_ICON_149]] Retirado' : '[[DE_ICON_013]] Retirar';
         retireBtn.style.opacity = target.retired ? '0.5' : '1';
     }
 
@@ -4266,9 +4388,9 @@ window.attendExpo = function(tier) {
     if (!sceneModal) return;
 
     const titles = {
-        1: { name: 'Stand Pequeño Indie', badge: '🎮 PABELLÓN INDIE', sub: 'Pasillo de Novedades Emergentes' },
-        2: { name: 'Gran Expositor Central', badge: '🎪 EXPOSITOR DESTACADO', sub: 'Zona de Prensa y Stands Principales' },
-        3: { name: 'Keynote Magistral AAA', badge: '🚀 MEGACONFERENCIA GLOBAL', sub: 'Auditorio Central Retransmitido al Mundo' }
+        1: { name: 'Stand Pequeño Indie', badge: '[[DE_ICON_001]] PABELLÓN INDIE', sub: 'Pasillo de Novedades Emergentes' },
+        2: { name: 'Gran Expositor Central', badge: '[[DE_ICON_074]] EXPOSITOR DESTACADO', sub: 'Zona de Prensa y Stands Principales' },
+        3: { name: 'Keynote Magistral AAA', badge: '[[DE_ICON_024]] MEGACONFERENCIA GLOBAL', sub: 'Auditorio Central Retransmitido al Mundo' }
     };
     const info = titles[tier] || titles[1];
 
@@ -4284,7 +4406,7 @@ window.attendExpo = function(tier) {
 
     const featuredGame = game.activeSales.length ? game.activeSales[0] : (game.gamesHistory.length ? game.gamesHistory[game.gamesHistory.length - 1] : null);
     document.getElementById('expo-showcased-game').innerText = featuredGame ? `Presentando: "${featuredGame.name}" (${featuredGame.genre})` : 'Exhibiendo catálogo del estudio';
-    document.getElementById('expo-screen-content').innerText = featuredGame ? `🎮 DEMO: "${featuredGame.name.toUpperCase()}"` : '🕹️ EXPERIENCIAS JUGABLES';
+    document.getElementById('expo-screen-content').innerText = featuredGame ? `[[DE_ICON_001]] DEMO: "${featuredGame.name.toUpperCase()}"` : '[[DE_ICON_037]] EXPERIENCIAS JUGABLES';
 
     // Reset metric counters
     document.getElementById('expo-stat-visitors').innerText = '0';
@@ -4295,8 +4417,8 @@ window.attendExpo = function(tier) {
     // Buttons
     const btnMerch = document.getElementById('btn-expo-merch');
     const btnInterview = document.getElementById('btn-expo-interview');
-    if (btnMerch) { btnMerch.disabled = false; btnMerch.innerText = '🎁 Repartir Merchandising ($600)'; }
-    if (btnInterview) { btnInterview.disabled = false; btnInterview.innerText = '🎙️ Conceder Entrevista Relámpago'; }
+    if (btnMerch) { btnMerch.disabled = false; btnMerch.innerText = '[[DE_ICON_071]] Repartir Merchandising ($600)'; }
+    if (btnInterview) { btnInterview.disabled = false; btnInterview.innerText = '[[DE_ICON_072]] Conceder Entrevista Relámpago'; }
 
     const summaryFooter = document.getElementById('expo-summary-footer');
     if (summaryFooter) summaryFooter.style.display = 'none';
@@ -4333,7 +4455,7 @@ function startExpoVisitorLoop() {
     const floor = document.getElementById('expo-floor');
     if (!floor) return;
 
-    const avatars = ['🧑‍💻', '👩‍🎤', '👨‍🦱', '👩‍🦰', '🧔', '🕶️', '📸', '🕵️', '🧑‍🚀', '🎮'];
+    const avatars = ['[[DE_ICON_128]]', '[[DE_ICON_129]]', '[[DE_ICON_130]]', '[[DE_ICON_131]]', '[[DE_ICON_132]]', '[[DE_ICON_044]]', '[[DE_ICON_088]]', '[[DE_ICON_133]]', '[[DE_ICON_134]]', '[[DE_ICON_001]]'];
     let waveCount = 0;
 
     expoPedestrianInterval = setInterval(() => {
@@ -4406,7 +4528,7 @@ function startExpoVisitorLoop() {
                 footer.style.display = 'block';
                 const summaryText = document.getElementById('expo-summary-text');
                 if (summaryText) {
-                    summaryText.innerHTML = `🌟 <b>¡Convención finalizada con éxito rotundo!</b><br>Tu stand acogió a <b>${expoSession.visitors.toLocaleString()}</b> visitantes, sumó <b>+${expoSession.fans.toLocaleString()} nuevos fans devotos</b>, generó <b>${expoSession.press} artículos de prensa</b> y disparó el Hype global en <b>+${expoSession.hype}</b>.`;
+                    summaryText.innerHTML = `[[DE_ICON_040]] <b>¡Convención finalizada con éxito rotundo!</b><br>Tu stand acogió a <b>${expoSession.visitors.toLocaleString()}</b> visitantes, sumó <b>+${expoSession.fans.toLocaleString()} nuevos fans devotos</b>, generó <b>${expoSession.press} artículos de prensa</b> y disparó el Hype global en <b>+${expoSession.hype}</b>.`;
                 }
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
             }
@@ -4419,19 +4541,19 @@ function showVisitorBubble(pedestrianEl, avatar) {
     bubble.className = 'expo-visitor-bubble';
 
     const quality = expoSession ? expoSession.avgQuality : 7.0;
-    let emoji = '🎮';
+    let emoji = '[[DE_ICON_001]]';
     const rand = Math.random();
 
-    if (avatar === '📸' || avatar === '🕵️') {
-        emoji = '📸';
+    if (avatar === '[[DE_ICON_088]]' || avatar === '[[DE_ICON_133]]') {
+        emoji = '[[DE_ICON_088]]';
     } else if (expoSession?.merchUsed || rand < 0.35) {
-        emoji = quality >= 8.0 ? '😍' : (quality >= 6.5 ? '🔥' : '👍');
+        emoji = quality >= 8.0 ? '[[DE_ICON_135]]' : (quality >= 6.5 ? '[[DE_ICON_003]]' : '[[DE_ICON_110]]');
     } else if (rand < 0.7) {
-        emoji = '🎮';
+        emoji = '[[DE_ICON_001]]';
     } else if (rand < 0.9) {
-        emoji = quality >= 7.5 ? '⭐' : '😊';
+        emoji = quality >= 7.5 ? '[[DE_ICON_005]]' : '[[DE_ICON_136]]';
     } else {
-        emoji = quality < 6.0 ? '🥱' : '🤔';
+        emoji = quality < 6.0 ? '[[DE_ICON_137]]' : '[[DE_ICON_138]]';
     }
 
     bubble.innerText = emoji;
@@ -4449,7 +4571,7 @@ window.expoDistributeMerch = function() {
     const btn = document.getElementById('btn-expo-merch');
     if (btn) {
         btn.disabled = true;
-        btn.innerText = '✓ Merchandising Repartido (-$600)';
+        btn.innerText = '[[DE_ICON_149]] Merchandising Repartido (-$600)';
     }
 
     // Convert all active bubbles on floor to gifts and hearts
@@ -4457,12 +4579,12 @@ window.expoDistributeMerch = function() {
     if (floor) {
         const bubbles = floor.querySelectorAll('.expo-visitor-bubble');
         bubbles.forEach(b => {
-            b.innerText = Math.random() > 0.5 ? '🎁' : '😍';
+            b.innerText = Math.random() > 0.5 ? '[[DE_ICON_071]]' : '[[DE_ICON_135]]';
             b.style.borderColor = '#10b981';
         });
     }
 
-    showToast('🎁 ¡Regalos repartidos entre los asistentes! Se disparan las sonrisas y el Hype.', 'success');
+    showToast('[[DE_ICON_071]] ¡Regalos repartidos entre los asistentes! Se disparan las sonrisas y el Hype.', 'success');
     if (soundEngine && soundEngine.playClick) soundEngine.playClick();
 };
 
@@ -4472,10 +4594,10 @@ window.expoGivePressInterview = function() {
     const btn = document.getElementById('btn-expo-interview');
     if (btn) {
         btn.disabled = true;
-        btn.innerText = '✓ Entrevista Flash Concedida';
+        btn.innerText = '[[DE_ICON_149]] Entrevista Flash Concedida';
     }
 
-    showToast('🎙️ Declaraciones en directo ante los corresponsales de la prensa especializada (+Prensa & +Hype).', 'info');
+    showToast('[[DE_ICON_072]] Declaraciones en directo ante los corresponsales de la prensa especializada (+Prensa & +Hype).', 'info');
     if (soundEngine && soundEngine.playClick) soundEngine.playClick();
 };
 
@@ -4504,7 +4626,7 @@ const RANDOM_STUDIO_NAMES = [
 const RANDOM_FOUNDER_NAMES = [
     'Raúl Vance', 'Elena Rostova', 'Kenji Sato', 'Lucas Miller', 'Sam Vega', 'Maya Lin', 'David Thorne'
 ];
-const COMPANY_LOGOS = ['🎮', '🚀', '🕹️', '👾', '💾', '⚡', '💻', '👑', '🛡️', '💎'];
+const COMPANY_LOGOS = ['[[DE_ICON_001]]', '[[DE_ICON_024]]', '[[DE_ICON_037]]', '[[DE_ICON_083]]', '[[DE_ICON_048]]', '[[DE_ICON_022]]', '[[DE_ICON_018]]', '[[DE_ICON_139]]', '[[DE_ICON_021]]', '[[DE_ICON_059]]'];
 
 let localCustomization = {
     skin: '#ffdfc4',
@@ -4515,7 +4637,7 @@ let localCustomization = {
     pantsColor: '#1e293b',
     accessory: 'glasses_retro'
 };
-let localLogo = '🎮';
+let localLogo = '[[DE_ICON_001]]';
 
 function initCompanyCreatorModal() {
     // Populate Logo Picker
@@ -4648,7 +4770,7 @@ function initCompanyCreatorModal() {
             }
             world.updateCharacterMesh(0, localCustomization);
             closeAllModals();
-            showToast(`🎉 ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
+            showToast(`[[DE_ICON_073]] ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
             if (soundEngine) soundEngine.playLevelUp();
         });
     }
@@ -4705,6 +4827,7 @@ function openCompanyCreatorModal(newGame = false) {
 function openModal(id) {
     closeAllModals();
     if (id === 'modal-new-game') {
+        updatePlatformOptions();
         renderPipelineSelector();
         renderPublishingContractSelector();
         renderBusinessModelSelector();
@@ -4750,7 +4873,7 @@ window.closePressCoverModal = function(returnToMarketing = true) {
         closeAllModals();
     }
     if (typeof showToast === 'function') {
-        showToast('💾 Portada guardada en tu Archivo de Prensa Histórico.', 'success');
+        showToast('[[DE_ICON_048]] Portada guardada en tu Archivo de Prensa Histórico.', 'success');
     }
 };
 
@@ -4811,7 +4934,7 @@ window.renderTopicResearchGrid = function() {
                 activeBox.innerHTML = `
                     <div class="active-research-card" style="background: rgba(15, 23, 42, 0.85); border: 1px solid #10b981; border-left: 5px solid #10b981; border-radius: 8px; padding: 12px 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong style="color: #fff; font-size: 14px;">🎮 Investigando Género: "${gr.genreName}"</strong>
+                            <strong style="color: #fff; font-size: 14px;">[[DE_ICON_001]] Investigando Género: "${gr.genreName}"</strong>
                             <span style="font-size: 12px; color: var(--accent-gold); font-weight: 700;">${gr.weeksRemaining} sem restantes</span>
                         </div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin: 4px 0;">Investigador asignado: <b>${gr.employeeName}</b></div>
@@ -4842,7 +4965,7 @@ window.renderTopicResearchGrid = function() {
             return `
                 <div class="topic-research-card ${canAfford && !isBusy ? 'can-research' : 'cannot-research'}">
                     <div class="topic-card-header">
-                        <span class="topic-icon">🎮</span>
+                        <span class="topic-icon">[[DE_ICON_001]]</span>
                         <div>
                             <strong class="topic-name">${g.name}</strong>
                             <div class="topic-target">Era: ${g.unlockedYear} · Público: ${g.idealAudience || 'General'}</div>
@@ -4855,7 +4978,7 @@ window.renderTopicResearchGrid = function() {
                         <button type="button" class="dock-btn btn-primary-action btn-research-topic" 
                                 onclick="startGenreResearchFromUI('${g.id}')"
                                 ${!canAfford || isBusy ? 'disabled' : ''}>
-                            ${isBusy ? '⏳ Ocupado' : (!canAfford ? '🔬 Faltan RP' : '🎮 Investigar')}
+                            ${isBusy ? '[[DE_ICON_060]] Ocupado' : (!canAfford ? '[[DE_ICON_006]] Faltan RP' : '[[DE_ICON_001]] Investigar')}
                         </button>
                     </div>
                 </div>
@@ -4870,7 +4993,7 @@ window.renderTopicResearchGrid = function() {
                 activeBox.innerHTML = `
                     <div class="active-research-card" style="background: rgba(15, 23, 42, 0.85); border: 1px solid var(--accent-cyan); border-left: 5px solid var(--accent-cyan); border-radius: 8px; padding: 12px 16px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <strong style="color: #fff; font-size: 14px;">💡 Investigando Temática: "${tr.topicName}"</strong>
+                            <strong style="color: #fff; font-size: 14px;">[[DE_ICON_028]] Investigando Temática: "${tr.topicName}"</strong>
                             <span style="font-size: 12px; color: var(--accent-gold); font-weight: 700;">${tr.weeksRemaining} sem restantes</span>
                         </div>
                         <div style="font-size: 12px; color: var(--text-secondary); margin: 4px 0;">Investigador asignado: <b>${tr.employeeName}</b></div>
@@ -4901,7 +5024,7 @@ window.renderTopicResearchGrid = function() {
             return `
                 <div class="topic-research-card ${canAfford && !isBusy ? 'can-research' : 'cannot-research'}">
                     <div class="topic-card-header">
-                        <span class="topic-icon">💡</span>
+                        <span class="topic-icon">[[DE_ICON_028]]</span>
                         <div>
                             <strong class="topic-name">${t.name}</strong>
                             <div class="topic-target">Era: ${t.unlockedYear} · Público: ${t.idealAudience}</div>
@@ -4913,7 +5036,7 @@ window.renderTopicResearchGrid = function() {
                         <button type="button" class="dock-btn btn-primary-action btn-research-topic" 
                                 onclick="startTopicResearchFromUI('${t.id}')"
                                 ${!canAfford || isBusy ? 'disabled' : ''}>
-                            ${isBusy ? '⏳ Ocupado' : (!canAfford ? '🔬 Faltan RP' : '💡 Investigar')}
+                            ${isBusy ? '[[DE_ICON_060]] Ocupado' : (!canAfford ? '[[DE_ICON_006]] Faltan RP' : '[[DE_ICON_028]] Investigar')}
                         </button>
                     </div>
                 </div>
@@ -4982,7 +5105,7 @@ window.showMarketingPressCover = function(coverOrId) {
                         <div class="cover-quote-banner">${cover.quote}</div>
                     </div>
                     <div class="cover-80s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">◆ ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">[[DE_ICON_153]] ${tag}</span>`).join('')}
                     </div>
                     <div class="cover-bottom-bar">
                         <span class="cover-barcode">||| | |||| ||| ||||||| | |||</span>
@@ -5011,7 +5134,7 @@ window.showMarketingPressCover = function(coverOrId) {
                         <div class="cover-quote-banner-90s">${cover.quote}</div>
                     </div>
                     <div class="cover-90s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">★ ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">[[DE_ICON_148]] ${tag}</span>`).join('')}
                     </div>
                 </div>
             </div>

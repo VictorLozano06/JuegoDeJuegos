@@ -17,7 +17,7 @@ Define las consolas y plataformas donde se desarrollan y publican videojuegos.
   "marketShare": 0.65,
   "eraUnlocked": 2,
   "audience": "Everyone",
-  "icon": "🎮",
+  "icon": "[[DE_ICON_001]]",
   "audienceFit": {
     "Everyone": 1.20,
     "Young": 1.15,

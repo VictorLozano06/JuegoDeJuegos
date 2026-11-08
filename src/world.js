@@ -39,7 +39,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'render_core',
         name: 'Render 3D Core',
-        icon: '👁️',
+        icon: '[[DE_ICON_053]]',
         category: 'base',
         categoryName: 'NODO BASE',
         desc: 'Pipeline de rasterización, mallas poligonales y texturizado UV.',
@@ -50,7 +50,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'physics_core',
         name: 'Motor Físico',
-        icon: '⚛️',
+        icon: '[[DE_ICON_055]]',
         category: 'base',
         categoryName: 'NODO BASE',
         desc: 'Colisiones rígidas, masa, fricción y simulación cinemática.',
@@ -61,7 +61,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'netcode_core',
         name: 'Netcode & Sockets',
-        icon: '🌐',
+        icon: '[[DE_ICON_020]]',
         category: 'base',
         categoryName: 'NODO BASE',
         desc: 'Replicación UDP cliente-servidor, tickrates y sincronización.',
@@ -72,7 +72,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'ai_core',
         name: 'IA & Lógica Core',
-        icon: '🧠',
+        icon: '[[DE_ICON_056]]',
         category: 'base',
         categoryName: 'NODO BASE',
         desc: 'Árboles de comportamiento, máquinas de estados y pathfinding A*.',
@@ -83,7 +83,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'audio_core',
         name: 'Audio Espacial 3D',
-        icon: '🔊',
+        icon: '[[DE_ICON_008]]',
         category: 'base',
         categoryName: 'NODO BASE',
         desc: 'Mezcla espacial binaural, síntesis procedural y reverberación.',
@@ -96,7 +96,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'open_world',
         name: 'Mundo Abierto',
-        icon: '🗺️',
+        icon: '[[DE_ICON_057]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Streaming dinámico de chunks, LODs continuos y biomas.',
@@ -107,7 +107,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'combat_system',
         name: 'Sistema de Combate',
-        icon: '⚔️',
+        icon: '[[DE_ICON_076]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Hitboxes volumétricas, encadenamiento de combos y timings.',
@@ -118,7 +118,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'multiplayer_lobby',
         name: 'Lobby & Matchmaking',
-        icon: '👥',
+        icon: '[[DE_ICON_031]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Salas de espera online, emparejamiento por MMR y handshake.',
@@ -129,7 +129,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'procedural_gen',
         name: 'Generación Procedural',
-        icon: '🎲',
+        icon: '[[DE_ICON_038]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Algoritmos generativos de dungeons y distribución sintáctica.',
@@ -140,7 +140,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'quest_engine',
         name: 'Motor de Misiones',
-        icon: '📜',
+        icon: '[[DE_ICON_077]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Grafos no lineales de objetivos, diálogos ramificados y karma.',
@@ -151,7 +151,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'soundtrack_adaptive',
         name: 'Banda Sonora Viva',
-        icon: '🎼',
+        icon: '[[DE_ICON_078]]',
         category: 'content',
         categoryName: 'CONTENIDO',
         desc: 'Capas orquestales reactivas según nivel de adrenalina.',
@@ -164,7 +164,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'weather_system',
         name: 'Clima Dinámico',
-        icon: '⛈️',
+        icon: '[[DE_ICON_079]]',
         category: 'systems',
         categoryName: 'SISTEMAS',
         desc: 'Simulación de borrascas, precipitaciones y acumulación de nieve.',
@@ -175,7 +175,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'day_night_cycle',
         name: 'Ciclo Día/Noche',
-        icon: '🌓',
+        icon: '[[DE_ICON_080]]',
         category: 'systems',
         categoryName: 'SISTEMAS',
         desc: 'Órbita solar-lunar volumétrica, sombras dinámicas y crepúsculo.',
@@ -186,7 +186,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'destruction_physics',
         name: 'Físicas Destructibles',
-        icon: '💥',
+        icon: '[[DE_ICON_081]]',
         category: 'systems',
         categoryName: 'SISTEMAS',
         desc: 'Fragmentación Voronoi en tiempo real y debris con masa.',
@@ -197,7 +197,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'neural_npcs',
         name: 'NPCs Neuronales',
-        icon: '🤖',
+        icon: '[[DE_ICON_082]]',
         category: 'systems',
         categoryName: 'SISTEMAS',
         desc: 'Redes neuronales ligeras de decisión y conductas emergentes.',
@@ -208,7 +208,7 @@ const SCOPE_ARCHITECTURE_NODES = [
     {
         id: 'modding_sdk',
         name: 'Modding & SDK',
-        icon: '🛠️',
+        icon: '[[DE_ICON_015]]',
         category: 'systems',
         categoryName: 'SISTEMAS',
         desc: 'API Lua expuesta para scripts comunitarios y carga de mods.',
@@ -570,7 +570,7 @@ export class WorldEngine {
         ctx.fillStyle = '#9d174d';
         ctx.font = 'bold 11px sans-serif';
         ctx.fillText('GOTY 1985!', 368, 158);
-        ctx.fillText('★ 10/10 Score', 368, 178);
+        ctx.fillText('[[DE_ICON_148]] 10/10 Score', 368, 178);
 
         return new THREE.CanvasTexture(canvas);
     }
@@ -1105,7 +1105,7 @@ export class WorldEngine {
             ctx.fillStyle = '#facc15';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(`+${amount} RP 💡`, 80, 28);
+            ctx.fillText(`+${amount} RP [[DE_ICON_028]]`, 80, 28);
 
             const texture = new THREE.CanvasTexture(canvas);
             const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
@@ -1265,9 +1265,9 @@ export class WorldEngine {
             const energy = employee.energy ?? employee.stamina ?? 100;
             const morale = employee.morale ?? 70;
             const stress = employee.stress ?? 0;
-            const statusIcon = employee.burnoutState === 'total' ? '🔥'
-                : ((employee.burnoutState === 'risk' || employee.crunchActive || game.workMode === 'crunch') ? '⚡'
-                    : (energy < 35 ? '☕' : (morale >= 80 && stress < 40 ? '💡' : '')));
+            const statusIcon = employee.burnoutState === 'total' ? '[[DE_ICON_003]]'
+                : ((employee.burnoutState === 'risk' || employee.crunchActive || game.workMode === 'crunch') ? '[[DE_ICON_022]]'
+                    : (energy < 35 ? '[[DE_ICON_029]]' : (morale >= 80 && stress < 40 ? '[[DE_ICON_028]]' : '')));
             if (statusIcon !== character.statusBubbleIcon) {
                 character.statusBubbleIcon = statusIcon;
                 const ctx = character.statusBubbleContext;
@@ -1278,7 +1278,7 @@ export class WorldEngine {
                     ctx.roundRect(8, 4, 112, 76, 22);
                     ctx.fill();
                     ctx.fillStyle = '#ffffff';
-                    ctx.font = '54px "Segoe UI Emoji", sans-serif';
+                    ctx.font = '54px sans-serif';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText(statusIcon, 64, 42);
@@ -1312,13 +1312,13 @@ export class WorldEngine {
                     ctx.fill();
                     ctx.stroke();
 
-                    // Text: ⚙️ Motor: Name (X%)
+                    // Text: [[DE_ICON_049]] Motor: Name (X%)
                     ctx.font = 'bold 15px "Segoe UI", sans-serif';
                     ctx.fillStyle = '#38bdf8';
                     ctx.textAlign = 'left';
                     ctx.textBaseline = 'top';
                     const engineShort = (game.activeEngineRD.name || 'Proprietary Core').substring(0, 16);
-                    ctx.fillText(`⚙️ ${engineShort}`, 14, 10);
+                    ctx.fillText(`[[DE_ICON_049]] ${engineShort}`, 14, 10);
 
                     ctx.font = 'bold 15px "Segoe UI", sans-serif';
                     ctx.fillStyle = '#c084fc';
@@ -1772,16 +1772,16 @@ export class WorldEngine {
         };
 
         const defaultIcons = {
-            render_raster: '🖥️', render_raytracing: '✨', render_pixel: '👾', render_core: '👁️',
-            physics_basic: '📐', physics_ragdoll: '🤸', physics_destructible: '💥', physics_core: '⚛️',
-            net_singleplayer: '👤', net_p2p: '🔗', net_dedicated: '🌐', netcode_core: '🌐',
-            ai_scripts: '📜', ai_behavior: '🧠', ai_neural: '🤖', ai_core: '🧠',
-            audio_stereo: '🎧', audio_spatial: '🔊', audio_core: '🔊',
-            content_linear: '🛤️', content_procedural: '🎲', content_openworld: '🗺️', open_world: '🗺️',
-            combat_system: '⚔️', multiplayer_lobby: '👥', procedural_gen: '🎲', quest_engine: '📜',
-            soundtrack_adaptive: '🎼', sys_daynight: '🌓', sys_weather: '⛈️', sys_rpg_tree: '🌲',
-            sys_photomode: '📸', sys_modding: '🛠️', weather_system: '⛈️', day_night_cycle: '🌓',
-            destruction_physics: '💥', neural_npcs: '🤖', modding_sdk: '🛠️'
+            render_raster: '[[DE_ICON_054]]', render_raytracing: '[[DE_ICON_068]]', render_pixel: '[[DE_ICON_083]]', render_core: '[[DE_ICON_053]]',
+            physics_basic: '[[DE_ICON_070]]', physics_ragdoll: '[[DE_ICON_084]]', physics_destructible: '[[DE_ICON_081]]', physics_core: '[[DE_ICON_055]]',
+            net_singleplayer: '[[DE_ICON_039]]', net_p2p: '[[DE_ICON_085]]', net_dedicated: '[[DE_ICON_020]]', netcode_core: '[[DE_ICON_020]]',
+            ai_scripts: '[[DE_ICON_077]]', ai_behavior: '[[DE_ICON_056]]', ai_neural: '[[DE_ICON_082]]', ai_core: '[[DE_ICON_056]]',
+            audio_stereo: '[[DE_ICON_045]]', audio_spatial: '[[DE_ICON_008]]', audio_core: '[[DE_ICON_008]]',
+            content_linear: '[[DE_ICON_086]]', content_procedural: '[[DE_ICON_038]]', content_openworld: '[[DE_ICON_057]]', open_world: '[[DE_ICON_057]]',
+            combat_system: '[[DE_ICON_076]]', multiplayer_lobby: '[[DE_ICON_031]]', procedural_gen: '[[DE_ICON_038]]', quest_engine: '[[DE_ICON_077]]',
+            soundtrack_adaptive: '[[DE_ICON_078]]', sys_daynight: '[[DE_ICON_080]]', sys_weather: '[[DE_ICON_079]]', sys_rpg_tree: '[[DE_ICON_087]]',
+            sys_photomode: '[[DE_ICON_088]]', sys_modding: '[[DE_ICON_015]]', weather_system: '[[DE_ICON_079]]', day_night_cycle: '[[DE_ICON_080]]',
+            destruction_physics: '[[DE_ICON_081]]', neural_npcs: '[[DE_ICON_082]]', modding_sdk: '[[DE_ICON_015]]'
         };
 
         const group = new THREE.Group();
@@ -1790,7 +1790,7 @@ export class WorldEngine {
         group.position.copy(basePos);
 
         const nodeCat = (data.category === 'base' || ['render', 'physics', 'netcode', 'ai', 'audio'].includes(data.category)) ? 'base' : (data.category === 'content' ? 'content' : 'systems');
-        const nodeIcon = data.icon || defaultIcons[data.id] || '🔷';
+        const nodeIcon = data.icon || defaultIcons[data.id] || '[[DE_ICON_089]]';
         const categoryName = data.categoryName || (nodeCat === 'base' ? 'NODO BASE' : (nodeCat === 'content' ? 'CONTENIDO' : 'SISTEMAS'));
 
         data.pos = posArr;
@@ -1930,23 +1930,23 @@ export class WorldEngine {
 
         if (data.state === 'completed') {
             strokeColor = '#05f082';
-            statusBadge = '✔ COMPLETADO';
+            statusBadge = '[[DE_ICON_090]] COMPLETADO';
             statusBg = 'rgba(16, 185, 129, 0.35)';
         } else if (data.state === 'active') {
             strokeColor = '#ffb703';
-            statusBadge = '⚡ ACTIVO';
+            statusBadge = '[[DE_ICON_022]] ACTIVO';
             statusBg = 'rgba(245, 158, 11, 0.35)';
         } else if (data.state === 'in_progress') {
             strokeColor = '#ff6b00';
-            statusBadge = '⚙ EN PROGRESO';
+            statusBadge = '[[DE_ICON_091]] EN PROGRESO';
             statusBg = 'rgba(255, 107, 0, 0.35)';
         } else if (data.state === 'regression') {
             strokeColor = '#ff1744';
-            statusBadge = '⚠ REGRESIÓN / BUG';
+            statusBadge = '[[DE_ICON_092]] REGRESIÓN / BUG';
             statusBg = 'rgba(239, 68, 68, 0.35)';
         } else if (data.state === 'locked') {
             strokeColor = '#475569';
-            statusBadge = '🔒 BLOQUEADO';
+            statusBadge = '[[DE_ICON_093]] BLOQUEADO';
             statusBg = 'rgba(71, 85, 105, 0.30)';
         }
 
@@ -2024,7 +2024,7 @@ export class WorldEngine {
         // 4. Large Icon
         ctx.font = '48px sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(data.icon || '🔷', 36, 128);
+        ctx.fillText(data.icon || '[[DE_ICON_089]]', 36, 128);
 
         // 5. Node Name Title
         ctx.fillStyle = '#ffffff';

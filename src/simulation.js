@@ -1,7 +1,8 @@
 import { soundEngine } from './audio.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
 import INDUSTRY_EVENT_CATALOG from './data/events.json';
-import PLATFORMS from './data/platforms.json';
+import { PLATFORMS_DATABASE as PLATFORMS, getPlatformsByYear } from './data/platformsData.js';
+import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 import CREATOR_PROFILES from './data/streamers.json';
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
@@ -26,7 +27,7 @@ const ARCHITECTURE_NODES = [
         id: 'core_loop',
         name: 'Core Loop & Frame Scheduler',
         tier: 1,
-        icon: '⏱️',
+        icon: '[[DE_ICON_075]]',
         category: 'core',
         discipline: { engine: 20, gameplay: 10, net: 0, art: 5, qa: 10 },
         friction: 0,
@@ -37,7 +38,7 @@ const ARCHITECTURE_NODES = [
         id: 'entity_component',
         name: 'ECS (Entity Component System)',
         tier: 1,
-        icon: '🧩',
+        icon: '[[DE_ICON_034]]',
         category: 'core',
         discipline: { engine: 25, gameplay: 20, net: 5, art: 5, qa: 15 },
         friction: 8,
@@ -48,7 +49,7 @@ const ARCHITECTURE_NODES = [
         id: 'forward_renderer',
         name: 'Pipeline Gráfico Básico',
         tier: 1,
-        icon: '🎨',
+        icon: '[[DE_ICON_019]]',
         category: 'art',
         discipline: { engine: 15, gameplay: 5, net: 0, art: 30, qa: 10 },
         friction: 5,
@@ -59,7 +60,7 @@ const ARCHITECTURE_NODES = [
         id: 'unit_test_suite',
         name: 'Harness de Tests Unitarios',
         tier: 1,
-        icon: '🧪',
+        icon: '[[DE_ICON_094]]',
         category: 'qa',
         discipline: { engine: 10, gameplay: 10, net: 5, art: 0, qa: 35 },
         friction: -12,
@@ -72,7 +73,7 @@ const ARCHITECTURE_NODES = [
         id: 'state_machine',
         name: 'Máquina de Estados Finita (FSM)',
         tier: 2,
-        icon: '🕹️',
+        icon: '[[DE_ICON_037]]',
         category: 'gameplay',
         discipline: { engine: 10, gameplay: 35, net: 5, art: 10, qa: 15 },
         friction: 6,
@@ -83,7 +84,7 @@ const ARCHITECTURE_NODES = [
         id: 'physics_2d3d',
         name: 'Motor Físico Cinemático & Colisiones',
         tier: 2,
-        icon: '⚛️',
+        icon: '[[DE_ICON_055]]',
         category: 'core',
         discipline: { engine: 30, gameplay: 25, net: 10, art: 5, qa: 20 },
         friction: 14,
@@ -94,7 +95,7 @@ const ARCHITECTURE_NODES = [
         id: 'net_socket_sync',
         name: 'Capa de Sockets UDP / Red Base',
         tier: 2,
-        icon: '🌐',
+        icon: '[[DE_ICON_020]]',
         category: 'net',
         discipline: { engine: 25, gameplay: 10, net: 45, art: 0, qa: 25 },
         friction: 15,
@@ -105,7 +106,7 @@ const ARCHITECTURE_NODES = [
         id: 'automated_ci',
         name: 'Pipeline CI/CD y Build Runner',
         tier: 2,
-        icon: '⚙️',
+        icon: '[[DE_ICON_049]]',
         category: 'qa',
         discipline: { engine: 15, gameplay: 5, net: 15, art: 5, qa: 40 },
         friction: -16,
@@ -118,7 +119,7 @@ const ARCHITECTURE_NODES = [
         id: 'ai_behavior_trees',
         name: 'Árboles de Decisión IA & Blackboards',
         tier: 3,
-        icon: '🧠',
+        icon: '[[DE_ICON_056]]',
         category: 'gameplay',
         discipline: { engine: 15, gameplay: 40, net: 5, art: 5, qa: 25 },
         friction: 18,
@@ -129,7 +130,7 @@ const ARCHITECTURE_NODES = [
         id: 'pbr_lighting',
         name: 'Iluminación PBR & Materiales Shaders',
         tier: 3,
-        icon: '✨',
+        icon: '[[DE_ICON_068]]',
         category: 'art',
         discipline: { engine: 25, gameplay: 5, net: 0, art: 55, qa: 15 },
         friction: 16,
@@ -140,7 +141,7 @@ const ARCHITECTURE_NODES = [
         id: 'client_prediction',
         name: 'Predicción del Cliente & Reconciliación',
         tier: 3,
-        icon: '⚡',
+        icon: '[[DE_ICON_022]]',
         category: 'net',
         discipline: { engine: 30, gameplay: 25, net: 50, art: 0, qa: 35 },
         friction: 28,
@@ -151,7 +152,7 @@ const ARCHITECTURE_NODES = [
         id: 'memory_manager',
         name: 'Gestor de Memoria & Memory Pools',
         tier: 3,
-        icon: '💾',
+        icon: '[[DE_ICON_048]]',
         category: 'core',
         discipline: { engine: 40, gameplay: 5, net: 10, art: 10, qa: 20 },
         friction: 12,
@@ -164,7 +165,7 @@ const ARCHITECTURE_NODES = [
         id: 'combat_combos',
         name: 'Motor de Combate & Frame Data',
         tier: 4,
-        icon: '⚔️',
+        icon: '[[DE_ICON_076]]',
         category: 'gameplay',
         discipline: { engine: 20, gameplay: 55, net: 15, art: 20, qa: 30 },
         friction: 22,
@@ -175,7 +176,7 @@ const ARCHITECTURE_NODES = [
         id: 'deferred_raytracing',
         name: 'Ray Tracing en Tiempo Real & GI',
         tier: 4,
-        icon: '🔮',
+        icon: '[[DE_ICON_095]]',
         category: 'art',
         discipline: { engine: 50, gameplay: 5, net: 0, art: 70, qa: 35 },
         friction: 34,
@@ -186,7 +187,7 @@ const ARCHITECTURE_NODES = [
         id: 'rollback_netcode',
         name: 'Rollback Netcode Determinista (GGPO)',
         tier: 4,
-        icon: '🔄',
+        icon: '[[DE_ICON_062]]',
         category: 'net',
         discipline: { engine: 45, gameplay: 35, net: 70, art: 0, qa: 45 },
         friction: 38,
@@ -197,7 +198,7 @@ const ARCHITECTURE_NODES = [
         id: 'smoke_bots',
         name: 'Flota de Bots de Pruebas de Estrés',
         tier: 4,
-        icon: '🛡️',
+        icon: '[[DE_ICON_021]]',
         category: 'qa',
         discipline: { engine: 20, gameplay: 20, net: 30, art: 0, qa: 60 },
         friction: -22,
@@ -250,25 +251,25 @@ const PIPELINE_TYPES = {
 const ARCHITECTURE_PRESETS = {
     indie: {
         id: 'indie',
-        name: '⚡ Indie Ágil',
+        name: '[[DE_ICON_022]] Indie Ágil',
         desc: 'Scope ligero, desarrollo veloz y código limpio.',
         nodes: ['core_loop', 'state_machine', 'forward_renderer', 'unit_test_suite']
     },
     aa: {
         id: 'aa',
-        name: '🎮 AA Equilibrado',
+        name: '[[DE_ICON_001]] AA Equilibrado',
         desc: 'Físicas, networking base y pipeline de shaders.',
         nodes: ['core_loop', 'entity_component', 'state_machine', 'physics_2d3d', 'forward_renderer', 'pbr_lighting', 'net_socket_sync', 'unit_test_suite', 'automated_ci']
     },
     aaa: {
         id: 'aaa',
-        name: '🚀 AAA Ambicioso',
+        name: '[[DE_ICON_024]] AAA Ambicioso',
         desc: 'Ray Tracing, Rollback Netcode y combate avanzado.',
         nodes: ['core_loop', 'entity_component', 'forward_renderer', 'unit_test_suite', 'state_machine', 'physics_2d3d', 'net_socket_sync', 'automated_ci', 'ai_behavior_trees', 'pbr_lighting', 'client_prediction', 'memory_manager', 'combat_combos', 'deferred_raytracing', 'rollback_netcode', 'smoke_bots']
     },
     qa_master: {
         id: 'qa_master',
-        name: '🛡️ Robustez QA Máxima',
+        name: '[[DE_ICON_021]] Robustez QA Máxima',
         desc: 'Foco en estabilidad extrema y deuda técnica cero.',
         nodes: ['core_loop', 'entity_component', 'forward_renderer', 'unit_test_suite', 'state_machine', 'automated_ci', 'ai_behavior_trees', 'memory_manager', 'smoke_bots']
     }
@@ -399,7 +400,7 @@ class TycoonGame {
 
         // Company & Founder Profile
         this.companyName = 'PixelForge Interactive';
-        this.companyLogo = '🎮';
+        this.companyLogo = '[[DE_ICON_001]]';
         this.hasCustomizedProfile = false;
         this.founder = {
             name: 'Raúl Vance',
@@ -444,6 +445,8 @@ class TycoonGame {
         this.gamesHistory = [];
         this.activeSales = [];
         this.platforms = Array.isArray(PLATFORMS) ? JSON.parse(JSON.stringify(PLATFORMS)) : [];
+        // Array simple: también se puede serializar con el resto de la partida.
+        this.ownedDevKits = [];
         this.genres = Array.isArray(GENRES_DATABASE) ? JSON.parse(JSON.stringify(GENRES_DATABASE)) : [];
         this.creatorProfiles = Array.isArray(CREATOR_PROFILES) ? JSON.parse(JSON.stringify(CREATOR_PROFILES)) : [];
         this.industryEventsCatalog = Array.isArray(INDUSTRY_EVENT_CATALOG) ? JSON.parse(JSON.stringify(INDUSTRY_EVENT_CATALOG)) : [];
@@ -574,13 +577,25 @@ class TycoonGame {
     }
 
     // --- DATA-DRIVEN ARCHITECTURE & SIMULATOR EXTENSIBILITY (MODDING API) ---
-    getPlatforms(era = null) {
-        if (era === null || era === undefined) return [...(this.platforms || [])];
-        return (this.platforms || []).filter(p => (p.eraUnlocked || 1) <= era);
+    getPlatforms() {
+        const historical = getPlatformsByYear(this.getHistoricalYear());
+        const mods = (this.platforms || []).filter(p => p.isModded &&
+            (p.releaseYear == null ? (p.eraUnlocked || 1) <= this.era : this.getHistoricalYear() >= p.releaseYear));
+        const overridden = new Set(mods.map(p => p.id));
+        return [...historical.filter(p => !overridden.has(p.id)), ...mods.map(p => ({
+            ...p, status: p.retireYear != null && this.getHistoricalYear() >= p.retireYear ? 'RETIRED' : 'ACTIVE'
+        }))];
     }
 
     getPlatformById(id) {
-        return (this.platforms || []).find(p => p.id === id) || null;
+        return this.getPlatforms().find(p => p.id === id) || null;
+    }
+
+    getDevKitCost(platform) {
+        if (!platform || (this.ownedDevKits || []).includes(platform.id)) return 0;
+        const year = this.getHistoricalYear();
+        const multiplier = year < 1990 ? 1 : (year < 2000 ? 1.2 : 1.45);
+        return Math.ceil(Math.max(0, Number(platform.devKitCost ?? platform.devCost) || 0) * multiplier);
     }
 
     registerPlatform(platformData) {
@@ -592,11 +607,14 @@ class TycoonGame {
         const cleanPlatform = {
             id: String(platformData.id).trim(),
             name: String(platformData.name).trim(),
-            devCost: Number(platformData.devCost) || 20000,
-            marketShare: Number(platformData.marketShare) || 0.65,
+            devCost: Number(platformData.devCost ?? platformData.devKitCost ?? 20000),
+            royaltyRate: Math.max(0, Math.min(1, Number(platformData.royaltyRate ?? platformData.royalty ?? 0))),
+            releaseYear: platformData.releaseYear == null ? null : Number(platformData.releaseYear),
+            retireYear: platformData.retireYear == null ? null : Number(platformData.retireYear),
+            marketShare: Number(platformData.marketShare ?? 0.65),
             eraUnlocked: Number(platformData.eraUnlocked) || 1,
             audience: platformData.audience || 'Everyone',
-            icon: platformData.icon || '🎮',
+            icon: platformData.icon || '[[DE_ICON_001]]',
             audienceFit: platformData.audienceFit || { Everyone: 1.1, Young: 1.0, Mature: 1.0 },
             isModded: true
         };
@@ -710,7 +728,7 @@ class TycoonGame {
             return {
                 success: true,
                 modRecord,
-                message: `✅ Mod "${modRecord.name}" cargado: +${platformsCount} consolas, +${streamersCount} streamers y +${eventsCount} eventos.`
+                message: `[[DE_ICON_096]] Mod "${modRecord.name}" cargado: +${platformsCount} consolas, +${streamersCount} streamers y +${eventsCount} eventos.`
             };
         } catch (err) {
             return { success: false, message: `Error al procesar el paquete JSON de mod: ${err.message}` };
@@ -734,7 +752,7 @@ class TycoonGame {
                     marketShare: 0.68,
                     eraUnlocked: 2,
                     audience: "Young",
-                    icon: "👾",
+                    icon: "[[DE_ICON_083]]",
                     audienceFit: { Everyone: 1.15, Young: 1.30, Mature: 0.85 }
                 }
             ],
@@ -958,7 +976,7 @@ class TycoonGame {
                     expiresAtWeek: currentWeek + 4, // Duración reducida a 4 semanas
                     source: 'reserved_supply'
                 });
-                message = `📦 Inventario reservado por $${cost.toLocaleString()} para ${event.platformName}; el impacto se limita a un leve 10% durante solo cuatro semanas.`;
+                message = `[[DE_ICON_013]] Inventario reservado por $${cost.toLocaleString()} para ${event.platformName}; el impacto se limita a un leve 10% durante solo cuatro semanas.`;
             } else {
                 const duration = event.durationWeeks || 16;
                 const multiplier = event.baseSalesMultiplier || 0.60;
@@ -971,7 +989,7 @@ class TycoonGame {
                     source: 'chip_shortage'
                 });
                 const reduction = Math.round((1 - multiplier) * 100);
-                message = `⏳ Decidiste esperar sin desembolso. Las ventas en ${event.platformName} sufrirán una reducción del ${reduction}% durante las próximas ${duration} semanas.`;
+                message = `[[DE_ICON_060]] Decidiste esperar sin desembolso. Las ventas en ${event.platformName} sufrirán una reducción del ${reduction}% durante las próximas ${duration} semanas.`;
             }
         } else if (event.type === 'code_breach') {
             if (!project) return { success: false, message: 'El proyecto afectado ya no se encuentra en desarrollo activo.' };
@@ -990,7 +1008,7 @@ class TycoonGame {
                 } else {
                     releasedGame = this.finishAndReleaseGame({ forcedLaunch: true });
                 }
-                message = `⚡ Lanzamiento adelantado en estado incompleto. Se añadieron +${debtAdd} de Deuda Técnica y +5 bugs críticos al juego publicado.`;
+                message = `[[DE_ICON_022]] Lanzamiento adelantado en estado incompleto. Se añadieron +${debtAdd} de Deuda Técnica y +5 bugs críticos al juego publicado.`;
             } else {
                 this.funds -= cost;
                 const delay = choice.delayWeeks || 8;
@@ -998,24 +1016,24 @@ class TycoonGame {
                 project.modulesReworkRequired = (project.modulesReworkRequired || 0) + 2;
                 project.marketingHype = Math.max(0, (project.marketingHype || 0) - (choice.hypePenalty || 10));
                 project.leakAudited = true;
-                message = `🛡️ Auditoría legal completada por $${cost.toLocaleString()}. Se aíslan las brechas y se reprograman los módulos afectados (+${delay} semanas de desarrollo).`;
+                message = `[[DE_ICON_021]] Auditoría legal completada por $${cost.toLocaleString()}. Se aíslan las brechas y se reprograman los módulos afectados (+${delay} semanas de desarrollo).`;
             }
         } else if (event.type === 'patent_lawsuit') {
             if (choiceId === 'settle') {
                 this.funds -= cost;
-                message = `🤝 Acuerdo extrajudicial cerrado: se abonaron $${cost.toLocaleString()} a los demandantes. El litigio queda archivado sin impacto en la reputación.`;
+                message = `[[DE_ICON_025]] Acuerdo extrajudicial cerrado: se abonaron $${cost.toLocaleString()} a los demandantes. El litigio queda archivado sin impacto en la reputación.`;
             } else {
                 this.funds -= cost;
                 const winChance = choice.winChance || 0.55;
                 const won = Math.random() < winChance;
                 if (won) {
                     this.fans += 35;
-                    message = `⚖️ ¡VICTORIA JUDICIAL! El tribunal desestimó la demanda de patentes por falta de mérito. Ganas prestigio en la industria (+35 Fans).`;
+                    message = `[[DE_ICON_097]] ¡VICTORIA JUDICIAL! El tribunal desestimó la demanda de patentes por falta de mérito. Ganas prestigio en la industria (+35 Fans).`;
                 } else {
                     const penalty = Math.max(cost, Math.round((event.referenceBudget || 30000) * (choice.penaltyFraction || 0.25)));
                     this.funds = Math.max(0, this.funds - penalty);
                     this.fans = Math.max(0, this.fans - 20);
-                    message = `❌ FALLO JUDICIAL EN CONTRA: Además de los $${cost.toLocaleString()} de procuradores, el juzgado impuso una indemnización de $${penalty.toLocaleString()} (-20 Fans).`;
+                    message = `[[DE_ICON_047]] FALLO JUDICIAL EN CONTRA: Además de los $${cost.toLocaleString()} de procuradores, el juzgado impuso una indemnización de $${penalty.toLocaleString()} (-20 Fans).`;
                 }
             }
         } else if (event.type === 'genre_trend_crash') {
@@ -1034,13 +1052,13 @@ class TycoonGame {
                     project.industryPivoted = true;
                 }
                 this.genreDemandShocks.push({ genreId: event.projectGenreId, multiplier: 0.70, expiresAtWeek: currentWeek + shockWeeks, eventId: event.id });
-                message = `🔄 Proyecto pivotado exitosamente a "${replacement?.name || 'nuevo género'}". El antiguo género pierde un 30% de tracción temporal.`;
+                message = `[[DE_ICON_062]] Proyecto pivotado exitosamente a "${replacement?.name || 'nuevo género'}". El antiguo género pierde un 30% de tracción temporal.`;
             } else {
                 const delay = choice.delayWeeks || 8;
                 project.developmentDelayWeeks = (project.developmentDelayWeeks || 0) + delay;
                 project.industryDelayWeeks = (project.industryDelayWeeks || 0) + delay;
                 this.genreDemandShocks.push({ genreId: event.projectGenreId, multiplier: 0.65, expiresAtWeek: currentWeek + shockWeeks, eventId: event.id });
-                message = `⏸️ Lanzamiento retrasado ${delay} semanas (+2 meses ficticios). Esperas a que el público recupere el apetito mientras asumes la nómina.`;
+                message = `[[DE_ICON_098]] Lanzamiento retrasado ${delay} semanas (+2 meses ficticios). Esperas a que el público recupere el apetito mientras asumes la nómina.`;
             }
         }
 
@@ -1132,7 +1150,7 @@ class TycoonGame {
         project.marketingFeed = project.marketingFeed || [];
         const campaignPost = {
             author: methodId === 'magazine_ad' ? 'Pixel Games Monthly' : (methodId === 'local_fair' ? 'Feria Local' : (methodId === 'e3_trailer' ? 'Game Expo Live' : (methodId === 'cd_demo' ? 'Revista PC Plus' : 'Festival Digital'))),
-            icon: methodId === 'digital_demo' ? '🎮' : '📢',
+            icon: methodId === 'digital_demo' ? '[[DE_ICON_001]]' : '[[DE_ICON_099]]',
             text: methodId === 'digital_demo'
                 ? `La demo de "${project.name}" ya está disponible. Se han añadido ${Number(action.wishlistsGenerated || 0).toLocaleString()} jugadores a la lista de deseados.`
                 : (methodId === 'cd_demo'
@@ -1186,7 +1204,7 @@ class TycoonGame {
                     priceBadge: '375 PTS / 2.50$',
                     headline: `¡EXCLUSIVA MUNDIAL! PRIMERAS IMÁGENES DE "${pName}"`,
                     subheadline: `El estudio ${company} revoluciona los ordenadores de cinta con una ambiciosa propuesta de ${genreName}.`,
-                    badgeTop: '★ PÓSTER GIGANTE EN EL INTERIOR ★',
+                    badgeTop: '[[DE_ICON_148]] PÓSTER GIGANTE EN EL INTERIOR [[DE_ICON_148]]',
                     featureBadge: '¡GRÁFICOS ALUCINANTES!',
                     quote: '«Una producción nacional que no tiene nada que envidiar a las superproducciones de software internacional»',
                     tags: ['8-BIT GLORY', 'ESPECTRO CASSETTE', 'JOYSTICK COMPATIBLE'],
@@ -1204,7 +1222,7 @@ class TycoonGame {
                     priceBadge: '$3.50 US / $4.25 CAN',
                     headline: `THE NEXT HIT: "${pName}"`,
                     subheadline: `${company} reveals its top-secret project. Is this the definitive cartridge of the generation?`,
-                    badgeTop: '★ CLASSIFIED SNEAK PEEK ★',
+                    badgeTop: '[[DE_ICON_148]] CLASSIFIED SNEAK PEEK [[DE_ICON_148]]',
                     featureBadge: 'PRO-TIPS & SECRET CODES',
                     quote: '«Jaw-dropping action and tight control response that will keep you glued to the CRT monitor screen»',
                     tags: ['HIGH SCORE', 'NES TESTED', 'SEAL OF APPROVAL'],
@@ -1222,7 +1240,7 @@ class TycoonGame {
                     priceBadge: '£1.20 / 350 PTS',
                     headline: `BREAKING THE 48K BARRIER: "${pName}"`,
                     subheadline: `How ${company} squeezed maximum scrolling speed and arcade action into limited RAM.`,
-                    badgeTop: '★ COVER TAPE CASSETTE INCLUDED ★',
+                    badgeTop: '[[DE_ICON_148]] COVER TAPE CASSETTE INCLUDED [[DE_ICON_148]]',
                     featureBadge: '100% MACHINE CODE',
                     quote: '«Smooth raster routines and addictive gameplay loops. An outstanding technical accomplishment»',
                     tags: ['48K RAM', 'NO ATTRIBUTE CLASH', 'KEMPSTON READY'],
@@ -1245,7 +1263,7 @@ class TycoonGame {
                     priceBadge: '595 PTS / $3.99',
                     headline: `EL SALTO A LAS 3D: "${pName}"`,
                     subheadline: `Probamos en primicia la tecnología puntera que ${company} prepara para cambiar los estándares.`,
-                    badgeTop: '★ CD-ROM 650MB CON DEMO JUGABLE ★',
+                    badgeTop: '[[DE_ICON_148]] CD-ROM 650MB CON DEMO JUGABLE [[DE_ICON_148]]',
                     featureBadge: 'ACELERACIÓN 3D GL / SOUND BLASTER 16',
                     quote: '«Texturas de alta resolución, sonido envolvente y una física que redefine por completo el género»',
                     tags: ['CD-ROM EXCLUSIVO', 'SVGA 640x480', 'MULTIPLAYER LAN'],
@@ -1263,7 +1281,7 @@ class TycoonGame {
                     priceBadge: '495 PTS / $3.50',
                     headline: `SUPER AVANCE EXCLUSIVO: "${pName}"`,
                     subheadline: `${company} muestra músculo técnico con un derroche de sprites, polígonos y diversión directa.`,
-                    badgeTop: '★ MEGA REPORTAJE 8 PÁGINAS ★',
+                    badgeTop: '[[DE_ICON_148]] MEGA REPORTAJE 8 PÁGINAS [[DE_ICON_148]]',
                     featureBadge: 'IMPORT ALERT / PREVIEW 95%',
                     quote: '«Si el juego final mantiene este nivel de ritmo, será candidato indiscutible al título del año»',
                     tags: ['ARCADE PERFECT', 'SURROUND AUDIO', 'POSTER CENTRAL'],
@@ -1286,7 +1304,7 @@ class TycoonGame {
                     priceBadge: 'WEB EXCLUSIVE',
                     headline: `FIRST LOOK: Why "${pName}" Could Define This Gaming Generation`,
                     subheadline: `We went hands-on with ${company}'s latest build. Here is everything you need to know about its ground-breaking design.`,
-                    badgeTop: '🔥 TRENDING ARTICLE #1',
+                    badgeTop: '[[DE_ICON_003]] TRENDING ARTICLE #1',
                     featureBadge: 'HYPE INDEX: 9.6 / 10',
                     quote: '«An ambitious showcase of mechanics that proves independent vision can rival major blockbusters»',
                     tags: ['4K READY', 'DAY ONE PREVIEW', 'WISHLIST BOOM'],
@@ -1304,7 +1322,7 @@ class TycoonGame {
                     priceBadge: 'DIGITAL EDITION',
                     headline: `INSIDE THE WORKSHOP: How ${company} Is Crafting "${pName}"`,
                     subheadline: `A deep dive into the architecture, systemic synergy and world-building powering this anticipated release.`,
-                    badgeTop: '★ ESSENTIAL DEV DIARY ★',
+                    badgeTop: '[[DE_ICON_148]] ESSENTIAL DEV DIARY [[DE_ICON_148]]',
                     featureBadge: 'EDITOR’S ANTICIPATED PICK',
                     quote: '«Smart, elegant, and packed with personality. A masterclass in focused creative direction»',
                     tags: ['DEEP DIVE', 'SYSTEMIC DESIGN', 'COMMUNITY DRIVEN'],
@@ -1635,7 +1653,7 @@ class TycoonGame {
                 valid: false,
                 missing,
                 missingTech,
-                message: `⚠️ El género "${genre.name}" requiere infraestructura técnica avanzada: ${missing.join(' y ')}. Selecciona un motor o arquitectura compatible antes de comenzar.`
+                message: `[[DE_ICON_016]] El género "${genre.name}" requiere infraestructura técnica avanzada: ${missing.join(' y ')}. Selecciona un motor o arquitectura compatible antes de comenzar.`
             };
         }
 
@@ -1648,14 +1666,16 @@ class TycoonGame {
         if (this.isEmergencyPatchActive && this.emergencyPatchData) {
             return {
                 success: false,
-                message: `🚨 ¡PROYECTO BLOQUEADO! Tu estudio está bajo Alerta de Crisis por el colapso técnico de "${this.emergencyPatchData.gameName}". Debes estabilizar el juego con un [Parche de Emergencia] antes de arrancar otro proyecto.`
+                message: `[[DE_ICON_014]] ¡PROYECTO BLOQUEADO! Tu estudio está bajo Alerta de Crisis por el colapso técnico de "${this.emergencyPatchData.gameName}". Debes estabilizar el juego con un [Parche de Emergencia] antes de arrancar otro proyecto.`
             };
         }
 
         // config: { name, topicId, genreId, platformId, targetAudience, engineId, pipelineType, selectedNodeIds, sliders }
         const topic = findTheme(config.topicId) || TOPICS[0];
         const genre = findGenre(config.genreId) || GENRES[0];
-        const platform = (this.platforms || PLATFORMS).find(p => p.id === config.platformId) || (this.platforms || PLATFORMS)[0];
+        const platform = this.getPlatformById(config.platformId);
+        if (!platform) return { success: false, message: 'La plataforma seleccionada aún no está disponible.' };
+        if (platform.status === 'RETIRED') return { success: false, message: `${platform.name} ya está retirada y no admite nuevos proyectos.` };
 
         const allowLocked = Boolean(config.force || config.forced || config.bypassUnlockCheck);
 
@@ -1665,7 +1685,7 @@ class TycoonGame {
             if (!genreUnlocked) {
                 return {
                     success: false,
-                    message: `🔒 El género "${genre.name}" aún no ha sido investigado en el laboratorio de I+D (${genre.costRP} RP).`
+                    message: `[[DE_ICON_093]] El género "${genre.name}" aún no ha sido investigado en el laboratorio de I+D (${genre.costRP} RP).`
                 };
             }
 
@@ -1673,7 +1693,7 @@ class TycoonGame {
             if (!topicUnlocked) {
                 return {
                     success: false,
-                    message: `🔒 La temática "${topic.name}" aún no ha sido investigada en el laboratorio de I+D (${topic.costRP || 20} RP).`
+                    message: `[[DE_ICON_093]] La temática "${topic.name}" aún no ha sido investigada en el laboratorio de I+D (${topic.costRP || 20} RP).`
                 };
             }
         }
@@ -1734,14 +1754,21 @@ class TycoonGame {
             return { success: false, message: 'Live-Service necesita un nodo de red online dentro del alcance del juego.' };
         }
 
+        const historicalTechIds = [...new Set([...(config.historicalTechIds || []), ...((engine && engine.historicalTechIds) || [])])];
+        const historicalValidation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!historicalValidation.valid) return { success: false, message: historicalValidation.errors.join(' ') };
+        const historicalIncompatibility = calculateTechIncompatibility(historicalTechIds);
+        const historicalBaseDebt = TECH_TREE_NODES.filter(node => historicalTechIds.includes(node.id)).reduce((sum, node) => sum + node.baseDebt, 0);
         const engineUpfrontCost = (engine && engine.licenseCost) ? engine.licenseCost : 0;
-        const kitEraMultiplier = this.getHistoricalYear() < 1990 ? 1 : (this.getHistoricalYear() < 2000 ? 1.2 : 1.45);
-        const totalDevCost = Math.ceil(platform.devCost * kitEraMultiplier) + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
+        const devKitCost = this.getDevKitCost(platform);
+        const totalDevCost = devKitCost + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
         if (this.funds < totalDevCost) {
             return { success: false, message: '¡Fondos insuficientes para costear el kit de desarrollo y licencias!' };
         }
 
         this.funds -= totalDevCost;
+        this.ownedDevKits = this.ownedDevKits || [];
+        if (!this.ownedDevKits.includes(platform.id)) this.ownedDevKits.push(platform.id);
 
         // Custom engine bonuses
         const engineTechBonus = engine ? (engine.bonusTech || 10) : 0;
@@ -1777,7 +1804,7 @@ class TycoonGame {
         if (typeof TechnicalDebtModel !== 'undefined') {
             const bloatwareFloor = (dagPipeline && dagPipeline.baseDebtFloor !== undefined) ? dagPipeline.baseDebtFloor : ((engine && engine.bloatwareDebtFloor) ? engine.bloatwareDebtFloor : 0);
             techDebtModel = new TechnicalDebtModel({
-                initialDebt: bloatwareFloor,
+                initialDebt: (bloatwareFloor + historicalBaseDebt) * historicalIncompatibility.multiplier,
                 baseBloatwareDebt: bloatwareFloor
             });
         }
@@ -1888,6 +1915,8 @@ class TycoonGame {
             // DAG & Technical Debt Engine Fields
             scopeDAG: scopeDAG,
             techDebtModel: techDebtModel,
+            historicalTechIds,
+            historicalIncompatibility,
             devMode: 'normal', // 'normal', 'crunch', 'refactor'
             disciplineWorkloads: frictionData ? frictionData.effectiveWorkload : { engine: 30, gameplay: 30, network: 0, art: 30, qa: 15, totalSum: 105 },
             disciplineProgress: { engine: 0, gameplay: 0, network: 0, art: 0, qa: 0 },
@@ -2072,13 +2101,13 @@ class TycoonGame {
                 dagComplexity: proj.friction || 25,
                 connectedCount: activeNodesList.length || 6,
                 isLateStage: proj.stage >= 3,
-                engineModifier: engineModifier * (1 - perfectionistShare) * (burnoutRiskActive ? 3 : 1),
+                engineModifier: engineModifier * (proj.historicalIncompatibility?.multiplier || 1) * (1 - perfectionistShare) * (burnoutRiskActive ? 3 : 1),
                 qaPower: qaPower,
                 extraHours: isCrunch ? 3.0 : 0
             });
 
             // Punto 3.1: Penalización de velocidad y fricción acumulada
-            devSpeedMultiplier = debtTickResult.speedMultiplier; // 1.0 / accumulatedFriction
+            devSpeedMultiplier = debtTickResult.speedMultiplier / (proj.historicalIncompatibility?.multiplier || 1); // 1.0 / accumulatedFriction
             proj.accumulatedFriction = debtTickResult.accumulatedFriction;
             proj.regressionRisk = debtTickResult.regressionRisk;
             proj.burnoutDebtMultiplier = burnoutRiskActive ? 3 : 1;
@@ -2381,55 +2410,55 @@ class TycoonGame {
         });
         const sample = messages => messages[Math.floor(Math.random() * messages.length)];
         if (reviewBombing) {
-            addSocialPost('@PatchPlease', '🚨', sample([
+            addSocialPost('@PatchPlease', '[[DE_ICON_014]]', sample([
                 `El lanzamiento de ${proj.name} está lleno de problemas. No lo recomiendo hasta que arreglen esto.`,
                 `La comunidad está dejando reseñas negativas a ${proj.name}: ${reviewBombReasons.join(' y ').toLowerCase()}.`,
                 `Mucho hype para ${proj.name}, pero los problemas técnicos/monetización nos echaron del juego.`
             ]), 'negative');
-            addSocialPost('@PlayersFirst', '👎', sample([
+            addSocialPost('@PlayersFirst', '[[DE_ICON_100]]', sample([
                 `Las reseñas de usuarios de ${proj.name} caen en picado tras el lanzamiento.`,
                 `No gasten su dinero todavía: ${proj.name} necesita cambios urgentes.`
             ]), 'negative');
         } else if (userApproval >= 80) {
-            addSocialPost('@RetroFan', '⭐', sample([
+            addSocialPost('@RetroFan', '[[DE_ICON_005]]', sample([
                 `${proj.name} cumple lo prometido. Ya se lo recomendé a mis amigos.`,
                 `Llevo horas con ${proj.name}; gran lanzamiento y una comunidad muy contenta.`,
                 `Las reseñas de usuarios de ${proj.name} son muy positivas. ¡Se nota el cuidado!`
             ]), 'positive');
-            addSocialPost('@GameShelf', '💚', sample([
+            addSocialPost('@GameShelf', '[[DE_ICON_101]]', sample([
                 `${proj.name} tiene potencial para quedarse en mi biblioteca mucho tiempo.`,
                 `Buen rendimiento y una idea fresca: ${proj.name} merece más atención.`
             ]), 'positive');
         } else if (userApproval < 70) {
-            addSocialPost('@MixedReviews', '😕', sample([
+            addSocialPost('@MixedReviews', '[[DE_ICON_102]]', sample([
                 `Las reseñas de ${proj.name} están divididas; esperábamos más del lanzamiento.`,
                 `${proj.name} tiene buenas ideas, pero hay problemas que frenan la recomendación.`,
                 `Por ahora, las reseñas de usuarios de ${proj.name} son mixtas.`
             ]), 'mixed');
         } else {
-            addSocialPost('@PlayerOne', '💬', `${proj.name} es entretenido; veremos cómo responde el estudio a los comentarios.`, 'mixed');
+            addSocialPost('@PlayerOne', '[[DE_ICON_103]]', `${proj.name} es entretenido; veremos cómo responde el estudio a los comentarios.`, 'mixed');
         }
         if (trailerDowngradePenalty) {
-            addSocialPost('@TrailerVsGame', '📉', `El trailer de ${proj.name} se veía mejor que la versión final. La comunidad habla de downgrade.`, 'negative');
+            addSocialPost('@TrailerVsGame', '[[DE_ICON_104]]', `El trailer de ${proj.name} se veía mejor que la versión final. La comunidad habla de downgrade.`, 'negative');
         }
         const marketingFeed = [...(proj.marketingFeed || [])];
         if ((proj.marketingHype || 0) >= 10) {
             marketingFeed.push({
-                author: 'Redacción GameWire', icon: '📣',
+                author: 'Redacción GameWire', icon: '[[DE_ICON_033]]',
                 text: `${proj.name} llega con ${Math.round(proj.marketingHype)} puntos de hype y ${Number(proj.wishlists || 0).toLocaleString()} wishlists.`,
                 time: `${this.getHistoricalYear()} · Lanzamiento`, kind: 'launch_campaign'
             });
         }
         if (proj.wishlists > 0) {
             marketingFeed.push({
-                author: 'Festival Digital', icon: '🎮',
+                author: 'Festival Digital', icon: '[[DE_ICON_001]]',
                 text: `La demo de ${proj.name} convirtió parte de sus ${Number(proj.wishlists).toLocaleString()} wishlists en compras durante el lanzamiento.`,
                 time: `${this.getHistoricalYear()} · Lanzamiento`, kind: 'wishlist_conversion'
             });
         }
         if (trailerDowngradePenalty) {
             marketingFeed.push({
-                author: 'Game Expo Live', icon: '📉',
+                author: 'Game Expo Live', icon: '[[DE_ICON_104]]',
                 text: `Downgrade detectado: ${proj.name} no alcanzó la calidad que prometía el trailer.`,
                 time: `${this.getHistoricalYear()} · Lanzamiento`, kind: 'trailer_downgrade'
             });
@@ -2449,7 +2478,8 @@ class TycoonGame {
         const referencePrice = this.era === 1 ? 12 : (this.era === 2 ? 28 : 55);
         const basePrice = proj.businessModel === 'f2p' || proj.businessModel === 'live_service' ? 0 : referencePrice;
         const eraSalesFactor = this.era === 1 ? 85 : (this.era === 2 ? 280 : 950);
-        const marketShareBonus = proj.platform.marketShare + 0.25;
+        const launchPlatform = this.getPlatformById(proj.platform.id) || proj.platform;
+        const marketShareBonus = (launchPlatform.marketShare ?? 0.1) + 0.25;
         const trendSalesMultiplier = isTrendMatch ? 1.35 : 1.0;
 
         let totalSalesPotential = Math.floor(
@@ -2610,6 +2640,9 @@ class TycoonGame {
             // Pipeline & Tech Debt Record
             pipelineType: proj.pipelineType || 'inhouse',
             royaltyRate: (proj.engineObj && proj.engineObj.royaltyRate) || 0,
+            platformRoyaltyRate: proj.platform.royaltyRate || 0,
+            launchMarketShare: launchPlatform.marketShare ?? 0.1,
+            platformRoyaltiesPaidTotal: 0,
             engineObsolescencePenalty,
             royaltiesPaidTotal: 0,
             techDebtAtRelease: proj.techDebtModel ? Math.round(proj.techDebtModel.accumulatedDebt * 10) / 10 : 0,
@@ -2681,7 +2714,7 @@ class TycoonGame {
             creatorReactions.forEach(reaction => {
                 releasedGame.socialFeed.push({
                     author: reaction.creatorName || 'Creador de contenido',
-                    icon: reaction.enjoyed ? '🔥' : '🎥',
+                    icon: reaction.enjoyed ? '[[DE_ICON_003]]' : '[[DE_ICON_105]]',
                     text: reaction.reaction || `${reaction.creatorName || 'Un creador'} probó el juego y reunió ${Number(reaction.viewers || 0).toLocaleString()} espectadores.`,
                     sentiment: reaction.enjoyed ? 'positive' : 'mixed',
                     time: `${this.getHistoricalYear()} · Lanzamiento`,
@@ -2737,7 +2770,7 @@ class TycoonGame {
             return { success: false, message: 'Completa la producción y el pulido de la versión 1.0 antes de cerrar la beta.' };
         }
         const finished = this.finishAndReleaseGame({ existingGameId: gameId });
-        return finished ? { success: true, game: finished, message: `🚀 ¡"${game.name}" ya está en su versión 1.0!` } : { success: false, message: 'No se pudo publicar la versión 1.0.' };
+        return finished ? { success: true, game: finished, message: `[[DE_ICON_024]] ¡"${game.name}" ya está en su versión 1.0!` } : { success: false, message: 'No se pudo publicar la versión 1.0.' };
     }
 
     getModdingStatus(gameId) {
@@ -2752,10 +2785,10 @@ class TycoonGame {
             weeksRemaining: 0, mods: []
         };
         let status = 'Requiere herramientas investigadas y año 2000 o posterior';
-        if (year < 2000) status = '🔒 Bloqueado: El modding formal con soporte oficial no existía en los 80/90. Disponible a partir del año 2000';
-        else if (!nodeResearched) status = '🔒 Requiere investigar "Herramientas de Modding / SDK Comunitario" en I+D';
-        else if (workshop.enabled && workshop.compatibilityBroken) status = '⚠️ Compatibilidad rota por el último parche; publica herramientas de actualización';
-        else if (workshop.enabled) status = '✓ Workshop comunitario activo (+150% ventas residuales)';
+        if (year < 2000) status = '[[DE_ICON_093]] Bloqueado: El modding formal con soporte oficial no existía en los 80/90. Disponible a partir del año 2000';
+        else if (!nodeResearched) status = '[[DE_ICON_093]] Requiere investigar "Herramientas de Modding / SDK Comunitario" en I+D';
+        else if (workshop.enabled && workshop.compatibilityBroken) status = '[[DE_ICON_016]] Compatibilidad rota por el último parche; publica herramientas de actualización';
+        else if (workshop.enabled) status = '[[DE_ICON_149]] Workshop comunitario activo (+150% ventas residuales)';
         else if (game.serversClosed) status = 'El juego está discontinuado';
         else if (game.moddingApiIncluded) status = 'Listo para activar Workshop oficial (Arquitectura integrada)';
         else status = 'Listo para integrar API oficial de Workshop';
@@ -2802,7 +2835,7 @@ class TycoonGame {
         if (!this.activeSales.some(item => item.id === game.id)) this.activeSales.push(game);
         game.lifecycleState = 'community_supported';
         game.marketingFeed = [...(game.marketingFeed || []), {
-            author: 'Community Workshop', icon: '🛠️',
+            author: 'Community Workshop', icon: '[[DE_ICON_015]]',
             text: `El estudio publicó la API y herramientas oficiales de modding para ${game.name}. ¡La comunidad arranca con fuerza!`,
             time: `${this.getHistoricalYear()} · Workshop`, kind: 'workshop_enabled'
         }].slice(-10);
@@ -2811,7 +2844,7 @@ class TycoonGame {
         this.notify();
         return {
             success: true,
-            message: `🧩 ¡Workshop oficial activado para "${game.name}"! Coste: $${cost.toLocaleString()}. La comunidad prolongará la vida útil durante 3 años de juego.`,
+            message: `[[DE_ICON_034]] ¡Workshop oficial activado para "${game.name}"! Coste: $${cost.toLocaleString()}. La comunidad prolongará la vida útil durante 3 años de juego.`,
             game
         };
     }
@@ -2829,7 +2862,7 @@ class TycoonGame {
         game.workshop.mods = (game.workshop.mods || []).map(mod => ({ ...mod, compatible: true, updatedAtWeek: game.weeksOnMarket }));
         this.adjustGameReviews(game, 0.15);
         game.socialFeed = [...(game.socialFeed || []), {
-            author: '@ModdersUnited', icon: '🔧',
+            author: '@ModdersUnited', icon: '[[DE_ICON_106]]',
             text: `El estudio publicó el SDK y herramientas de actualización para los mods de ${game.name}. ¡Compatibilidad restaurada al 100%!`,
             sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'mod_tools_update'
         }].slice(-10);
@@ -2838,7 +2871,7 @@ class TycoonGame {
         this.notify();
         return {
             success: true,
-            message: `🛠️ Herramientas de actualización publicadas para "${game.name}" por $${cost.toLocaleString()}. Compatibilidad de mods restaurada y moral comunitaria recuperada.`,
+            message: `[[DE_ICON_015]] Herramientas de actualización publicadas para "${game.name}" por $${cost.toLocaleString()}. Compatibilidad de mods restaurada y moral comunitaria recuperada.`,
             game
         };
     }
@@ -2876,7 +2909,7 @@ class TycoonGame {
                     workshop.popularMods = (workshop.popularMods || 0) + 1;
                     workshop.engagement = Math.min(100, (workshop.engagement || 0) + 12 + Math.floor(Math.random() * 8));
                     game.socialFeed = [...(game.socialFeed || []), {
-                        author: `@${mod.creator}`, icon: '🧩',
+                        author: `@${mod.creator}`, icon: '[[DE_ICON_034]]',
                         text: `¡El mod "${mod.name}" se ha vuelto viral! Miles de jugadores vuelven a jugar a ${game.name}.`,
                         sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'popular_mod'
                     }].slice(-10);
@@ -2898,7 +2931,7 @@ class TycoonGame {
             if (!this.activeSales.some(item => item.id === game.id)) this.activeSales.push(game);
 
             game.socialFeed = [...(game.socialFeed || []), {
-                author: '@TotalConversionTeam', icon: '🌟',
+                author: '@TotalConversionTeam', icon: '[[DE_ICON_040]]',
                 text: `¡INCREÍBLE! Una Conversión Total comunitaria gratuita transforma ${game.name} en un fenómeno viral mundial. ¡El juego entra de nuevo al Top de ventas!`,
                 sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'total_conversion'
             }].slice(-10);
@@ -2935,14 +2968,14 @@ class TycoonGame {
                 this.adjustGameReviews(game, -0.25);
                 game.workshop.engagement = Math.max(0, (game.workshop.engagement || 0) - 22);
                 game.socialFeed = [...(game.socialFeed || []), {
-                    author: '@WorkshopCreators', icon: '⚠️',
+                    author: '@WorkshopCreators', icon: '[[DE_ICON_016]]',
                     text: `¡ALERTA! El nuevo parche oficial de ${game.name} rompió la compatibilidad de los mods. La comunidad exige que el estudio publique herramientas de actualización.`,
                     sentiment: 'negative', time: `${this.getHistoricalYear()} · Parche`, kind: 'mod_compatibility_broken'
                 }].slice(-10);
             }
         }
         this.notify();
-        const compatibilityMessage = modCompatibilityBroken ? ' ⚠️ AVISO: El parche rompió la compatibilidad de los mods. Publica herramientas de actualización en el Workshop para restaurarla.' : '';
+        const compatibilityMessage = modCompatibilityBroken ? ' [[DE_ICON_016]] AVISO: El parche rompió la compatibilidad de los mods. Publica herramientas de actualización en el Workshop para restaurarla.' : '';
         return { success: true, message: `Parche oficial desplegado en "${game.name}" por $${cost.toLocaleString()}.${compatibilityMessage}` };
     }
 
@@ -2964,11 +2997,15 @@ class TycoonGame {
         this.funds -= cost;
         const conversion = game.monetizationStyle === 'aggressive' ? 0.04 : 0.02;
         const grossRevenue = Math.floor(game.mau * conversion * game.referencePrice * 0.9);
-        const combinedFeeRate = Math.min(1, (game.royaltyRate || 0) + (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0));
+        const engineRate = Math.max(0, Math.min(1, game.royaltyRate || 0));
+        const platformRate = Math.max(0, Math.min(1 - engineRate, game.platformRoyaltyRate || 0));
+        const publisherRate = Math.max(0, Math.min(1 - engineRate - platformRate, (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+        const combinedFeeRate = engineRate + platformRate + publisherRate;
         const fees = Math.floor(grossRevenue * combinedFeeRate);
         const revenue = grossRevenue - fees;
         game.royaltiesPaidTotal += Math.floor(grossRevenue * (game.royaltyRate || 0));
-        game.publisherSharePaid += Math.floor(grossRevenue * ((game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+        game.platformRoyaltiesPaidTotal = (game.platformRoyaltiesPaidTotal || 0) + Math.floor(grossRevenue * platformRate);
+        game.publisherSharePaid += Math.floor(grossRevenue * publisherRate);
         game.season++;
         game.nextSeasonWeek = Math.max(game.nextSeasonWeek, game.weeksOnMarket) + 12;
         game.weeksWithoutContentPatch = 0;
@@ -3067,9 +3104,15 @@ class TycoonGame {
                 ? this.applyWeeklyViralEffect(game)
                 : 1;
             const industryMultiplier = typeof this.getIndustrySalesMultiplier === 'function'
-                ? this.getIndustrySalesMultiplier(game.platform?.id, game.genre?.id || game.genreId)
+                ? this.getIndustrySalesMultiplier(game.platformId || game.platform?.id, game.genre?.id || game.genreId)
                 : 1;
             if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier * industryMultiplier);
+            const currentPlatform = this.getPlatformById(game.platformId || game.platform?.id);
+            if (currentPlatform && game.launchMarketShare != null) {
+                // El mercado evoluciona con el año; al retirarse persiste una cola residual.
+                const shareFactor = Math.max(0.15, Math.min(2, (currentPlatform.marketShare + 0.05) / (game.launchMarketShare + 0.05)));
+                unitsThisWeek = Math.max(unitsThisWeek > 0 ? 1 : 0, Math.floor(unitsThisWeek * shareFactor));
+            }
 
             let grossRevenueThisWeek = 0;
             if (isService) {
@@ -3120,11 +3163,15 @@ class TycoonGame {
                 }
             }
 
-            const royalty = Math.floor(grossRevenueThisWeek * (game.royaltyRate || 0));
-            const publisherShareRate = Math.max(0, Math.min(1 - (game.royaltyRate || 0), (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
+            const engineRate = Math.max(0, Math.min(1, game.royaltyRate || 0));
+            const platformRate = Math.max(0, Math.min(1 - engineRate, game.platformRoyaltyRate || 0));
+            const royalty = Math.floor(grossRevenueThisWeek * engineRate);
+            const platformRoyalty = Math.floor(grossRevenueThisWeek * platformRate);
+            const publisherShareRate = Math.max(0, Math.min(1 - engineRate - platformRate, (game.publisherRevenueShare || 0) + (game.subscriptionRevenueShare || 0)));
             const publisherShare = Math.floor(grossRevenueThisWeek * publisherShareRate);
-            const netRevenueThisWeek = grossRevenueThisWeek - royalty - publisherShare;
+            const netRevenueThisWeek = grossRevenueThisWeek - royalty - platformRoyalty - publisherShare;
             game.royaltiesPaidTotal = (game.royaltiesPaidTotal || 0) + royalty;
+            game.platformRoyaltiesPaidTotal = (game.platformRoyaltiesPaidTotal || 0) + platformRoyalty;
             game.publisherSharePaid = (game.publisherSharePaid || 0) + publisherShare;
             game.revenueTotal += netRevenueThisWeek;
             game.grossRevenueTotal = (game.grossRevenueTotal || 0) + grossRevenueThisWeek;
@@ -3394,7 +3441,7 @@ class TycoonGame {
                 const finishedTechId = this.activeResearch.techId;
                 const finishedTechName = this.activeResearch.nodeName;
                 if (this.techTreeManager) {
-                    this.techTreeManager.unlockTech(finishedTechId);
+                    this.techTreeManager.unlockTech(finishedTechId, this.getHistoricalYear());
                 }
                 this.activeResearch = null;
 
@@ -3481,7 +3528,9 @@ class TycoonGame {
                     createdWeek: this.week,
                     releaseYear: this.getHistoricalYear()
                 });
-                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId));
+                engine.historicalTechIds = cfg.historicalTechIds || [];
+                engine.historicalIncompatibility = cfg.historicalIncompatibility;
+                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId, this.getHistoricalYear()));
                 this.inHouseEngines.push(engine);
                 this.activeEngineRD = null;
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
@@ -3529,7 +3578,7 @@ class TycoonGame {
             return {
                 won: true,
                 game: winner.name,
-                message: `🏆 ¡GLORIA TOTAL! "${winner.name}" ha ganado el galardón de JUEGO DEL AÑO (GOTY)! Recibes +$${prizeMoney.toLocaleString()} y +${prizeFans} fans devotos.`
+                message: `[[DE_ICON_107]] ¡GLORIA TOTAL! "${winner.name}" ha ganado el galardón de JUEGO DEL AÑO (GOTY)! Recibes +$${prizeMoney.toLocaleString()} y +${prizeFans} fans devotos.`
             };
         }
         return null;
@@ -3828,7 +3877,7 @@ class TycoonGame {
 
         if (soundEngine) soundEngine.playClick();
         this.notify();
-        return { success: true, message: '☕ ¡Café de alta calidad para el equipo! +35 de energía para todos.' };
+        return { success: true, message: '[[DE_ICON_029]] ¡Café de alta calidad para el equipo! +35 de energía para todos.' };
     }
 
     sendOnVacation(empId) {
@@ -3843,7 +3892,7 @@ class TycoonGame {
 
         if (soundEngine) soundEngine.playLevelUp();
         this.notify();
-        return { success: true, message: `🏖️ ¡${emp.name} vuelve de vacaciones totalmente renovado al 100%!` };
+        return { success: true, message: `[[DE_ICON_108]] ¡${emp.name} vuelve de vacaciones totalmente renovado al 100%!` };
     }
 
     trainEmployee(empId, skillType) {
@@ -3868,7 +3917,7 @@ class TycoonGame {
 
         if (soundEngine) soundEngine.playLevelUp();
         this.notify();
-        return { success: true, message: `📚 ¡${emp.name} ha completado la capacitación! +8 en ${skillType === 'tech' ? 'Tecnología' : 'Diseño'}.` };
+        return { success: true, message: `[[DE_ICON_109]] ¡${emp.name} ha completado la capacitación! +8 en ${skillType === 'tech' ? 'Tecnología' : 'Diseño'}.` };
     }
 
     // --- POST-MORTEM GAME REPORT & DESIGN INSIGHTS ---
@@ -3902,7 +3951,7 @@ class TycoonGame {
         return {
             success: true,
             activePostMortem: this.activePostMortem,
-            message: `📝 Análisis post-mortem iniciado para "${game.name}". ${this.activePostMortem.employeeName} analizará aciertos y errores durante 2 semanas.`
+            message: `[[DE_ICON_011]] Análisis post-mortem iniciado para "${game.name}". ${this.activePostMortem.employeeName} analizará aciertos y errores durante 2 semanas.`
         };
     }
 
@@ -3921,31 +3970,31 @@ class TycoonGame {
         const synEval = calculateSynergy(game.genreId, game.topicId);
         let synergyFeedback = '';
         if (synEval.fit === 'OPTIMAL') {
-            synergyFeedback = `🌟 Sinergia Extraordinaria (1.35x): La unión de ${game.topic} con ${game.genre} es magistral. Impulsó las notas de la crítica y multiplicó las ventas iniciales.`;
+            synergyFeedback = `[[DE_ICON_040]] Sinergia Extraordinaria (1.35x): La unión de ${game.topic} con ${game.genre} es magistral. Impulsó las notas de la crítica y multiplicó las ventas iniciales.`;
         } else if (synEval.fit === 'NORMAL') {
-            synergyFeedback = `⚖️ Afinidad Estándar (1.00x): ${game.topic} encaja de forma adecuada con el género ${game.genre}, ofreciendo una experiencia sólida y equilibrada.`;
+            synergyFeedback = `[[DE_ICON_097]] Afinidad Estándar (1.00x): ${game.topic} encaja de forma adecuada con el género ${game.genre}, ofreciendo una experiencia sólida y equilibrada.`;
         } else {
-            synergyFeedback = `⚠️ Incompatibilidad Marcada (0.60x): ${game.topic} no resuena con los seguidores de ${game.genre}. Generó descontento en los análisis y castigó las ventas.`;
+            synergyFeedback = `[[DE_ICON_016]] Incompatibilidad Marcada (0.60x): ${game.topic} no resuena con los seguidores de ${game.genre}. Generó descontento en los análisis y castigó las ventas.`;
         }
 
         // 2. Target audience hint
-        const audienceHint = `🎯 Audiencia Ideal: Para ${game.topic}, el target demográfico óptimo es "${topicObj ? topicObj.idealAudience : 'Everyone'}".`;
+        const audienceHint = `[[DE_ICON_069]] Audiencia Ideal: Para ${game.topic}, el target demográfico óptimo es "${topicObj ? topicObj.idealAudience : 'Everyone'}".`;
 
         // 3. Technical architecture, DAG friction & code debt
         let architectureFeedback = '';
         const rawDebt = game.techDebt !== undefined ? game.techDebt : (game.bugs || 0);
         const frictionMult = game.friction ? (game.friction / 100 + 1) : 1.0;
         if (rawDebt > 25 || frictionMult > 1.25) {
-            architectureFeedback = `⚠️ Lastre de Deuda Técnica: La deuda técnica acumulada (${Math.round(rawDebt)} pts) generó fricción notable que desestabilizó el juego y ralentizó las ventas iniciales en la semana 1.`;
+            architectureFeedback = `[[DE_ICON_016]] Lastre de Deuda Técnica: La deuda técnica acumulada (${Math.round(rawDebt)} pts) generó fricción notable que desestabilizó el juego y ralentizó las ventas iniciales en la semana 1.`;
         } else if (rawDebt <= 10) {
-            architectureFeedback = `🟢 Código Limpio & Modular: Arquitectura robusta sin deuda técnica crítica. El motor y los módulos rindieron de forma estable durante el pico inicial.`;
+            architectureFeedback = `[[DE_ICON_023]] Código Limpio & Modular: Arquitectura robusta sin deuda técnica crítica. El motor y los módulos rindieron de forma estable durante el pico inicial.`;
         } else {
-            architectureFeedback = `👍 Balance Técnico Equilibrado: Se detectó deuda técnica moderada (${Math.round(rawDebt)} pts), pero no causó regresiones catastróficas tras el lanzamiento.`;
+            architectureFeedback = `[[DE_ICON_110]] Balance Técnico Equilibrado: Se detectó deuda técnica moderada (${Math.round(rawDebt)} pts), pero no causó regresiones catastróficas tras el lanzamiento.`;
         }
 
         const engineFeedback = (game.pipelineType === 'in_house' || (game.engine && game.engine.isProprietary))
-            ? `⚙️ Motor Propio: La arquitectura in-house proporcionó independencia tecnológica y mejor adaptabilidad para ${game.genre}.`
-            : `⚙️ Motor Comercial: La solución de terceros permitió una salida al mercado rápida con costes de I+D contenidos.`;
+            ? `[[DE_ICON_049]] Motor Propio: La arquitectura in-house proporcionó independencia tecnológica y mejor adaptabilidad para ${game.genre}.`
+            : `[[DE_ICON_049]] Motor Comercial: La solución de terceros permitió una salida al mercado rápida con costes de I+D contenidos.`;
 
         // 4. Optimal design slider calibration learned for this genre
         const genreRules = {
@@ -3988,7 +4037,7 @@ class TycoonGame {
             success: true,
             rpGained,
             report,
-            message: `📊 Informe post-mortem de "${game.name}" finalizado. +${rpGained} RP obtenidos para I+D.`
+            message: `[[DE_ICON_030]] Informe post-mortem de "${game.name}" finalizado. +${rpGained} RP obtenidos para I+D.`
         };
     }
 
@@ -4039,7 +4088,7 @@ class TycoonGame {
         return {
             success: true,
             game,
-            message: `📦 "${game.name}" ha sido retirado oficialmente del mercado. Se detienen los costes de soporte y se congelan sus cifras definitivas en el catálogo.`
+            message: `[[DE_ICON_013]] "${game.name}" ha sido retirado oficialmente del mercado. Se detienen los costes de soporte y se congelan sus cifras definitivas en el catálogo.`
         };
     }
 
@@ -4100,7 +4149,7 @@ class TycoonGame {
             fansGained: finalFans,
             hypeGained: finalHype,
             pressMentions: finalPress,
-            message: `🎪 ¡Éxito en la convención! Tu stand (${tierName}) cosechó +${finalFans} nuevos fans, +${finalPress} menciones en prensa y +${finalHype} de Hype global.`
+            message: `[[DE_ICON_074]] ¡Éxito en la convención! Tu stand (${tierName}) cosechó +${finalFans} nuevos fans, +${finalPress} menciones en prensa y +${finalHype} de Hype global.`
         };
     }
 
@@ -4163,7 +4212,7 @@ class TycoonGame {
             success: true,
             totalWeeks,
             costRP,
-            message: `💡 Investigación de temática iniciada: "${topicDef.name}". ${this.activeTopicResearch.employeeName} la estudiará durante 2 semanas.`
+            message: `[[DE_ICON_028]] Investigación de temática iniciada: "${topicDef.name}". ${this.activeTopicResearch.employeeName} la estudiará durante 2 semanas.`
         };
     }
 
@@ -4226,7 +4275,7 @@ class TycoonGame {
             success: true,
             totalWeeks,
             costRP,
-            message: `🎮 Investigación de género iniciada: "${genreDef.name}". ${this.activeGenreResearch.employeeName} lo estudiará durante 3 semanas.`
+            message: `[[DE_ICON_001]] Investigación de género iniciada: "${genreDef.name}". ${this.activeGenreResearch.employeeName} lo estudiará durante 3 semanas.`
         };
     }
 
@@ -4248,7 +4297,7 @@ class TycoonGame {
         const nodeDef = this.techTreeManager.catalogMap.get(techId);
         if (!nodeDef) return { success: false, message: 'Tecnología no encontrada en el catálogo.' };
 
-        const costRP = nodeDef.costRP || 30;
+        const costRP = nodeDef.costRP ?? nodeDef.researchCost ?? 30;
         if (this.researchPoints < costRP) {
             return { success: false, message: `Puntos de I+D insuficientes. Requiere ${costRP} RP (disponibles: ${this.researchPoints} RP).` };
         }
@@ -4266,7 +4315,7 @@ class TycoonGame {
         this.activeResearch = {
             techId: nodeDef.id,
             nodeName: nodeDef.name,
-            icon: nodeDef.icon || '🔬',
+            icon: nodeDef.icon || '[[DE_ICON_006]]',
             costRP: costRP,
             totalWeeks: totalWeeks,
             weeksRemaining: totalWeeks,
@@ -4279,7 +4328,7 @@ class TycoonGame {
             success: true,
             totalWeeks,
             costRP,
-            message: `🔬 Proyecto de I+D iniciado: "${nodeDef.name}". El equipo comenzará la investigación durante ${totalWeeks} semanas.`
+            message: `[[DE_ICON_006]] Proyecto de I+D iniciado: "${nodeDef.name}". El equipo comenzará la investigación durante ${totalWeeks} semanas.`
         };
     }
 
@@ -4317,7 +4366,7 @@ class TycoonGame {
         return {
             success: true,
             rpGain: item.rpGain,
-            message: `🔧 ¡Ingeniería Inversa completada! Has desmantelado "${item.name}" y obtenido +${item.rpGain} Puntos de I+D.`
+            message: `[[DE_ICON_106]] ¡Ingeniería Inversa completada! Has desmantelado "${item.name}" y obtenido +${item.rpGain} Puntos de I+D.`
         };
     }
 
@@ -4385,6 +4434,11 @@ class TycoonGame {
     startInHouseEngineRD(config = {}) {
         // config: { name, affineGenres, bakedNodes }
         const bakedNodes = config.bakedNodes || ['render_raster', 'physics_basic', 'net_singleplayer', 'content_linear'];
+        const historicalTechIds = [...new Set(config.historicalTechIds || [])];
+        const validation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!validation.valid) return { success: false, message: validation.errors.join(' ') };
+        const incompatibility = calculateTechIncompatibility(historicalTechIds);
+        const engineWeeks = Math.ceil(8 * incompatibility.multiplier);
         const affineGenres = config.affineGenres || ['Action', 'RPG'];
         if (this.activeEngineRD) return { success: false, message: 'Ya hay un proyecto de I+D de motor en curso.' };
         const costMoney = 18000 + (bakedNodes.length * 2000);
@@ -4411,19 +4465,24 @@ class TycoonGame {
             name: config.name || 'Proprietary Core v' + (this.inHouseEngines.length + 1),
             affineGenres,
             bakedNodes,
-            totalWeeks: 8,
-            weeksRemaining: 8,
+            historicalTechIds,
+            historicalIncompatibility: incompatibility,
+            totalWeeks: engineWeeks,
+            weeksRemaining: engineWeeks,
             progress: 0,
             leadProgrammerIndex: leadIndex >= 0 ? leadIndex : 0,
             leadProgrammerName: leadSenior.name
         };
         this.notify();
-        return { success: true, project: this.activeEngineRD, message: `🧪 Proyecto de I+D iniciado: "${this.activeEngineRD.name}". ${leadSenior.name} lidera la arquitectura durante 8 semanas.` };
+        return { success: true, project: this.activeEngineRD, message: `[[DE_ICON_094]] Proyecto de I+D iniciado: "${this.activeEngineRD.name}". ${leadSenior.name} lidera la arquitectura durante ${engineWeeks} semanas.` };
     }
 
-    upgradeInHouseEngine(engineId, newNodes = []) {
+    upgradeInHouseEngine(engineId, newNodes = [], historicalNodes = []) {
         const engine = this.inHouseEngines.find(e => e.id === engineId);
         if (!engine) return { success: false, message: 'Motor no encontrado.' };
+        const historicalTechIds = [...new Set([...(engine.historicalTechIds || []), ...historicalNodes])];
+        const validation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        if (!validation.valid) return { success: false, message: validation.errors.join(' ') };
 
         const costMoney = 20000 + (newNodes.length * 4000);
         const costRP = 25;
@@ -4442,6 +4501,10 @@ class TycoonGame {
             res = { success: true, message: `Motor ${engine.name} actualizado con éxito.` };
         }
 
+        if (res?.success) {
+            engine.historicalTechIds = historicalTechIds;
+            engine.historicalIncompatibility = calculateTechIncompatibility(historicalTechIds);
+        }
         if (soundEngine) soundEngine.playLevelUp();
         this.notify();
         return res;
@@ -4533,7 +4596,7 @@ class TycoonGame {
 
         return {
             success: true,
-            message: `🛠️ ¡Parche de Emergencia Hotfix v1.1 desplegado con éxito! La deuda técnica ha descendido a 14 pts (Código Limpio). Los servidores se han estabilizado y la comunidad te recompensa con +180 fans.`
+            message: `[[DE_ICON_015]] ¡Parche de Emergencia Hotfix v1.1 desplegado con éxito! La deuda técnica ha descendido a 14 pts (Código Limpio). Los servidores se han estabilizado y la comunidad te recompensa con +180 fans.`
         };
     }
 }
