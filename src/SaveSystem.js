@@ -146,6 +146,12 @@ function persistentFields(game) {
 function replaceGame(game, savedState) {
     const defaults = persistentFields(new game.constructor());
     const state = { ...defaults, ...savedState };
+    // Old saves had an empty placeholder for future rivals. Generate the initial
+    // industry only once on migration; never overwrite existing companies.
+    if (defaults.rivalSystemVersion && !savedState?.rivalSystemVersion &&
+        (!Array.isArray(savedState?.ipCompanies) || savedState.ipCompanies.length === 0)) {
+        state.ipCompanies = defaults.ipCompanies;
+    }
     // Version 1 saves predate IP. Preserve existing data and fill only missing fields.
     if (defaults.ipState && state.ipState && typeof state.ipState === 'object' && !Array.isArray(state.ipState)) {
         state.ipState = { ...defaults.ipState, ...state.ipState,

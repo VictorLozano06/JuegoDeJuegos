@@ -26,7 +26,11 @@ npm run preview
 
 En Empresa / Propiedad intelectual se puede registrar una franquicia (también desde un juego publicado), consultar sus entregas e historial, y seleccionarla al iniciar un proyecto. El registro tiene un coste inicial configurable en `game.ipState.settings.registrationCost`; los demás parámetros de evolución y valoración parten de `IP_DEFAULTS` en `src/ipSystem.js`. Las estadísticas se limitan entre 0 y 100 por defecto. La calidad y los hitos de ventas o instalaciones reales afectan a la franquicia; la popularidad, prestigio, fidelidad, expectativas y saturación influyen en el potencial de ventas y el interés de próximas entregas. La saturación se reduce anualmente y la relevancia cae tras un periodo configurable de inactividad. No hay bloqueo temporal para desarrollar entregas.
 
-La compraventa transfiere la propiedad y el dinero entre entidades con tesorerías persistentes. Los rivales actuales del ranking no son empresas con saldo propio: el mercado queda vacío hasta integrar dichas entidades, sin generar ofertas o saldos ficticios. Las IP, sus operaciones y referencias a juegos se guardan mediante el sistema de partidas existente; los guardados anteriores reciben valores predeterminados.
+La compraventa transfiere la propiedad y el dinero entre entidades con tesorerías persistentes. Los estudios rivales pueden registrar, desarrollar, anunciar y adquirir franquicias. Las IP, sus operaciones y referencias a juegos se guardan mediante el sistema de partidas existente; los guardados anteriores reciben valores predeterminados.
+
+## Empresas rivales
+
+Cada partida genera cinco estudios por defecto; `RIVAL_COMPANY_DEFAULTS.initialCount` y la opción `rivalCount` del constructor permiten ajustar la cantidad. Cada empresa conserva su identidad, plantilla, finanzas, tecnologías, proyectos, juegos e historial. Sus perfiles influyen en el riesgo, la innovación, la inversión y el uso de franquicias. La simulación semanal paga salarios, investiga, desarrolla y comercializa juegos; el ranking usa sus ventas reales. Los guardados anteriores incorporan estudios al migrarse y después conservan sus identidades. Los estudios y sus carteras son ficticios y se generan como parte de la simulación.
 
 Pruebas del sistema (Node.js 22 o posterior):
 
