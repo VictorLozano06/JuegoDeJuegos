@@ -56,16 +56,23 @@ export function initializeRivalUI({game,openModal}) {
     modal.id='modal-rival-companies'; modal.className='modal-backdrop';
     modal.innerHTML='<div class="modal-window rival-window"><div class="modal-header"><h2 class="modal-title">Industria / Empresas rivales</h2><button class="modal-close" type="button" aria-label="Cerrar">&times;</button></div><div id="rival-directory-view"></div></div>';
     document.body.appendChild(modal);
+    const windowElement=modal.querySelector('.modal-window');
     let selectedId=null;
     const render=()=>{
-        const view=modal.querySelector('#rival-directory-view');
+        const view=windowElement.querySelector('#rival-directory-view');
         const all=companies(game); const selected=all.find(company => company.id===selectedId);
         if(selectedId && !selected) selectedId=null;
         view.innerHTML=selected ? companyDetail(selected,game) : `<div class="rival-toolbar"><p>Estudios que compiten en el mercado y evolucionan durante la partida.</p><button type="button" class="dock-btn" data-rival-action="refresh">Actualizar</button></div>${all.length ? `<div class="rival-grid">${all.map(company=>companyCard(company,game)).join('')}</div>` : '<div class="rival-empty">Todavía no hay empresas rivales en esta partida.</div>'}`;
     };
-    document.getElementById('btn-rival-companies')?.addEventListener('click',()=>{selectedId=null;render();openModal(modal.id)});
-    modal.addEventListener('click',event=>{
-        if(event.target===modal || event.target.closest('.modal-close')){modal.style.display='none';modal.classList.remove('active');return;}
+    const openRivals=()=>{selectedId=null;render();if(window.studioPhoneNav?.openRivals)window.studioPhoneNav.openRivals();else openModal(modal.id)};
+    window.refreshRivalsPanel=render;
+    document.getElementById('btn-rival-companies')?.addEventListener('click',openRivals);
+    windowElement.addEventListener('click',event=>{
+        if(event.target.closest('.modal-close')){
+            if(windowElement.closest('#phone-view-rivals'))window.studioPhoneNav?.returnHome();
+            else{modal.style.display='none';modal.classList.remove('active');}
+            return;
+        }
         const button=event.target.closest('[data-rival-action]'); if(!button)return;
         if(button.dataset.rivalAction==='detail') selectedId=button.dataset.id;
         if(button.dataset.rivalAction==='back') selectedId=null;

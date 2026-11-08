@@ -286,6 +286,10 @@ export class WorldEngine {
         this.activeParticles = [];
         this.floatingRPs = [];
         this.steamParticles = [];
+        this.interactiveComputers = [];
+        this.hoveredComputer = null;
+        this.previousCameraPos = null;
+        this.previousControlsTarget = null;
 
         this.currentEra = 1;
         this.resolution = 'medium';
@@ -657,6 +661,8 @@ export class WorldEngine {
         this.desks = [];
         this.monitors = [];
         this.serverLeds = [];
+        this.interactiveComputers = [];
+        this.clearComputerHover();
 
         const framing = OFFICE_SCENES[office.sceneId];
         framing.build(this, THREE);
@@ -813,11 +819,41 @@ export class WorldEngine {
     registerDesk(group, index, slot = {}, parent = this.officeGroup) {
         group.userData = { type: 'desk', index };
         parent.add(group);
+
+        // Find CRT or monitor screen mesh
+        let screen = group.getObjectByName('curved_crt_screen') || 
+                     group.getObjectByName('Pantalla de desarrollo');
+        if (!screen) {
+            group.traverse(child => {
+                if (!screen && child.isMesh && (child.name?.includes('screen') || child.name?.includes('Pantalla') || child.geometry?.type === 'PlaneGeometry')) {
+                    screen = child;
+                }
+            });
+        }
+
+        // Invisible Raycasting Hit Box Mesh for comfortable clicking
+        const compHitbox = new THREE.Mesh(
+            new THREE.BoxGeometry(1.2, 0.8, 0.7),
+            new THREE.MeshBasicMaterial({ visible: false })
+        );
+        compHitbox.name = `comp_hitbox_${index}`;
+        compHitbox.position.set(0, 1.82, -0.15);
+        compHitbox.userData = { isComputer: true, deskIndex: index, deskGroup: group, screenMesh: screen };
+        group.add(compHitbox);
+        this.interactiveComputers.push(compHitbox);
+
+        if (screen) {
+            screen.userData = { isComputer: true, deskIndex: index, deskGroup: group };
+            this.interactiveComputers.push(screen);
+        }
+
         this.desks.push({
             id: slot.id ?? 'desk-' + index,
             role: slot.role ?? (index === 0 ? 'founder' : 'employee'),
             index,
             group,
+            screen,
+            compHitbox,
             worldPos: group.getWorldPosition(new THREE.Vector3()),
             seatPos: group.localToWorld(new THREE.Vector3(0, 0, 0.85)),
             occupant: null
@@ -931,12 +967,12 @@ export class WorldEngine {
 
         const statusBubbleCanvas = document.createElement('canvas');
         statusBubbleCanvas.width = 128;
-        statusBubbleCanvas.height = 96;
+        statusBubbleCanvas.height = 28;
         const statusBubbleContext = statusBubbleCanvas.getContext('2d');
         const statusBubbleTexture = new THREE.CanvasTexture(statusBubbleCanvas);
         const statusBubble = new THREE.Sprite(new THREE.SpriteMaterial({ map: statusBubbleTexture, transparent: true, depthTest: false }));
-        statusBubble.position.set(0, 2.65, 0);
-        statusBubble.scale.set(0.72, 0.54, 1);
+        statusBubble.position.set(0, 2.55, 0);
+        statusBubble.scale.set(0.82, 0.12, 1);
         statusBubble.renderOrder = 20;
         statusBubble.visible = false;
         model.group.add(statusBubble);
@@ -955,7 +991,7 @@ export class WorldEngine {
         model.group.add(engineProgressSprite);
 
         const character = {
-            ...model, employee, index, face, bulbGroup, statusBubble, statusBubbleCanvas, statusBubbleContext, statusBubbleTexture, statusBubbleIcon: '',
+            ...model, employee, index, face, bulbGroup, statusBubble, statusBubbleCanvas, statusBubbleContext, statusBubbleTexture, statusBubbleProgress: -1,
             engineProgressSprite, engineProgressCanvas, engineProgressContext, engineProgressTexture, engineProgressVal: -1,
             state: 'typing', stateUntil: 0,
             dispose() {
@@ -979,21 +1015,22 @@ export class WorldEngine {
         character.dispose();
     }
 
-    updateCharacterMesh(index, customConfig) {
+    updateCharacterMesh(index, customConfig, { preview = false } = {}) {
         const previous = this.characters[index];
         if (!previous) return;
 
         const employee = game.employees[index];
-        if (customConfig) {
+        if (customConfig && !preview) {
             employee.customization = { ...employee.customization, ...customConfig };
         }
-        const character = this.buildCharacterMesh(employee, index);
+        const character = this.buildCharacterMesh(preview ? { ...employee, customization: { ...employee.customization, ...customConfig } } : employee, index);
         character.state = previous.state;
         character.stateUntil = previous.stateUntil;
         this.removeCharacter(previous);
         this.charactersGroup.add(character.group);
         this.characters[index] = character;
         this.updateCharacterPositions();
+        this.needsStaticFrame = true;
     }
 
     updateCharacterPositions() {
@@ -1147,6 +1184,18 @@ export class WorldEngine {
         const time = this.clock.elapsedTime;
 
         const menuShot = this.menuCamera.active;
+        // Keep the last office frame while these menus are open. Redraw on demand
+        // for appearance changes and resizes without advancing the visual effects.
+        if (!menuShot && document.querySelector('.modal-backdrop.active > .compact-menu, #modal-expo-scene.active, .game-dialog[open]')) {
+            if (this.needsStaticFrame) {
+                this.renderer.shadowMap.needsUpdate = true;
+                this.renderFrame();
+                this.needsStaticFrame = false;
+            }
+            return;
+        }
+        this.needsStaticFrame = false;
+
         if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
         else this.controls.update();
         this.particlesGroup.visible = !menuShot;
@@ -1229,7 +1278,7 @@ export class WorldEngine {
                 character.state = 'typing';
                 character.bulbGroup.visible = false;
                 character.statusBubble.visible = false;
-                character.statusBubbleIcon = '';
+                character.statusBubbleProgress = -1;
                 character.engineProgressSprite.visible = false;
                 animateEmployee(character, time, character.deskIndex === 0 ? -0.51 : 0);
                 character.face.update(time, character.state);
@@ -1237,37 +1286,31 @@ export class WorldEngine {
             }
             if (time >= character.stateUntil) character.state = 'typing';
             character.bulbGroup.visible = character.state === 'thinking';
-            const employee = character.employee || {};
-            const energy = employee.energy ?? employee.stamina ?? 100;
-            const morale = employee.morale ?? 70;
-            const stress = employee.stress ?? 0;
-            const statusIcon = employee.burnoutState === 'total' ? '[[DE_ICON_003]]'
-                : ((employee.burnoutState === 'risk' || employee.crunchActive || game.workMode === 'crunch') ? '[[DE_ICON_022]]'
-                    : (energy < 35 ? '[[DE_ICON_029]]' : (morale >= 80 && stress < 40 ? '[[DE_ICON_028]]' : '')));
-            if (statusIcon !== character.statusBubbleIcon) {
-                character.statusBubbleIcon = statusIcon;
+            const projectProgress = game?.currentProject
+                ? Math.max(0, Math.min(100, Number(game.currentProject.overallProgress) || 0))
+                : null;
+            if (projectProgress !== character.statusBubbleProgress) {
+                character.statusBubbleProgress = projectProgress;
                 const ctx = character.statusBubbleContext;
-                ctx.clearRect(0, 0, 128, 96);
-                if (statusIcon) {
-                    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                ctx.clearRect(0, 0, 128, 28);
+                if (projectProgress !== null) {
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.58)';
                     ctx.beginPath();
-                    ctx.roundRect(8, 4, 112, 76, 22);
+                    ctx.roundRect(2, 5, 124, 18, 9);
                     ctx.fill();
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = '54px sans-serif';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(statusIcon, 64, 42);
-                    ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+                    ctx.fillStyle = 'rgba(255,255,255,0.25)';
                     ctx.beginPath();
-                    ctx.moveTo(53, 78);
-                    ctx.lineTo(75, 78);
-                    ctx.lineTo(64, 94);
-                    ctx.closePath();
+                    ctx.roundRect(8, 11, 112, 6, 3);
                     ctx.fill();
+                    if (projectProgress > 0) {
+                        ctx.fillStyle = '#78d6bd';
+                        ctx.beginPath();
+                        ctx.roundRect(8, 11, Math.max(3, 112 * projectProgress / 100), 6, 3);
+                        ctx.fill();
+                    }
                 }
                 character.statusBubbleTexture.needsUpdate = true;
-                character.statusBubble.visible = Boolean(statusIcon);
+                character.statusBubble.visible = projectProgress !== null;
             }
 
             // Floating 3D Engine R&D Progress Bar (Apartado 1)
@@ -1405,6 +1448,10 @@ export class WorldEngine {
             this.nextShadowRefresh = time + SHADOW_REFRESH_INTERVAL;
         }
 
+        this.renderFrame();
+    }
+
+    renderFrame() {
         // Bloom is used for the hologram; the office renders in a single pass.
         if (this.composer && this.viewMode === 'dag_hologram') {
             this.composer.render();
@@ -1420,6 +1467,7 @@ export class WorldEngine {
         this.camera.aspect = width / Math.max(1, height);
         this.camera.updateProjectionMatrix();
         this.resizeRenderer(width, height);
+        this.needsStaticFrame = true;
     }
 
     resizeRenderer(width, height) {
@@ -2316,6 +2364,22 @@ export class WorldEngine {
                 }
             }
 
+            // 1.5. Raycast Interactive Workstation Computers (Uwuntu XD Access)
+            if (this.viewMode === 'office' && this.interactiveComputers.length > 0) {
+                const compHits = raycaster.intersectObjects(this.interactiveComputers, false);
+                if (compHits.length > 0) {
+                    this.container.style.cursor = 'pointer';
+                    this.setComputerHover(compHits[0].object, e.clientX, e.clientY);
+                    if (this.hoveredCharacter) {
+                        this.unhighlightCharacter(this.hoveredCharacter);
+                        this.hoveredCharacter = null;
+                    }
+                    return;
+                } else if (this.hoveredComputer) {
+                    this.clearComputerHover();
+                }
+            }
+
             // 2. Raycast Characters & Workstations (Hover de personajes al estilo Game Dev Tycoon)
             const visibleCharacters = this.characters.filter(character => character.group.visible);
             const officeTargets = [...visibleCharacters.map(character => character.group), ...this.desks.map(d => d.group)];
@@ -2408,6 +2472,20 @@ export class WorldEngine {
                 }
             }
 
+            // 1.5. Raycast Click on Workstation Computers -> Open Uwuntu XD
+            if (this.viewMode === 'office' && this.interactiveComputers.length > 0) {
+                const compHits = raycaster.intersectObjects(this.interactiveComputers, false);
+                if (compHits.length > 0) {
+                    const hitObj = compHits[0].object;
+                    const deskIndex = hitObj.userData.deskIndex ?? 0;
+                    this.focusComputer(deskIndex);
+                    if (window.uwuntuOS) {
+                        window.uwuntuOS.open();
+                    }
+                    return;
+                }
+            }
+
             // A workstation selects its employee, just like clicking the character.
             const visibleCharacters = this.characters.filter(character => character.group.visible);
             const officeTargets = [...visibleCharacters.map(character => character.group), ...this.desks.map(desk => desk.group)];
@@ -2458,6 +2536,86 @@ export class WorldEngine {
             material.emissive.setHex(0x000000);
             material.emissiveIntensity = 0;
         }
+    }
+
+    setComputerHover(hitObj, clientX, clientY) {
+        this.hoveredComputer = hitObj;
+        this.showComputerTooltip(clientX, clientY);
+        const screenMesh = hitObj.userData.screenMesh || (hitObj.userData.isComputer ? hitObj : null);
+        if (screenMesh && screenMesh.material && screenMesh.material.color) {
+            if (!screenMesh.userData.origColor) {
+                screenMesh.userData.origColor = screenMesh.material.color.clone();
+            }
+            screenMesh.material.color.setHex(0xa5f3fc);
+        }
+    }
+
+    clearComputerHover() {
+        if (this.hoveredComputer) {
+            const screenMesh = this.hoveredComputer.userData.screenMesh || this.hoveredComputer;
+            if (screenMesh && screenMesh.material && screenMesh.userData.origColor) {
+                screenMesh.material.color.copy(screenMesh.userData.origColor);
+            }
+            this.hoveredComputer = null;
+        }
+        this.hideComputerTooltip();
+    }
+
+    showComputerTooltip(x, y) {
+        let tooltip = document.getElementById('computer-hover-tooltip');
+        if (!tooltip) {
+            tooltip = document.createElement('div');
+            tooltip.id = 'computer-hover-tooltip';
+            tooltip.className = 'computer-hover-tooltip';
+            tooltip.innerHTML = `
+                <div class="tooltip-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                        <line x1="8" y1="21" x2="16" y2="21"></line>
+                        <line x1="12" y1="17" x2="12" y2="21"></line>
+                    </svg>
+                </div>
+                <div class="tooltip-text">
+                    <strong>Uwuntu XD</strong>
+                    <span>Clic para acceder al SO [O]</span>
+                </div>
+            `;
+            document.body.appendChild(tooltip);
+        }
+        tooltip.style.left = `${x + 16}px`;
+        tooltip.style.top = `${y + 16}px`;
+        tooltip.style.display = 'flex';
+    }
+
+    hideComputerTooltip() {
+        const tooltip = document.getElementById('computer-hover-tooltip');
+        if (tooltip) tooltip.style.display = 'none';
+    }
+
+    focusComputer(deskIndex = 0) {
+        if (!this.controls) return;
+        const desk = this.desks.find(d => d.index === deskIndex) || this.desks[0];
+        if (!desk) return;
+        this.previousCameraPos = this.camera.position.clone();
+        this.previousControlsTarget = this.controls.target.clone();
+        const deskWorldPos = new THREE.Vector3();
+        desk.group.getWorldPosition(deskWorldPos);
+        
+        // Smooth camera lerp towards the computer monitor
+        this.targetCamPos = new THREE.Vector3(deskWorldPos.x, deskWorldPos.y + 1.85, deskWorldPos.z + 1.35);
+        this.targetLookAt = new THREE.Vector3(deskWorldPos.x, deskWorldPos.y + 1.82, deskWorldPos.z - 0.25);
+        this.isTransitioningCamera = true;
+        this.controls.enabled = false;
+        this.clearComputerHover();
+    }
+
+    returnFromComputer() {
+        if (!this.controls) return;
+        this.targetCamPos = this.previousCameraPos ? this.previousCameraPos.clone() : this.cameraOfficePos.clone();
+        this.targetLookAt = this.previousControlsTarget ? this.previousControlsTarget.clone() : this.cameraOfficeTarget.clone();
+        this.isTransitioningCamera = true;
+        this.controls.enabled = true;
+        this.clearComputerHover();
     }
 
     highlightDependencies(nodeId, highlight = true) {

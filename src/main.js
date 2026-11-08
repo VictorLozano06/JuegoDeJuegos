@@ -1,6 +1,13 @@
+import { initializeUwuntuOS } from './uwuntu-os.js';
+import { initializePreproductionWizard } from './preproduction-wizard.js';
+import { commitPreproduction } from './project-transaction.js';
 import './ui-icons.js';
 import { initializeIPUI, refreshIPWizard } from './ip-ui.js';
 import { initializeRivalUI } from './rival-ui.js';
+import {
+    marketingBriefArt, marketingChannelState, marketingEdition, marketingMoney, marketingNumber,
+    marketingText, renderMarketingChannels, renderMarketingHistory, renderMarketingInspector
+} from './marketing-ui.js';
 import { initializeFinanceUI } from './finance-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
@@ -20,13 +27,18 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
  */
 
 let world = null;
+let currentLiveSalesWidgetGameId = null;
+let isLiveSalesWidgetMinimized = false;
 const STATE_MAIN_MENU = 'main-menu';
 const STATE_TRANSITION = 'transition';
 const STATE_PLAYING = 'playing';
+window.game = game;
 let appState = STATE_MAIN_MENU;
 let mainMenu;
 let financeUI;
 let creatingNewGame = false;
+let studioPreviewDirty = false;
+let compactMenuTrigger = null;
 let appliedSettings;
 const initialProfile = {
     officeTier: game.getActiveOffice().tier,
@@ -48,6 +60,7 @@ let scopeDAG = new ScopeDAG(null, { techTreeManager });
 let debtManager = new TechnicalDebtModel();
 let pipelineManager = new EnginePipelineManager();
 const selectedHistoricalTechs = new Set();
+let preproductionWizard;
 
 game.onResearchCompleted = (name) => {
     showToast(`[[DE_ICON_073]] ¡I+D COMPLETADA! Módulo "${name}" investigado y desbloqueado para tus videojuegos.`, 'success');
@@ -111,78 +124,99 @@ window.populateProjectWizard = populateProjectWizard;
 window.updateWizardSynergyBadge = updateWizardSynergyBadge;
 window.updateLiveSalesWidget = updateLiveSalesWidget;
 
-document.addEventListener('DOMContentLoaded', () => {
-    game.isPaused = true;
-    // 1. Initialize 3D World Engine
-    world = new WorldEngine('canvas-container');
-    world.onNodeClick(on3DNodeClicked);
+function bootGameApp() {
+    try {
+        game.isPaused = true;
+        // 1. Initialize 3D World Engine
+        world = new WorldEngine('canvas-container');
+        world.onNodeClick(on3DNodeClicked);
 
-    // Sync initial character
-    world.syncEmployees(game.employees);
+        // Sync initial character
+        world.syncEmployees(game.employees);
 
-    // Initial 3D DAG render
-    world.renderScopeDAG3D(scopeDAG, pipelineManager.getActivePipeline());
+        // Initial 3D DAG render
+        world.renderScopeDAG3D(scopeDAG, pipelineManager.getActivePipeline());
 
-    // 2. Setup UI Event Listeners & Keyboard Shortcuts
-    setupUIControls();
-    setupKeyboardShortcuts();
-    initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
-    initializeRivalUI({ game, openModal });
-    financeUI = initializeFinanceUI({ game, openModal, showToast,
-        resumeRecovery: () => {
-            if (game.prepareBankruptcy().success) return { success:false, message:'La insolvencia sigue sin una solución viable. Revisa las medidas o el procedimiento.' };
-            game.financeState.procedurePending = false;
-            game.isPaused = false;
-            if (game.gameSpeed === 0) game.gameSpeed = 1;
-            startSimulationLoops();
-            return { success:true, message:'Plan revisado; simulación reanudada.' };
-        },
-        onBankruptcyCommitted: () => {
-            game.financeState.procedurePending = false;
-            if (game.financeState.bankruptcy.mode === 'spectator') { game.isPaused = false; startSimulationLoops(); }
-            if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+        // 2. Setup UI Event Listeners & Keyboard Shortcuts
+        setupUIControls();
+        setupKeyboardShortcuts();
+        initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
+        initializeRivalUI({ game, openModal });
+        financeUI = initializeFinanceUI({ game, openModal, showToast,
+            resumeRecovery: () => {
+                if (game.prepareBankruptcy().success) return { success:false, message:'La insolvencia sigue sin una solución viable. Revisa las medidas o el procedimiento.' };
+                game.financeState.procedurePending = false;
+                game.isPaused = false;
+                if (game.gameSpeed === 0) game.gameSpeed = 1;
+                startSimulationLoops();
+                return { success:true, message:'Plan revisado; simulación reanudada.' };
+            },
+            onBankruptcyCommitted: () => {
+                game.financeState.procedurePending = false;
+                if (game.financeState.bankruptcy.mode === 'spectator') { game.isPaused = false; startSimulationLoops(); }
+                if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+            }
+        });
+        initializeUwuntuOS(game, world);
+
+        // 3. Populate Modal Dropdowns & DAG Architecture
+        populateProjectWizard();
+        initDAGArchitectureUI();
+        preproductionWizard = initializePreproductionWizard({
+            game,
+            getPipeline: () => pipelineManager.getActivePipeline(),
+            getScope: () => scopeDAG,
+            getHistoricalTechs: () => [...selectedHistoricalTechs],
+            getTechnologyNames: ids => ids.map(id => TECH_TREE_NODES.find(node => node.id === id)?.name || id)
+        });
+        initCompactMenuControls();
+        initGameDialogs();
+        initializeMainMenu();
+
+        // 4. Bind Game State Listeners
+        game.onStateChange((state) => {
+            if (appState !== STATE_PLAYING) return;
+            syncStudioScene(state);
+            renderHUD(state);
+            const officesPhoneView = document.getElementById('phone-view-offices');
+            if (document.getElementById('modal-offices')?.classList.contains('active') || (officesPhoneView && !officesPhoneView.hidden)) refreshOfficeManager();
+            (state.pendingHeadhunts || []).forEach(offer => {
+                if (notifiedHeadhuntEmployeeIds.has(offer.employeeId)) return;
+                notifiedHeadhuntEmployeeIds.add(offer.employeeId);
+                showToast(`[[DE_ICON_056]] ${offer.rivalStudio} quiere fichar a ${offer.employeeName}. Responde en ${offer.deadlineWeeksRemaining ?? 3} semanas desde Gestión de Personal.`, 'warn');
+            });
+            const marketingModal = document.getElementById('modal-marketing');
+            if (marketingModal?.classList.contains('active')) updateMarketingHubCounters();
+            renderIndustryNews(state);
+            updateLiveSalesWidget();
+        });
+
+        // 5. Initial Render
+        renderHUD(game);
+
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('autostart') === '1') {
+            game.startNewGameProject({
+                name: 'Neon Matrix 1985',
+                topicId: 'cyberpunk',
+                genreId: 'RPG',
+                platformId: 'g64',
+                engineId: 'engine_v1',
+                targetAudience: 'Mature'
+            });
+            void enterGameplay();
         }
-    });
-
-    // 3. Populate Modal Dropdowns & DAG Architecture
-    populateProjectWizard();
-    initDAGArchitectureUI();
-    initCompanyCreatorModal();
-    initializeMainMenu();
-
-    // 4. Bind Game State Listeners
-    game.onStateChange((state) => {
-        if (appState !== STATE_PLAYING) return;
-        syncStudioScene(state);
-        renderHUD(state);
-        if (document.getElementById('modal-offices').classList.contains('active')) refreshOfficeManager();
-        (state.pendingHeadhunts || []).forEach(offer => {
-            if (notifiedHeadhuntEmployeeIds.has(offer.employeeId)) return;
-            notifiedHeadhuntEmployeeIds.add(offer.employeeId);
-            showToast(`[[DE_ICON_056]] ${offer.rivalStudio} quiere fichar a ${offer.employeeName}. Responde en ${offer.deadlineWeeksRemaining ?? 3} semanas desde Gestión de Personal.`, 'warn');
-        });
-        const marketingModal = document.getElementById('modal-marketing');
-        if (marketingModal?.classList.contains('active')) updateMarketingHubCounters();
-        renderIndustryNews(state);
-        updateLiveSalesWidget();
-    });
-
-    // 5. Initial Render
-    renderHUD(game);
-
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.get('autostart') === '1') {
-        game.startNewGameProject({
-            name: 'Neon Matrix 1985',
-            topicId: 'cyberpunk',
-            genreId: 'RPG',
-            platformId: 'g64',
-            engineId: 'engine_v1',
-            targetAudience: 'Mature'
-        });
-        void enterGameplay();
+    } catch (e) {
+        console.error('CRITICAL BOOT ERROR:', e);
+        window.__bootError = e.stack || e.message;
     }
-});
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootGameApp);
+} else {
+    bootGameApp();
+}
 
 function initializeMainMenu() {
     const settings = saveSystem.getSettings();
@@ -289,6 +323,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
         return;
     }
     appState = STATE_PLAYING;
+    document.getElementById('ui-overlay')?.removeAttribute('inert');
     game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
     game.notify();
     mainMenu.hide();
@@ -303,6 +338,7 @@ function returnToMainMenu() {
     if (appState !== STATE_PLAYING) return;
     if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
     appState = STATE_MAIN_MENU;
+    document.getElementById('ui-overlay')?.setAttribute('inert', '');
     game.isPaused = true;
     clearInterval(devInterval);
     clearInterval(calendarInterval);
@@ -348,7 +384,7 @@ function startSimulationLoops() {
             if (cadence === 'weekly' || (cadence === 'monthly' && game.week === 1)) autosaveCurrentGame();
             if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
             const liveOpsModal = document.getElementById('modal-liveops');
-            if (liveOpsModal?.classList.contains('active')) renderLiveOps();
+            if (liveOpsModal?.classList.contains('active') || liveOpsPhoneTarget) renderLiveOps();
             checkCalendarEvents();
         }
     }, 2800 / (game.gameSpeed || 1));
@@ -376,8 +412,9 @@ function setGameSpeed(speed) {
 
 function setupKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
+        if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
         const officeModal = document.getElementById('modal-offices');
-        if (officeModal.classList.contains('active')) {
+        if (officeModal?.classList.contains('active')) {
             if (e.key === 'Escape') {
                 e.preventDefault();
                 closeAllModals();
@@ -392,11 +429,11 @@ function setupKeyboardShortcuts() {
             }
             return;
         }
+        if (document.querySelector('.modal-backdrop.active .compact-menu')) return;
         if (appState !== STATE_PLAYING) {
             if (e.key === 'Escape' && creatingNewGame) closeAllModals();
             return;
         }
-        if (e.defaultPrevented || document.querySelector('dialog[open]')) return;
         // Ignore if user is currently typing inside an input or textarea
         if (['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
             return;
@@ -425,19 +462,19 @@ function setupKeyboardShortcuts() {
             renderTechTree();
             openModal('modal-research');
         } else if (key === 'h') {
-            renderRecruitment();
-            openModal('modal-hire');
+            openPersonnelPanel();
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         } else if (key === 'c' || key === 'v') {
-            renderHistoryAndCharts();
-            openModal('modal-history');
+            openSalesPanel();
+            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         } else if (key === 'g') {
             const modalDag = document.getElementById('modal-scope-dag');
-            if (modalDag && modalDag.classList.contains('active')) {
+            if (window.studioPhoneNav?.isArchitectureOpen?.()) {
+                window.studioPhoneNav.returnHome();
+            } else if (modalDag && modalDag.classList.contains('active')) {
                 closeAllModals();
             } else {
-                renderDAGNodes();
-                updateDAGMetricsUI();
-                openModal('modal-scope-dag');
+                openArchitecturePanel();
                 if (soundEngine && soundEngine.playClick) soundEngine.playClick();
             }
         } else if (key === 'p') {
@@ -498,19 +535,38 @@ function setupUIControls() {
 
     const btnOpenDag = document.getElementById('btn-open-dag');
     if (btnOpenDag) {
-        btnOpenDag.addEventListener('click', () => {
-            renderDAGNodes();
-            updateDAGMetricsUI();
-            openModal('modal-scope-dag');
-        });
+        btnOpenDag.addEventListener('click', openArchitecturePanel);
     }
 
     const btnHudOpenDag = document.getElementById('btn-hud-open-dag');
     if (btnHudOpenDag) {
-        btnHudOpenDag.addEventListener('click', () => {
-            renderDAGNodes();
-            updateDAGMetricsUI();
-            openModal('modal-scope-dag');
+        btnHudOpenDag.addEventListener('click', openArchitecturePanel);
+    }
+
+    // Top Bar Quick Actions for Personnel & Sales (Direct Game Panels, Not PC)
+    const hudBtnPersonnel = document.getElementById('hud-btn-personnel');
+    if (hudBtnPersonnel) {
+        hudBtnPersonnel.addEventListener('click', (e) => {
+            e.preventDefault();
+            openPersonnelPanel();
+        });
+    }
+
+    const hudBtnStats = document.getElementById('hud-btn-stats');
+    if (hudBtnStats) {
+        hudBtnStats.addEventListener('click', (e) => {
+            e.preventDefault();
+            openSalesPanel();
+        });
+    }
+
+    const hudBtnPc = document.getElementById('hud-btn-pc');
+    if (hudBtnPc) {
+        hudBtnPc.addEventListener('click', () => {
+            if (window.uwuntuOS) {
+                if (window.uwuntuOS.isOpen) window.uwuntuOS.close();
+                else window.uwuntuOS.open();
+            }
         });
     }
 
@@ -546,28 +602,35 @@ function setupUIControls() {
     });
 
     document.getElementById('btn-hire').addEventListener('click', () => {
-        renderRecruitment();
-        openModal('modal-hire');
+        openPersonnelPanel();
     });
 
-    document.getElementById('btn-history').addEventListener('click', () => {
-        renderHistoryAndCharts();
-        openModal('modal-history');
-    });
+    const btnHistory = document.getElementById('btn-history');
+    if (btnHistory) {
+        btnHistory.addEventListener('click', () => {
+            openSalesPanel();
+        });
+    }
 
     document.getElementById('btn-liveops').addEventListener('click', () => {
         renderLiveOps();
         openModal('modal-liveops');
     });
 
-    document.getElementById('btn-marketing').addEventListener('click', () => {
-        renderMarketingHub();
-        openModal('modal-marketing');
-    });
+    const mktBtn = document.getElementById('btn-marketing');
+    if (mktBtn) {
+        mktBtn.addEventListener('click', () => {
+            if (window.studioPhoneNav?.openMarketing) {
+                window.studioPhoneNav.openMarketing();
+            } else {
+                renderMarketingHub();
+                openModal('modal-marketing');
+            }
+        });
+    }
 
     document.getElementById('btn-community-workshop').addEventListener('click', () => {
-        renderCommunityWorkshop();
-        openModal('modal-community-workshop');
+        openWorkshopPanel();
     });
 
     const businessOptions = document.getElementById('business-model-options');
@@ -591,6 +654,17 @@ function setupUIControls() {
 
     // Delegación de eventos para botones de Marketing y Streamers (evita desenganche al repintar)
     document.addEventListener('click', (e) => {
+        const cover = e.target.closest('[data-press-cover]');
+        if (cover) {
+            window.showMarketingPressCover(cover.dataset.pressCover);
+            return;
+        }
+        const channel = e.target.closest('[data-mkt-channel]');
+        if (channel) {
+            selectedMarketingChannel = channel.dataset.mktChannel;
+            updateMarketingChannelSelection();
+            return;
+        }
         const mktBtn = e.target.closest('.btn-run-marketing');
         if (mktBtn && !mktBtn.hasAttribute('onclick')) {
             e.preventDefault();
@@ -649,8 +723,7 @@ function setupUIControls() {
     }
 
     document.getElementById('btn-upgrade-office').addEventListener('click', () => {
-        openModal('modal-offices');
-        refreshOfficeManager(null);
+        openOfficePanel();
         document.querySelector('#modal-offices .modal-close')?.focus();
     });
 
@@ -700,9 +773,17 @@ function setupUIControls() {
     adminModal.querySelector('[data-admin-action="set"]').addEventListener('click', () => applyAdminFunds('set'));
 
     // Modal Close Buttons
-    document.querySelectorAll('.modal-close, .modal-backdrop').forEach(elem => {
+    document.querySelectorAll('.modal-close').forEach(elem => {
         elem.addEventListener('click', (e) => {
-            if (e.target.classList.contains('modal-backdrop') || e.target.classList.contains('modal-close')) {
+            if (e.target.closest('.modal-close')) {
+                if (e.target.closest('#phone-view-architecture')) {
+                    window.studioPhoneNav?.returnHome();
+                    return;
+                }
+                if (e.target.closest('[id^="phone-view-"]')) {
+                    window.studioPhoneNav?.returnHome();
+                    return;
+                }
                 closeAllModals();
                 if (world && world.scopeDagGroup && world.scopeDagGroup.visible) {
                     world.hideScopeDAG();
@@ -716,6 +797,7 @@ function setupUIControls() {
     // Project Wizard Form Submission
     document.getElementById('form-new-game').addEventListener('submit', (e) => {
         e.preventDefault();
+        if (!preproductionWizard?.isFinal()) return;
         startProjectFromWizard();
     });
 
@@ -1000,8 +1082,7 @@ function setupDeveloperContextMenu() {
         btnStats.addEventListener('click', (e) => {
             e.stopPropagation();
             contextMenu.style.display = 'none';
-            renderRecruitment();
-            openModal('modal-hire');
+            openPersonnelPanel();
             const selectedEmployeeId = game.employees[selectedDevIndex]?.id;
             const selectedCard = selectedEmployeeId ? document.querySelector(`#current-team-list [data-employee-id="${selectedEmployeeId}"]`) : null;
             selectedCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -1277,10 +1358,6 @@ window.selectPipelineFromModal = function(pipeId) {
     pipelineManager.selectPipeline(pipeId);
     const activePipe = pipelineManager.getActivePipeline();
     if (!activePipe) return;
-    debtManager.setBaseDebt(activePipe.baseDebtFloor);
-    if (activePipe.type === 'commercial') {
-        (activePipe.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
-    }
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
@@ -1682,6 +1759,10 @@ function renderDAGNodes() {
             if (!targetEl) return;
 
             const card = document.createElement('div');
+            card.dataset.nodeId = node.id;
+            card.tabIndex = 0;
+            card.setAttribute('role', 'button');
+            card.setAttribute('aria-pressed', String(isActive));
             card.className = 'dag-node-card' +
                 (isActive ? ' active' : '') +
                 (isAvailable ? ' available' : '') +
@@ -2022,7 +2103,14 @@ function updateEngineOptions() {
 }
 
 function startProjectFromWizard() {
-    const name = document.getElementById('input-game-name').value.trim() || 'Juego ' + (game.gamesHistory.length + 1);
+    const check = preproductionWizard?.validateAll();
+    if (!check?.valid || !preproductionWizard.markSubmitting()) return;
+    if (game.currentProject) {
+        preproductionWizard.setError('Ya hay otro videojuego en desarrollo.', 5);
+        preproductionWizard.doneSubmitting();
+        return;
+    }
+    const name = document.getElementById('input-game-name').value.trim();
     const topicId = document.getElementById('select-topic').value;
     const genreId = document.getElementById('select-genre').value;
     const platformId = document.getElementById('select-platform').value;
@@ -2033,20 +2121,18 @@ function startProjectFromWizard() {
     const monetizationStyle = document.getElementById('select-monetization-style').value || 'cosmetic';
     const supportsPatches = document.getElementById('toggle-postlaunch-patches').checked;
 
-    renderPipelineSelector();
     const activePipeline = pipelineManager.getActivePipeline();
     if (!activePipeline) {
-        showToast('No hay motores disponibles. Inicia un proyecto de I+D desde el menú del estudio.', 'warn');
+        preproductionWizard.setError('No hay motores disponibles. Completa un motor propio en I+D.', 3);
+        preproductionWizard.doneSubmitting();
         return;
-    }
-    if (activePipeline.type === 'commercial') {
-        (activePipeline.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
     }
     const friction = scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
     const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
     if (scopeDAG.selectedNodeIds.size < 3) {
-        showToast('Debes seleccionar al menos 3 nodos de arquitectura para estructurar el juego.', 'warn');
+        preproductionWizard.setError('Selecciona al menos tres nodos de arquitectura.', 3);
+        preproductionWizard.doneSubmitting();
         return;
     }
 
@@ -2057,18 +2143,20 @@ function startProjectFromWizard() {
         pipeline: activePipeline
     };
 
-    debtManager.setBaseDebt(activePipeline.baseDebtFloor);
-
-    const result = game.startNewGameProject({
+    const result = commitPreproduction(game, {
         name, topicId, genreId, platformId, targetAudience, dagConfig,
         historicalTechIds: [...selectedHistoricalTechs],
-        ipId: document.getElementById("select-ip").value || null,
-        ipInstallmentType: document.getElementById("select-ip-installment").value,
+        ipId: document.getElementById('select-ip').value || null,
+        ipInstallmentType: document.getElementById('select-ip-installment').value,
         publishingContractType,
         businessModel, postLaunchContent, monetizationStyle, supportsPatches
-    });
+    }, check.newIPName);
 
     if (result.success) {
+        debtManager.setBaseDebt(activePipeline.baseDebtFloor);
+        if (activePipeline.type === 'commercial') {
+            (activePipeline.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
+        }
         if (world) {
             world.hideScopeDAG();
         }
@@ -2080,10 +2168,11 @@ function startProjectFromWizard() {
             showToast(`[[DE_ICON_025]] ¡Acuerdo firmado con ${result.contract.company}! Recibes un anticipo de +$${result.contract.amount.toLocaleString()}.`, 'success');
         }
         showToast(`[[DE_ICON_015]] Comenzando desarrollo con arquitectura DAG de: "${name}"`, 'success');
-        document.getElementById('input-game-name').value = '';
+        preproductionWizard.reset();
     } else {
-        showToast(result.message, 'warn');
+        preproductionWizard.setError(result.message, check.newIPName && /franquicia|registro|nombre/i.test(result.message) ? 0 : 5);
     }
+    preproductionWizard.doneSubmitting();
 }
 
 // --- HUD & STATUS BAR RENDERING ---
@@ -2101,22 +2190,44 @@ function renderHUD(state) {
     }
 
     // Studio Title & Logo
-    const titleEl = document.getElementById('studio-title');
-    if (titleEl) {
-        const hint = document.createElement('span');
-        hint.className = 'studio-edit-hint';
-        hint.textContent = '[[DE_ICON_002]]';
-        titleEl.replaceChildren(`${state.companyName} `, hint);
-    }
+    const titleEl = document.getElementById('studio-title-text');
+    if (titleEl && titleEl.textContent !== state.companyName) titleEl.textContent = state.companyName;
     const logoEl = document.getElementById('studio-logo');
-    if (logoEl) logoEl.innerText = state.companyLogo;
+    if (logoEl.dataset.logo !== state.companyLogo) {
+        logoEl.dataset.logo = state.companyLogo;
+        logoEl.textContent = state.companyLogo;
+    }
 
     // Top Bar Stats
-    document.getElementById('stat-funds').innerText = `$${Math.floor(state.funds).toLocaleString()}`;
-    document.getElementById('stat-fans').innerText = state.fans.toLocaleString();
-    document.getElementById('stat-rp').innerText = state.researchPoints;
+    const fundsEl = document.getElementById('stat-funds');
+    if (fundsEl) fundsEl.innerText = `$${Math.floor(state.funds).toLocaleString()}`;
+    const flowEl = document.getElementById('stat-funds-flow');
+    if (flowEl) {
+        const weeklyCosts = Math.round(((state.employees?.reduce((s, e) => s + (Number(e.salary) || 0), 0) || 0) + (state.getActiveOffice?.().monthlyCost || 0)) / 4);
+        const weeklyRevenue = Math.round(state.releasedGames?.filter(g => g.weeksOnMarket <= (g.shelfLifeWeeks || 12)).reduce((s, g) => s + (g.weeklyRevenue || 0), 0) || 0);
+        const netFlow = weeklyRevenue - weeklyCosts;
+        flowEl.textContent = `${netFlow >= 0 ? '+' : '-'}$${Math.abs(netFlow).toLocaleString()}/sem`;
+        flowEl.classList.toggle('negative', netFlow < 0);
+    }
+    const fansEl = document.getElementById('stat-fans');
+    if (fansEl) fansEl.innerText = state.fans?.toLocaleString() || '0';
+    const rpEl = document.getElementById('stat-rp');
+    if (rpEl) rpEl.innerText = state.researchPoints ?? 0;
+
     const histYear = state.getHistoricalYear ? state.getHistoricalYear() : (1981 + state.year);
-    document.getElementById('stat-calendar').innerHTML = `[[DE_ICON_066]] <strong>${histYear}</strong> (Año ${state.year}), M<strong>${state.month}</strong> S<strong>${state.week}</strong>`;
+    const calendarEl = document.getElementById('stat-calendar');
+    if (calendarEl) {
+        const calendarKey = `${histYear}:${state.month}:${state.week}`;
+        if (calendarEl.dataset.date !== calendarKey) {
+            calendarEl.dataset.date = calendarKey;
+            calendarEl.innerHTML = `<strong>${histYear}</strong> · Mes <strong>${state.month}</strong> · Sem <strong>${state.week}</strong>`;
+        }
+    }
+
+    const empCountEl = document.getElementById('hud-employee-count');
+    if (empCountEl) {
+        empCountEl.textContent = state.employees?.length || 1;
+    }
 
     // Refresh research modal live counters if open
     const modalResearch = document.getElementById('modal-research');
@@ -2125,11 +2236,12 @@ function renderHUD(state) {
     }
 
     // Era Badge
-    document.getElementById('badge-era').textContent = state.getActiveOffice().name;
+    const eraEl = document.getElementById('badge-era');
+    if (eraEl) eraEl.textContent = state.getActiveOffice?.().name || '';
 
     // Market Trend Pill
     const trendText = document.getElementById('trend-text');
-    if (state.marketTrend) {
+    if (trendText && state.marketTrend) {
         trendText.innerText = `Tendencia: ${state.marketTrend.topicName} + ${state.marketTrend.genreName} (${state.marketTrend.weeksRemaining} sem)`;
     }
 
@@ -2189,10 +2301,7 @@ function renderHUD(state) {
         const hiddenVal = document.getElementById('pts-hidden-debt');
 
         if (healthPill) {
-            healthPill.className = `point-pill pill-debt-health status-${healthStatus}`;
-        }
-        if (healthIcon) {
-            healthIcon.innerText = healthStatus === 'clean' ? '[[DE_ICON_023]]' : (healthStatus === 'moderate' ? '[[DE_ICON_116]]' : '[[DE_ICON_115]]');
+            healthPill.className = `pill-debt-health status-${healthStatus}`;
         }
         if (debtStatus) {
             debtStatus.innerText = healthStatus === 'clean' ? 'Limpio' : (healthStatus === 'moderate' ? 'Fricción Moderada' : 'Deuda Crítica');
@@ -2202,11 +2311,11 @@ function renderHUD(state) {
         }
         if (hiddenBadge && hiddenVal) {
             if (hiddenDebt > 0.5) {
-                hiddenBadge.style.display = 'inline-block';
+                hiddenBadge.hidden = false;
                 hiddenVal.innerText = hiddenDebt;
                 hiddenBadge.title = `Deuda técnica oculta detectada gradualmente por testers de QA (+${hiddenDebt} pts)`;
             } else {
-                hiddenBadge.style.display = 'none';
+                hiddenBadge.hidden = true;
             }
         }
 
@@ -2242,16 +2351,16 @@ function renderHUD(state) {
         // Refactor toggle button state (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
         const refactorBtn = document.getElementById('btn-toggle-refactor');
         if (refactorBtn) {
-            if (proj.devMode === 'refactor') {
-                refactorBtn.classList.add('active');
-                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizando... (Click para Normal)';
-            } else {
-                refactorBtn.classList.remove('active');
-                refactorBtn.innerHTML = '[[DE_ICON_015]] Refactorizar Código';
-            }
+            const active = proj.devMode === 'refactor';
+            refactorBtn.setAttribute('aria-pressed', String(active));
+            const label = active ? 'Volver a desarrollo' : 'Refactorizar';
+            if (refactorBtn.textContent !== label) refactorBtn.textContent = label;
         }
 
-        document.getElementById('proj-progress-fill').style.width = `${proj.overallProgress}%`;
+        const progress = Math.max(0, Math.min(100, proj.overallProgress || 0));
+        document.getElementById('proj-progress-fill').style.width = progress + '%';
+        document.getElementById('proj-progress-value').textContent = Math.floor(progress) + '%';
+        projBar.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(Math.floor(progress)));
 
         const stageNames = {
             1: 'Fase 1: Motor Gráfico & Guion',
@@ -2297,17 +2406,34 @@ function renderHUD(state) {
     }
 
     const offersContainer = document.getElementById('project-offers-container');
-    if (offersContainer) {
-        const project = state.currentProject;
-        if (project?.offers?.length) {
-            offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel"><strong>[[DE_ICON_117]] Propuestas comerciales (${state.getHistoricalYear()})</strong><p>Revisa el anticipo, las comisiones y las restricciones antes de firmar. Solo puedes aceptar un acuerdo por proyecto.</p><div class="contract-offer-list">${project.offers.map(offer => `<article class="contract-offer-card"><div><b>${offer.title}</b><p>${offer.detail}</p></div><button class="dock-btn btn-primary-action" onclick="reviewBusinessOffer('${offer.id}')">Revisar términos</button></article>`).join('')}</div></div>`;
-        } else if (project?.acceptedOffer) {
-            offersContainer.style.display = 'block';
-            offersContainer.innerHTML = `<div class="business-offer-panel">[[DE_ICON_096]] Acuerdo aceptado: ${project.acceptedOffer.title} · Anticipo $${project.acceptedOffer.amount.toLocaleString()}</div>`;
-        } else {
-            offersContainer.style.display = 'none';
-        }
+    const offersList = document.getElementById('project-offers-list');
+    const funding = document.getElementById('project-funding');
+    const offer = state.currentProject?.acceptedOffer;
+    const fundingLabel = offer ? 'Financiación: ' + offer.title + (offer.amount ? ' · Anticipo $' + offer.amount.toLocaleString('es-ES') : '') : '';
+    funding.hidden = !offer;
+    if (funding.textContent !== fundingLabel) funding.textContent = fundingLabel;
+    offersContainer.hidden = !pendingOffers.length;
+    if (!pendingOffers.length) offersContainer.open = false;
+    const offersKey = JSON.stringify(pendingOffers.map(({ id, title, detail }) => [id, title, detail]));
+    if (offersList.dataset.offers !== offersKey) {
+        offersList.dataset.offers = offersKey;
+        document.getElementById('project-offers-label').textContent = 'Propuestas comerciales (' + pendingOffers.length + ')';
+        offersList.replaceChildren(...pendingOffers.map(offer => {
+            const row = document.createElement('article');
+            row.className = 'contract-offer-card';
+            const description = document.createElement('div');
+            const title = document.createElement('b');
+            const detail = document.createElement('p');
+            title.textContent = offer.title;
+            detail.textContent = offer.detail;
+            description.append(title, detail);
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Revisar términos';
+            button.addEventListener('click', () => window.reviewBusinessOffer(offer.id));
+            row.append(description, button);
+            return row;
+        }));
     }
     // Post-Launch Emergency Patch Crisis Banner (Punto 5)
     const patchBanner = document.getElementById('emergency-patch-banner');
@@ -2389,8 +2515,10 @@ window.closeGameLiveServers = function(gameId) {
     renderLiveOps();
 };
 
+let liveOpsPhoneTarget = null;
+
 function renderLiveOps() {
-    const container = document.getElementById('liveops-games-container');
+    const container = liveOpsPhoneTarget || document.getElementById('liveops-games-container');
     if (!container) return;
     const activeGames = game.gamesHistory.filter(item => ['f2p', 'live_service', 'early_access'].includes(item.businessModel) || (item.businessModel === 'premium' && item.supportsPatches));
     if (!activeGames.length) {
@@ -2417,35 +2545,74 @@ function renderLiveOps() {
     }).join('');
 }
 
+window.setLiveOpsPhoneTarget = function(container) {
+    liveOpsPhoneTarget = container;
+    if (container) renderLiveOps();
+};
+
+let marketingContext;
+let selectedMarketingChannel;
+
+function updateMarketingChannelSelection() {
+    const { options, project } = marketingContext;
+    const option = options.find(item => item.id === selectedMarketingChannel);
+    const state = option && marketingChannelState(option, project, game.funds);
+    const inspector = document.getElementById('mkt-inspector');
+    const viewKey = option ? option.id + ':' + state.kind : 'empty';
+    if (inspector.dataset.view !== viewKey) {
+        const restoreFocus = inspector.contains(document.activeElement);
+        inspector.innerHTML = renderMarketingInspector(option, state);
+        inspector.dataset.view = viewKey;
+        if (restoreFocus) {
+            const selected = [...document.querySelectorAll('[data-mkt-channel]')].find(button => button.dataset.mktChannel === selectedMarketingChannel);
+            selected?.focus({ preventScroll: true });
+        }
+    }
+    document.querySelectorAll('#mkt-campaigns [data-mkt-channel]').forEach(button => {
+        const pressed = String(button.dataset.mktChannel === selectedMarketingChannel);
+        if (button.getAttribute('aria-pressed') !== pressed) button.setAttribute('aria-pressed', pressed);
+    });
+}
+
+
 function renderMarketingHub() {
     const container = document.getElementById('marketing-hub-content');
     if (!container) return;
     const project = game.currentProject;
     const year = game.getHistoricalYear();
-    const options = typeof game.getMarketingOptions === 'function' ? (game.getMarketingOptions() || []) : [];
+    const modal = container.closest('.modal-backdrop') || container.closest('.modal-window') || container.closest('.uwuntu-window') || document.getElementById('modal-marketing');
+    const selectedTab = (modal && modal.querySelector('[role="tab"][aria-selected="true"]')) || document.getElementById('mkt-tab-campaigns');
+    const focusedAction = container.contains(document.activeElement) ? document.activeElement : null;
+    const scrollTop = container.scrollTop;
+    const historyOpen = container.querySelector('.mkt-history')?.open;
+    const options = game.getMarketingOptions();
+    marketingContext = { project, year, options };
+    if (!options.some(option => option.id === selectedMarketingChannel)) {
+        selectedMarketingChannel = (options.find(option => option.available) || options[0])?.id;
+    }
+    const [editionLabel, editionArt] = marketingEdition(year);
+    if (modal) {
+        const editionEl = modal.querySelector('.mkt-edition');
+        if (editionEl) editionEl.textContent = year + ' / ' + editionLabel;
+    }
     const priorTargetId = document.getElementById('marketing-key-game')?.value;
-    const campaigns = options.map(option => {
-        const locked = option.available === false;
-        const title = option.label || option.name || option.title || option.id;
-        const note = locked ? `[[DE_ICON_093]] Disponible en ${option.year || 'una era posterior'}` : (option.description || option.detail || 'Promoción de prelanzamiento');
-        const cost = Number(option.cost || 0);
-        return `<article class="marketing-action-card"><div><b>${title}</b><p>${note}</p>${!locked && cost ? `<small>Coste: $${cost.toLocaleString()}</small>` : ''}</div><button type="button" class="dock-btn btn-primary-action btn-run-marketing ${locked || !project ? 'btn-soft-disabled' : ''}" data-method-id="${option.id}" onclick="window.runMarketingMethod('${option.id}')">${locked ? '[[DE_ICON_093]] Bloqueado' : '[[DE_ICON_099]] Lanzar campaña'}</button></article>`;
-    }).join('');
     const targetGames = [ ...(project ? [{ id: project.id || `project:${project.name}`, name: `${project.name} (en desarrollo)`, isProject: true }] : []), ...game.gamesHistory.map(item => ({ id: item.id, name: item.name })) ];
     const selectedTargetId = targetGames.some(item => String(item.id) === String(priorTargetId)) ? priorTargetId : targetGames[0]?.id;
     const creators = typeof game.getCreatorProfiles === 'function'
         ? (game.getCreatorProfiles(selectedTargetId) || [])
         : (game.creatorProfiles || game.streamerProfiles || game.creators || []);
     const targetSelect = targetGames.length
-        ? `<label class="marketing-key-target">Juego para las claves <select id="marketing-key-game" class="form-select" onchange="window.refreshMarketingHub()">${targetGames.map(item => `<option value="${item.id}" ${String(item.id) === String(selectedTargetId) ? 'selected' : ''}>${item.name}</option>`).join('')}</select></label>`
+        ? `<label class="marketing-key-target">Juego para las claves <select id="marketing-key-game" class="form-select" onchange="window.refreshMarketingHub()">${targetGames.map(item => `<option value="${marketingText(item.id)}" ${String(item.id) === String(selectedTargetId) ? 'selected' : ''}>${marketingText(item.name)}</option>`).join('')}</select></label>`
         : '<p class="marketing-empty">Crea o lanza un juego para enviar claves promocionales.</p>';
     const creatorCards = creators.length ? creators.map(creator => {
         const followers = Number(creator.followers || creator.audience || creator.viewers || 0);
         const genres = creator.genres || creator.preferences || creator.genrePreferences || [];
         const unavailable = creator.available === false || creator.alreadySent;
-        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${Number(creator.fee || 0).toLocaleString()}`);
-        return `<article class="marketing-creator-card"><div><b>${creator.name || 'Creador'}</b><span>${creator.platform || 'Plataforma de streaming'} · ${followers.toLocaleString()} seguidores</span><small>Preferencias: ${Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas'}</small><small>${availability}</small></div><button type="button" class="dock-btn btn-send-streamer-key ${unavailable ? 'btn-soft-disabled' : ''}" data-creator-id="${creator.id}" onclick="window.sendMarketingKeys('${creator.id}')">[[DE_ICON_001]] Enviar clave</button></article>`;
+        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${marketingNumber(Number(creator.fee || 0) + 25)}`);
+        return `<article class="marketing-creator-card"><span class="mkt-creator-icon" aria-hidden="true">[[DE_ICON_115]]</span><div><b>${marketingText(creator.name || 'Creador')}</b><p>${marketingText(creator.platform || 'Plataforma de streaming')} · ${followers.toLocaleString('es-ES')} seguidores</p><small>Preferencias: ${marketingText(Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas')} · ${availability}</small></div><button type="button" class="empire-button btn-send-streamer-key" data-creator-id="${marketingText(creator.id)}" ${unavailable || !targetGames.length ? 'disabled' : ''}>${creator.alreadySent ? 'Enviada' : 'Enviar clave'}</button></article>`;
     }).join('') : '<p class="marketing-empty">Los perfiles de creadores aparecerán cuando se desbloquee el streaming.</p>';
+    const futureCreators = creators.length && creators.every(creator => creator.available === false);
+    const earliestYear = Math.min(...creators.map(creator => Number(creator.yearUnlocked) || Infinity));
     const recentGameFeed = game.gamesHistory.slice(0, 5).flatMap(item => [
         ...(item.marketingFeed || []),
         ...(item.socialFeed || [])
@@ -2456,28 +2623,113 @@ function renderMarketingHub() {
         ...(game.marketingFeed || []),
         ...(game.socialFeed || [])
     ].slice(-10).reverse();
-    const feedMarkup = feed.length ? feed.map(post => `<li><span>${post.icon || '[[DE_ICON_103]]'}</span><div><b>${post.author || post.handle || post.source || 'Comunidad'}</b><p>${post.text || post.message || post.content || ''}</p><small>${post.time || post.date || ''}</small></div></li>`).join('') : '<li class="marketing-empty">Aún no hay comentarios. El feed reaccionará a tus campañas y lanzamientos.</li>';
-    const broadcasts = game.streamerBroadcasts || [];
-    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>[[DE_ICON_115]]</span><div><b>${show.creatorName || show.name || 'Creador'} está retransmitiendo</b><p>${show.gameName || 'Tu juego'} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
+    const feedMarkup = feed.length ? feed.map((post, index) => {
+        const author = String(post.author || post.handle || post.source || 'Comunidad');
+        const handle = String(post.handle || author).normalize('NFD').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+        const replies = Array.isArray(post.replies) ? post.replies : [];
+        return `<article class="v-post">
+            <div class="v-avatar v-avatar-${index % 3}" aria-hidden="true">${marketingText(author.slice(0, 2).toUpperCase())}</div>
+            <div class="v-post-body"><header><strong>${marketingText(author)}</strong>${handle ? `<span>@${marketingText(handle)}</span>` : ''}</header>
+                <p>${marketingText(post.text || post.message || post.content || '')}</p>
+                <div class="v-post-meta">${marketingText(post.time || post.date || '')}</div>
+                ${replies.length ? `<details class="v-replies"><summary>Respuestas · ${replies.length}</summary>${replies.map(reply => `<div class="v-reply"><strong>${marketingText(reply.author)}</strong><p>${marketingText(reply.text)}</p></div>`).join('')}</details>` : ''}
+            </div>
+        </article>`;
+    }).join('') : '<p class="empire-empty">Aún no hay publicaciones. Aquí aparecerán las reacciones a tus campañas y lanzamientos.</p>';
+    const broadcasts = [...(game.streamerBroadcasts || []), ...game.gamesHistory.flatMap(item => (item.streamerBroadcasts || []).map(show => ({ ...show, gameName: item.name })))];
+    const broadcastMarkup = broadcasts.length ? broadcasts.slice(-6).reverse().map(show => `<li><span>[[DE_ICON_115]]</span><div><b>${marketingText(show.creatorName || show.name || 'Creador')}</b><p>${marketingText(show.gameName || 'Tu juego')} · ${Number(show.viewers || show.retainedViewers || 0).toLocaleString()} espectadores</p></div></li>`).join('') : '<li class="marketing-empty">Las retransmisiones aparecerán cuando los creadores prueben tus juegos.</li>';
     const approvalGames = game.gamesHistory.filter(item => item.userApproval !== undefined || item.reviewBombing);
-    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${item.name}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · [[DE_ICON_016]] Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
+    const reviewsMarkup = approvalGames.length ? approvalGames.slice(0, 5).map(item => `<div class="marketing-review-row"><b>${marketingText(item.name)}</b><span>${item.pressScore !== undefined ? `Prensa ${Number(item.pressScore).toFixed(1)}/10 · ` : ''}${item.userApproval !== undefined ? `${Math.round(item.userApproval)}% aprobación` : ''}${item.reviewBombing ? ' · [[DE_ICON_016]] Review bombing' : ''}</span></div>`).join('') : '<p class="marketing-empty">Las reseñas de prensa y usuarios se registrarán al publicar un juego.</p>';
 
     const archive = game.marketingPressArchive || [];
-    const pressArchiveMarkup = archive.length ? `<section class="marketing-section"><div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;"><h3 style="margin: 0;">[[DE_ICON_061]] Archivo de Cobertura y Portadas de Prensa (${archive.length})</h3><span style="font-size: 11px; color: var(--accent-gold);">Colección Histórica</span></div><p class="marketing-section-note">Haz clic en cualquier portada histórica para ampliarla en detalle.</p><div class="marketing-press-gallery">${archive.map(cover => `<div class="press-gallery-card ${cover.period}" onclick="window.showMarketingPressCover('${cover.id}')"><div class="press-gallery-badge">${cover.priceBadge}</div><div class="press-gallery-pub">${cover.publicationName}</div><strong class="press-gallery-head">${cover.headline}</strong><div class="press-gallery-footer"><span>[[DE_ICON_001]] ${cover.gameName || 'Juego'}</span><span>Año ${cover.year}</span></div></div>`).join('')}</div></section>` : '';
+    const pressArchiveMarkup = archive.length ? `<section class="marketing-section">
+        <h3>Archivo de prensa</h3><p class="marketing-section-note">Selecciona una portada para ampliarla.</p>
+        <div class="marketing-press-gallery">${archive.map(cover => `<button type="button" class="press-gallery-card ${marketingText(cover.period)}" data-press-cover="${marketingText(cover.id)}">
+            <span class="press-gallery-badge">${marketingText(cover.priceBadge)}</span><span class="press-gallery-pub">${marketingText(cover.publicationName)}</span>
+            <strong class="press-gallery-head">${marketingText(cover.headline)}</strong>
+            <span class="press-gallery-footer"><span>${marketingText(cover.gameName || 'Juego')}</span><span>Año ${marketingText(cover.year)}</span></span>
+        </button>`).join('')}</div>
+    </section>` : '';
 
-    container.innerHTML = `<div class="marketing-summary"><span id="mkt-summary-year">[[DE_ICON_066]] Era ${year}</span><span id="mkt-summary-project">Proyecto: <b>${project?.name || 'ninguno activo'}</b></span><span id="mkt-summary-hype">Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b></span><span id="mkt-summary-wishlists">Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b></span></div><section class="marketing-section"><h3>[[DE_ICON_099]] Campaña de prelanzamiento</h3><p class="marketing-section-note">Los canales y efectos cambian según la época. Las campañas solo se pueden ejecutar con un proyecto activo.</p><div class="marketing-actions-grid">${campaigns || '<p class="marketing-empty">No hay canales disponibles en esta época.</p>'}</div></section><section class="marketing-section"><h3>[[DE_ICON_105]] Creadores y claves</h3>${targetSelect}<div class="marketing-creator-list">${creatorCards}</div></section><div class="marketing-columns"><section class="marketing-section"><h3>[[DE_ICON_115]] En directo</h3><ul class="marketing-feed-list">${broadcastMarkup}</ul></section><section class="marketing-section"><h3>[[DE_ICON_103]] Feed de comunidad</h3><ul class="marketing-feed-list">${feedMarkup}</ul></section></div>${pressArchiveMarkup}<section class="marketing-section"><h3>[[DE_ICON_005]] Prensa y reseñas de usuarios</h3>${reviewsMarkup}</section>`;
+
+    container.innerHTML = `
+        <section id="mkt-campaigns" role="tabpanel" aria-labelledby="mkt-tab-campaigns" hidden>
+            <header class="mkt-brief">
+                <div class="mkt-brief-copy">
+                    <span class="empire-label">Proyecto en promoción</span>
+                    <h3>${marketingText(project?.name || 'Sin proyecto activo')}</h3>
+                    <p>${project ? [project.genre?.name, project.platform?.name].filter(Boolean).map(marketingText).join(' · ') : 'Inicia un juego para lanzar tu primera campaña.'}</p>
+                    <span class="empire-status" id="mkt-summary-state"></span>
+                </div>
+                ${marketingBriefArt(editionArt)}
+                <div class="mkt-brief-metrics">
+                    <div><span>Expectación</span><strong class="empire-number" id="mkt-summary-hype"></strong></div>
+                    <div><span>Reconocimiento</span><strong class="empire-number" id="mkt-summary-awareness"></strong></div>
+                    ${options.some(option => option.id === 'digital_demo' && option.available) ? '<div><span>Lista de deseos</span><strong class="empire-number" id="mkt-summary-wishlists"></strong></div>' : ''}
+                    <div><span>Tesorería disponible</span><strong class="empire-number" id="mkt-summary-funds"></strong></div>
+                </div>
+            </header>
+            <div class="mkt-operation">
+                <section class="mkt-catalog"><h3>Canales de difusión</h3>
+                    <div class="mkt-channel-list">${renderMarketingChannels(options, selectedMarketingChannel, project, game.funds)}</div>
+                </section>
+                <section class="mkt-inspector" id="mkt-inspector" aria-label="Detalle de campaña"></section>
+            </div>
+            ${renderMarketingHistory(project, game.gamesHistory)}
+        </section>
+        <section id="mkt-creators" role="tabpanel" aria-labelledby="mkt-tab-creators" hidden>
+            <header class="mkt-subhead"><span class="empire-label">Relaciones con creadores</span><h3>Claves promocionales</h3><p>Elige un juego y busca creadores afines a su género.</p></header>
+            ${futureCreators ? `<div class="creator-era"><span>EN EL HORIZONTE</span><strong>El streaming aún no ha llegado</strong><p>${Number.isFinite(earliestYear) ? 'Primeros creadores disponibles en ' + earliestYear + '.' : 'Disponible en una era posterior.'}</p></div>
+                <details class="future-creators"><summary>Ver próximos creadores (${creators.length})</summary><div class="marketing-creator-list">${creatorCards}</div></details>` : `${targetSelect}<div class="marketing-creator-list">${creatorCards}</div>`}
+            ${pressArchiveMarkup}<section class="marketing-section"><h3>Prensa y archivo editorial</h3>${reviewsMarkup}</section>
+        </section>`;
+    selectCompactMenuTab(selectedTab);
+    if (historyOpen && container.querySelector('.mkt-history')) container.querySelector('.mkt-history').open = true;
+    updateMarketingChannelSelection();
+    container.scrollTop = scrollTop;
+    if (focusedAction) {
+        const actions = [...container.querySelectorAll('button, select')];
+        const replacement = actions.find(action => (
+            (focusedAction.id && action.id === focusedAction.id) ||
+            (focusedAction.dataset.creatorId && action.dataset.creatorId === focusedAction.dataset.creatorId) ||
+            (focusedAction.dataset.methodId && action.dataset.methodId === focusedAction.dataset.methodId) ||
+            (focusedAction.dataset.mktChannel && action.dataset.mktChannel === focusedAction.dataset.mktChannel)
+        ));
+        (replacement && !replacement.disabled ? replacement : selectedTab)?.focus({ preventScroll: true });
+    }
+    updateMarketingHubCounters();
 }
 
 function updateMarketingHubCounters() {
-    const yearEl = document.getElementById('mkt-summary-year');
-    const projEl = document.getElementById('mkt-summary-project');
-    const hypeEl = document.getElementById('mkt-summary-hype');
-    const wishEl = document.getElementById('mkt-summary-wishlists');
     const project = game.currentProject;
-    if (yearEl) yearEl.textContent = `[[DE_ICON_066]] Era ${game.getHistoricalYear()}`;
-    if (projEl) projEl.innerHTML = `Proyecto: <b>${project?.name || 'ninguno activo'}</b>`;
-    if (hypeEl) hypeEl.innerHTML = `Hype: <b>${Math.round(project?.marketingHype || project?.hype || 0)}</b>`;
-    if (wishEl) wishEl.innerHTML = `Wishlists: <b>${Number(project?.wishlists || 0).toLocaleString()}</b>`;
+    const year = game.getHistoricalYear();
+    if (marketingContext?.project !== project || marketingContext?.year !== year) {
+        renderMarketingHub();
+        return;
+    }
+    const actionCount = project?.marketingActions?.length || 0;
+    const counters = {
+        state: !project ? 'En espera' : actionCount ? actionCount + (actionCount === 1 ? ' campaña ejecutada' : ' campañas ejecutadas') : 'Sin campañas ejecutadas',
+        hype: project ? marketingNumber(project.marketingHype || project.hype) + ' pts' : '—',
+        awareness: project ? marketingNumber(project.brandAwareness) + ' / 100' : '—',
+        wishlists: project ? marketingNumber(project.wishlists) : '—',
+        funds: marketingMoney(Math.floor(game.funds))
+    };
+    Object.entries(counters).forEach(([key, value]) => {
+        const field = document.getElementById('mkt-summary-' + key);
+        if (field && field.textContent !== value) field.textContent = value;
+    });
+    const stateKey = [game.funds, project?.overallProgress >= 50, actionCount].join(':');
+    if (marketingContext.stateKey !== stateKey) {
+        marketingContext.stateKey = stateKey;
+        document.querySelectorAll('#mkt-campaigns [data-mkt-channel]').forEach((button, index) => {
+            const state = marketingChannelState(marketingContext.options[index], project, game.funds);
+            if (button.dataset.state === state.kind) return;
+            button.dataset.state = state.kind;
+            button.querySelector('.mkt-channel-state').textContent = state.label;
+        });
+        updateMarketingChannelSelection();
+    }
 }
 
 function renderIndustryNews(state = game) {
@@ -2678,6 +2930,14 @@ function renderCommunityWorkshop() {
     renderSimulatorMods();
 }
 
+function openWorkshopPanel() {
+    renderCommunityWorkshop();
+    if (window.studioPhoneNav?.openWorkshop) window.studioPhoneNav.openWorkshop();
+    else openModal('modal-community-workshop');
+}
+
+window.refreshWorkshopPanel = renderCommunityWorkshop;
+
 function renderSimulatorMods() {
     const container = document.getElementById('community-simulator-mods');
     if (!container) return;
@@ -2692,46 +2952,19 @@ function renderSimulatorMods() {
 
     container.innerHTML = `
         <div class="simulator-mods-dashboard">
-            <div class="sim-stats-grid">
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_001]]</span>
-                    <div>
-                        <strong>${platforms.length}</strong> Consolas Activas
-                        <small style="display:block;color:var(--text-secondary);">${moddedPlatforms.length} consolas por mods</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_105]]</span>
-                    <div>
-                        <strong>${streamers.length}</strong> Creadores de Contenido
-                        <small style="display:block;color:var(--text-secondary);">${moddedStreamers.length} creadores por mods</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_061]]</span>
-                    <div>
-                        <strong>${events.length}</strong> Crisis y Eventos Dinámicos
-                        <small style="display:block;color:var(--text-secondary);">Catálogo Data-Driven JSON</small>
-                    </div>
-                </div>
-                <div class="sim-stat-card">
-                    <span class="stat-icon">[[DE_ICON_013]]</span>
-                    <div>
-                        <strong>${installed.length}</strong> Paquetes Instalados
-                        <small style="display:block;color:var(--text-secondary);">Ecosistema de modding vivo</small>
-                    </div>
-                </div>
-            </div>
-
+            <header class="workshop-package-head">
+                <div><h3>Biblioteca de paquetes</h3><p>Instala contenido oficial o añade tus propios archivos.</p></div>
+                <strong>${installed.length} instalados</strong>
+            </header>
             <div class="sim-mod-actions-toolbar">
                 <button type="button" class="dock-btn btn-primary-action" onclick="window.loadSimulatorModSample()">
-                    [[DE_ICON_022]] Cargar Pack Oficial: Marcas Reales & Creadores Famosos
+                    [[DE_ICON_022]] Instalar pack oficial
                 </button>
                 <button type="button" class="dock-btn" onclick="document.getElementById('sim-mod-file-input').click()">
-                    [[DE_ICON_121]] Importar Mod Personalizado (.JSON)
+                    [[DE_ICON_121]] Importar JSON
                 </button>
                 <button type="button" class="dock-btn" onclick="window.exportSimulatorModTemplate()">
-                    [[DE_ICON_048]] Exportar Plantilla JSON de Modding
+                    [[DE_ICON_048]] Descargar plantilla
                 </button>
                 <input type="file" id="sim-mod-file-input" accept=".json" style="display:none;" onchange="window.importSimulatorModFile(event)">
             </div>
@@ -2754,42 +2987,26 @@ function renderSimulatorMods() {
                         `).join('')}
                     </div>
                 ` : `
-                    <p class="workshop-empty">No hay paquetes externos instalados todavía. Pulsa <b>"Cargar Pack Oficial"</b> o importa tu propio archivo JSON para expandir consolas reales (Sega Genesis, GBC, PS5 Pro, Switch 2, Steam Deck) y streamers (Ibai, Auronplay, Rubius).</p>
+                    <p class="workshop-empty">Todavía no has instalado paquetes. Puedes empezar con el pack oficial o importar el tuyo.</p>
                 `}
             </div>
 
-            <div class="active-catalog-preview">
-                <h3 style="margin: 16px 0 8px; font-size: 15px; color: #e2e8f0;">[[DE_ICON_037]] Plataformas y Consolas Disponibles en el Motor</h3>
+            <details class="active-catalog-preview">
+                <summary>Catálogo · ${platforms.length} plataformas (${moddedPlatforms.length} de mods), ${streamers.length} creadores (${moddedStreamers.length} de mods), ${events.length} eventos</summary>
                 <div class="platforms-pill-grid">
                     ${platforms.map(p => `
                         <span class="platform-chip ${p.isModded ? 'chip-mod' : ''}">
-                            ${p.icon || '[[DE_ICON_001]]'} ${p.name} (Era ${p.eraUnlocked}) ${p.isModded ? '<b>[MOD]</b>' : ''}
+                            ${p.icon || '[[DE_ICON_001]]'} ${p.name} ${p.releaseYear ? `· ${p.releaseYear}` : p.eraUnlocked ? `· Era ${p.eraUnlocked}` : ''} ${p.isModded ? '<b>[MOD]</b>' : ''}
                         </span>
                     `).join('')}
                 </div>
-            </div>
+            </details>
         </div>
     `;
 }
 
 window.switchWorkshopTab = function(tabName) {
-    const gamesView = document.getElementById('workshop-games-view');
-    const simView = document.getElementById('workshop-simulator-view');
-    const tabGames = document.getElementById('tab-workshop-games');
-    const tabSim = document.getElementById('tab-workshop-simulator');
-
-    if (tabName === 'simulator') {
-        if (gamesView) gamesView.style.display = 'none';
-        if (simView) simView.style.display = 'block';
-        tabGames?.classList.remove('active');
-        tabSim?.classList.add('active');
-        renderSimulatorMods();
-    } else {
-        if (gamesView) gamesView.style.display = 'block';
-        if (simView) simView.style.display = 'none';
-        tabGames?.classList.add('active');
-        tabSim?.classList.remove('active');
-    }
+    selectCompactMenuTab(document.getElementById(tabName === 'simulator' ? 'tab-workshop-simulator' : 'tab-workshop-games'));
 };
 
 window.loadSimulatorModSample = function() {
@@ -2905,6 +3122,9 @@ window.runMarketingMethod = function(methodId) {
         if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         renderMarketingHub();
         renderHUD(game);
+        if (window.studioPhoneNav?.refreshMarketing) {
+            window.studioPhoneNav.refreshMarketing();
+        }
         if (result.pressCover) {
             window.showMarketingPressCover(result.pressCover);
         }
@@ -2952,6 +3172,9 @@ window.sendMarketingKeys = function(creatorId) {
         if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         renderMarketingHub();
         renderHUD(game);
+        if (window.studioPhoneNav?.refreshMarketing) {
+            window.studioPhoneNav.refreshMarketing();
+        }
     } else {
         showToast(result?.message || 'No se pudo enviar la clave.', 'warn');
     }
@@ -2966,6 +3189,17 @@ function refreshOfficeManager(feedback) {
     lastOfficeManagerSnapshot = snapshot;
     renderOfficeManager({ offices, funds, occupied, feedback, onAction: changeOffice });
 }
+
+function openOfficePanel() {
+    refreshOfficeManager(null);
+    if (window.studioPhoneNav?.openOffices) window.studioPhoneNav.openOffices();
+    else {
+        openModal('modal-offices');
+        document.querySelector('#modal-offices .modal-close')?.focus();
+    }
+}
+
+window.refreshOfficePanel = () => refreshOfficeManager(null);
 
 function changeOffice(id, action) {
     const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
@@ -3023,6 +3257,32 @@ window.openCurrentReleasedGameChart = function() {
 };
 
 // --- RECRUITMENT & STAFF MANAGEMENT MODAL ---
+
+function openPersonnelPanel() {
+    const modal = document.getElementById('modal-hire');
+    if (modal && modal.classList.contains('active')) {
+        closeAllModals();
+        return;
+    }
+    if (window.uwuntuOS && window.uwuntuOS.isOpen) {
+        window.uwuntuOS.close();
+    }
+    renderRecruitment();
+    openModal('modal-hire');
+}
+
+function refreshArchitecturePanel() {
+    renderDAGNodes();
+    updateDAGMetricsUI();
+}
+
+function openArchitecturePanel() {
+    refreshArchitecturePanel();
+    if (window.studioPhoneNav?.openArchitecture) window.studioPhoneNav.openArchitecture();
+    else openModal('modal-scope-dag');
+}
+
+window.refreshArchitecturePanel = refreshArchitecturePanel;
 
 function renderRecruitment() {
     const currentList = document.getElementById('current-team-list');
@@ -3151,6 +3411,8 @@ function renderRecruitment() {
         candidatesList.appendChild(card);
     });
 }
+
+window.refreshPersonnelPanel = renderRecruitment;
 
 window.hireCandidate = function(name) {
     const candidate = game.availableCandidates.find(c => c.name === name);
@@ -3297,7 +3559,333 @@ function setupTechBranchFilterTabs() {
     }
 }
 
+let activeResearchTab = 'summary';
+
+window.switchLabTab = function(tabName) {
+    activeResearchTab = tabName;
+    const nav = document.getElementById('research-nav');
+    if (nav) {
+        nav.querySelectorAll('.research-nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.tab === tabName);
+        });
+    }
+    const panes = {
+        summary: document.getElementById('research-tab-summary'),
+        map: document.getElementById('research-tab-map'),
+        labs: document.getElementById('research-tab-labs'),
+        hardware: document.getElementById('research-tab-hardware')
+    };
+    for (const [key, pane] of Object.entries(panes)) {
+        if (pane) {
+            pane.classList.toggle('active', key === tabName);
+        }
+    }
+    renderTechTree();
+};
+
+function setupResearchSections() {
+    const nav = document.getElementById('research-nav');
+    if (!nav || nav.dataset.initialized === 'true') return;
+    nav.dataset.initialized = 'true';
+
+    nav.addEventListener('click', event => {
+        const btn = event.target.closest('.research-nav-btn');
+        if (btn && btn.dataset.tab) {
+            window.switchLabTab(btn.dataset.tab);
+        }
+    });
+}
+
+function renderResearchSummary(mgr, historicalYear) {
+    const strategicBar = document.getElementById('rd-strategic-bar');
+    const heroContainer = document.getElementById('rd-hero-container');
+    const availableContainer = document.getElementById('rd-available-container');
+    const progressionContainer = document.getElementById('rd-progression-container');
+    if (!strategicBar || !heroContainer || !availableContainer || !progressionContainer) return;
+
+    // 1. Strategic Telemetry Bar
+    const totalTech = (game.employees || []).reduce((acc, e) => acc + (e.tech || 20), 0);
+    const weeklyRP = Math.max(1, Math.floor(totalTech / 45));
+
+    let eraTag = 'Era 8-bit';
+    let nextEraInfo = '1990 (Era 16/32-bit)';
+    if (historicalYear >= 2015) {
+        eraTag = 'Era Moderna';
+        nextEraInfo = 'Era Actual';
+    } else if (historicalYear >= 2000) {
+        eraTag = 'Era 2000+';
+        nextEraInfo = '2015 (Era Moderna)';
+    } else if (historicalYear >= 1990) {
+        eraTag = 'Era 16/32-bit';
+        nextEraInfo = '2000 (Era 2000+)';
+    }
+
+    const unlockedCount = mgr.getUnlockedCount();
+    const totalCount = mgr.getTotalCount();
+    const masteryPercent = Math.round((unlockedCount / totalCount) * 100);
+    const activeRes = game.activeResearch;
+
+    strategicBar.innerHTML = `
+        <div class="rd-stat-card">
+            <div class="rd-stat-icon">[[DE_ICON_006]]</div>
+            <div class="rd-stat-info">
+                <div class="rd-stat-label">Puntos de I+D</div>
+                <div class="rd-stat-value">${game.researchPoints.toLocaleString()} RP</div>
+                <div class="rd-stat-sub">+${weeklyRP} RP/semana pasivo</div>
+            </div>
+        </div>
+        <div class="rd-stat-card">
+            <div class="rd-stat-icon gold">[[DE_ICON_066]]</div>
+            <div class="rd-stat-info">
+                <div class="rd-stat-label">Línea Temporal</div>
+                <div class="rd-stat-value">Año ${historicalYear}</div>
+                <div class="rd-stat-sub">${eraTag}</div>
+            </div>
+        </div>
+        <div class="rd-stat-card">
+            <div class="rd-stat-icon green">[[DE_ICON_059]]</div>
+            <div class="rd-stat-info">
+                <div class="rd-stat-label">Dominio Tecnológico</div>
+                <div class="rd-stat-value">${unlockedCount} / ${totalCount}</div>
+                <div class="rd-stat-sub">${masteryPercent}% dominado</div>
+            </div>
+        </div>
+        <div class="rd-stat-card">
+            <div class="rd-stat-icon purple">${activeRes ? '[[DE_ICON_075]]' : '[[DE_ICON_149]]'}</div>
+            <div class="rd-stat-info">
+                <div class="rd-stat-label">Estado del Laboratorio</div>
+                <div class="rd-stat-value">${activeRes ? 'En Desarrollo' : 'Equipo Listo'}</div>
+                <div class="rd-stat-sub">${activeRes ? `"${activeRes.nodeName}" (${activeRes.weeksRemaining} sem)` : 'Listo para nuevo avance'}</div>
+            </div>
+        </div>
+    `;
+
+    // 2. Compute downstream unlocks map
+    const downstreamMap = new Map();
+    mgr.catalog.forEach(node => {
+        const reqs = node.requiredNodes || node.prerequisites || [];
+        reqs.forEach(reqId => {
+            if (!downstreamMap.has(reqId)) downstreamMap.set(reqId, []);
+            downstreamMap.get(reqId).push(node);
+        });
+    });
+
+    // 3. Available nodes to research RIGHT NOW
+    const availableNodes = mgr.catalog
+        .filter(n => {
+            const st = mgr.getNodeState(n.id, historicalYear);
+            return st.canResearch;
+        })
+        .sort((a, b) => {
+            const downA = (downstreamMap.get(a.id) || []).length;
+            const downB = (downstreamMap.get(b.id) || []).length;
+            if (downB !== downA) return downB - downA;
+            return (a.costRP || 30) - (b.costRP || 30);
+        });
+
+    // 4. Hero Next Advance
+    let heroNode = availableNodes[0];
+    if (!heroNode) {
+        heroNode = mgr.catalog
+            .filter(n => !mgr.isUnlocked(n.id))
+            .sort((a, b) => (a.minYear || 1982) - (b.minYear || 1982))[0];
+    }
+
+    if (heroNode) {
+        const heroState = mgr.getNodeState(heroNode.id, historicalYear);
+        const heroDownstream = downstreamMap.get(heroNode.id) || [];
+        const heroUnlocksHtml = heroDownstream.length > 0
+            ? heroDownstream.slice(0, 3).map(n => `<span class="rd-unlock-chip">Habilita: ${n.name}</span>`).join('')
+            : '<span class="rd-unlock-chip">Módulo de producción de alta calidad</span>';
+
+        const branchNames = {
+            render: 'Render & Gráficos', physics: 'Físicas & Dinámica', netcode: 'Netcode & Red', net: 'Netcode & Red',
+            ai: 'Inteligencia Artificial', audio: 'Audio & Sonido', content: 'Contenido & Narrativa',
+            systems: 'Sistemas & Motor'
+        };
+        const branchLabel = branchNames[heroNode.category] || heroNode.category;
+        const canAfford = game.researchPoints >= (heroNode.costRP || 30);
+        const isBusy = !!game.activeResearch;
+
+        let actionBtnText = `[[DE_ICON_006]] Investigar avance (${heroNode.costRP || 30} RP)`;
+        let actionDisabled = false;
+
+        if (isBusy) {
+            actionBtnText = `[[DE_ICON_075]] Laboratorio en curso (${activeRes.weeksRemaining} sem)`;
+            actionDisabled = true;
+        } else if (!heroState.canResearch) {
+            actionBtnText = heroState.isHistoricalLock
+                ? `[[DE_ICON_093]] Bloqueada hasta Año ${heroNode.minYear}`
+                : `[[DE_ICON_093]] Prerrequisitos pendientes`;
+            actionDisabled = true;
+        } else if (!canAfford) {
+            actionBtnText = `[[DE_ICON_006]] Faltan RP (${game.researchPoints} / ${heroNode.costRP || 30} RP)`;
+            actionDisabled = true;
+        }
+
+        heroContainer.innerHTML = `
+            <div class="rd-hero-card">
+                <div class="rd-hero-kicker">
+                    [[DE_ICON_006]] Recomendación Estratégica del Laboratorio
+                </div>
+                <div class="rd-hero-layout">
+                    <div class="rd-hero-main">
+                        <div class="rd-hero-title-row">
+                            <span class="rd-hero-branch-badge">${branchLabel}</span>
+                            <h2 class="rd-hero-title">${heroNode.name}</h2>
+                        </div>
+                        <p class="rd-hero-desc">
+                            ${heroNode.desc || 'Optimiza el rendimiento del motor, amplía el alcance de los proyectos y desbloquea nuevas capacidades de producción.'}
+                        </p>
+                        <div class="rd-hero-unlocks">
+                            <strong style="color: #cbd5e1;">Impacto en I+D:</strong>
+                            ${heroUnlocksHtml}
+                        </div>
+                        <div class="rd-hero-meta-row">
+                            <div class="rd-hero-meta-item">Coste: <strong>${heroNode.costRP || 30} RP</strong></div>
+                            <div class="rd-hero-meta-item">Riesgo deuda: <strong>Base ${heroNode.baseDebt ?? 2}</strong></div>
+                            <div class="rd-hero-meta-item">Aparición histórica: <strong>Año ${heroNode.minYear || 1982}</strong></div>
+                        </div>
+                    </div>
+                    <div class="rd-hero-action">
+                        <button type="button" class="rd-btn-hero" id="btn-hero-research" ${actionDisabled ? 'disabled' : ''} onclick="window.startTechResearch('${heroNode.id}')">
+                            ${actionBtnText}
+                        </button>
+                        <small style="color: #94a3b8; font-size: 11px;">
+                            ${canAfford && !isBusy && heroState.canResearch ? 'Inicia la investigación inmediata con tu equipo' : 'Requiere finalizar el proyecto actual y tener RP suficientes'}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        `;
+    } else {
+        heroContainer.innerHTML = `
+            <div class="rd-hero-card">
+                <div class="rd-hero-kicker">[[DE_ICON_149]] Catálogo Completo Dominado</div>
+                <h2 class="rd-hero-title">¡Liderazgo Tecnológico Absoluto!</h2>
+                <p class="rd-hero-desc">Has investigado todas las tecnologías conocidas hasta la fecha. El estudio está a la vanguardia de la industria.</p>
+            </div>
+        `;
+    }
+
+    // 5. Available Technologies Grid
+    if (availableNodes.length === 0) {
+        availableContainer.innerHTML = `
+            <div style="grid-column: 1 / -1; padding: 24px; text-align: center; background: rgba(15, 23, 42, 0.5); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 10px;">
+                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 10px 0;">
+                    No hay otras tecnologías listas para investigar en este momento histórico (${historicalYear}).
+                </p>
+                <button type="button" class="dock-btn btn-primary-action" onclick="window.switchLabTab('map')" style="font-weight: 700; margin: 0 auto;">
+                    [[DE_ICON_020]] Explorar Mapa Tecnológico para ver Prerrequisitos
+                </button>
+            </div>
+        `;
+    } else {
+        availableContainer.innerHTML = availableNodes.map(node => {
+            const down = downstreamMap.get(node.id) || [];
+            const unlocksSnippet = down.length > 0
+                ? `<div class="rd-card-unlocks">Habilita: <strong>${down.map(d => d.name).slice(0, 2).join(', ')}${down.length > 2 ? ` (+${down.length - 2})` : ''}</strong></div>`
+                : '';
+            const canAfford = game.researchPoints >= (node.costRP || 30);
+            const isBusy = !!game.activeResearch;
+            const branchNames = {
+                render: 'Render', physics: 'Físicas', netcode: 'Netcode', net: 'Netcode',
+                ai: 'IA', audio: 'Audio', content: 'Contenido', systems: 'Sistemas'
+            };
+            const branch = branchNames[node.category] || node.category;
+
+            return `
+                <div class="rd-card branch-${node.category}">
+                    <div>
+                        <div class="rd-card-top">
+                            <span class="rd-card-branch">[[DE_ICON_006]] ${branch}</span>
+                            <span class="rd-card-cost">${node.costRP || 30} RP</span>
+                        </div>
+                        <h4 class="rd-card-title">${node.name}</h4>
+                        <p class="rd-card-desc">${node.desc || 'Módulo arquitectónico para videojuegos y motores.'}</p>
+                        ${unlocksSnippet}
+                    </div>
+                    <div class="rd-card-footer">
+                        <span class="rd-card-debt">Deuda: <span>+${node.baseDebt ?? 2}</span></span>
+                        <button type="button" class="rd-btn-investigate" ${!canAfford || isBusy ? 'disabled' : ''} onclick="window.startTechResearch('${node.id}')">
+                            ${isBusy ? 'Ocupado' : !canAfford ? 'Faltan RP' : 'Investigar'}
+                        </button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 6. Studio Technology Progression
+    const branches = [
+        { id: 'render', name: 'Render & Gráficos', icon: '[[DE_ICON_054]]', match: ['render', 'Graphics'] },
+        { id: 'physics', name: 'Físicas & Dinámica', icon: '[[DE_ICON_055]]', match: ['physics', 'Physics'] },
+        { id: 'netcode', name: 'Netcode & Red', icon: '[[DE_ICON_020]]', match: ['net', 'netcode', 'Network'] },
+        { id: 'ai', name: 'Inteligencia Artificial', icon: '[[DE_ICON_056]]', match: ['ai', 'AI'] },
+        { id: 'audio', name: 'Audio & Sonido', icon: '[[DE_ICON_045]]', match: ['audio', 'Audio'] },
+        { id: 'content', name: 'Contenido & Diseño', icon: '[[DE_ICON_057]]', match: ['content'] },
+        { id: 'systems', name: 'Sistemas & Motor', icon: '[[DE_ICON_049]]', match: ['systems', 'Engine'] }
+    ];
+
+    let leadingBranch = null;
+    let maxUnlocked = -1;
+
+    const branchCardsHtml = branches.map(b => {
+        const inBranch = mgr.catalog.filter(n => b.match.includes(n.category));
+        const total = inBranch.length || 1;
+        const unlocked = inBranch.filter(n => mgr.isUnlocked(n.id)).length;
+        const pct = Math.round((unlocked / total) * 100);
+
+        if (unlocked > maxUnlocked) {
+            maxUnlocked = unlocked;
+            leadingBranch = b.name;
+        }
+
+        return `
+            <div class="rd-branch-bar-card branch-${b.id}">
+                <div class="rd-branch-bar-header">
+                    <span class="rd-branch-bar-name">${b.icon} ${b.name}</span>
+                    <span class="rd-branch-bar-count">${unlocked}/${total} (${pct}%)</span>
+                </div>
+                <div class="rd-progress-track">
+                    <div class="rd-progress-fill" style="width: ${pct}%;"></div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    progressionContainer.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <h4 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0;">
+                    [[DE_ICON_059]] Progreso del Imperio Tecnológico
+                </h4>
+                <p style="font-size: 12px; color: #94a3b8; margin: 2px 0 0 0;">
+                    Especialización del estudio. Rama destacada: <strong style="color: #38bdf8;">${leadingBranch || 'Equilibrado'}</strong>.
+                </p>
+            </div>
+            <div style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
+                Próxima Gran Era: ${nextEraInfo}
+            </div>
+        </div>
+
+        <div class="rd-branches-progress-grid">
+            ${branchCardsHtml}
+        </div>
+
+        <div class="rd-map-cta-banner">
+            <div class="rd-map-cta-text">
+                ¿Quieres explorar todo el mapa de dependencias y planificar tu estrategia a largo plazo?
+            </div>
+            <button type="button" class="rd-btn-map-cta" onclick="window.switchLabTab('map')">
+                [[DE_ICON_020]] Explorar Mapa Tecnológico Completo →
+            </button>
+        </div>
+    `;
+}
+
 function renderTechTree() {
+    setupResearchSections();
     setupTechBranchFilterTabs();
 
     const mgr = techTreeManager || (game && game.techTreeManager);
@@ -3305,281 +3893,1150 @@ function renderTechTree() {
 
     const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
 
-    // 1. Top Economy & Status Indicators
-    const rpEl = document.getElementById('research-rp-val');
-    if (rpEl) rpEl.innerText = game.researchPoints.toLocaleString();
+    // 1. Render Summary View (Always kept fresh)
+    renderResearchSummary(mgr, historicalYear);
 
-    const yearEl = document.getElementById('research-year-val');
-    if (yearEl) {
-        let eraTag = 'Era 8-bit';
-        if (historicalYear >= 2015) eraTag = 'Era Moderna';
-        else if (historicalYear >= 2000) eraTag = 'Era 2000+';
-        else if (historicalYear >= 1990) eraTag = 'Era 16/32-bit';
-        yearEl.innerText = `Año ${historicalYear} (${eraTag})`;
-    }
+    // 2. Render Secondary DAG Map
+    renderResearchMap(mgr, historicalYear);
 
-    const passiveEl = document.getElementById('research-passive-val');
-    if (passiveEl) {
-        const totalTech = game.employees.reduce((acc, e) => acc + (e.tech || 20), 0);
-        const weeklyRP = Math.max(1, Math.floor(totalTech / 45));
-        passiveEl.innerText = `+${weeklyRP} RP/semana`;
-    }
-
-    const countEl = document.getElementById('research-unlocked-count');
-    if (countEl) {
-        countEl.innerText = `${mgr.getUnlockedCount()} / ${mgr.getTotalCount()} Módulos`;
-    }
-
-    // 2. Active Research Project Countdown Banner
-    const activeContainer = document.getElementById('active-research-container');
-    if (activeContainer) {
-        if (game.activeResearch) {
-            const ar = game.activeResearch;
-            activeContainer.innerHTML = `
-                <div class="active-research-card">
-                    <div class="active-research-header">
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <span style="font-size: 24px;">${ar.icon}</span>
-                            <div>
-                                <strong style="font-size: 15px; color: #fff;">Proyecto en Curso: "${ar.nodeName}"</strong>
-                                <div style="font-size: 12px; color: var(--accent-cyan); margin-top: 2px;">
-                                    [[DE_ICON_075]] Quedan ${ar.weeksRemaining} semana${ar.weeksRemaining === 1 ? '' : 's'} para concluir el desarrollo
-                                </div>
-                            </div>
-                        </div>
-                        <div style="font-size: 16px; font-weight: 800; color: var(--accent-cyan);">${ar.progress}%</div>
-                    </div>
-                    <div class="research-progress-bar">
-                        <div class="research-progress-fill" style="width: ${ar.progress}%;"></div>
-                    </div>
-                </div>
-            `;
-        } else {
-            activeContainer.innerHTML = `
-                <div style="background: rgba(255,255,255,0.03); border: 1px dashed rgba(255,255,255,0.12); border-radius: 10px; padding: 12px 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-                    <span style="font-size: 12px; color: var(--text-secondary);">
-                        [[DE_ICON_028]] No hay ningún proyecto de I+D activo. Selecciona un módulo <strong>INVESTIGABLE</strong> para iniciar el desarrollo con tu equipo.
-                    </span>
-                    <span class="node-status-badge badge-available">Equipo Listo</span>
-                </div>
-            `;
-        }
-    }
-
+    // 3. Render In-house Engine Management
     const enginePanel = document.getElementById('engine-management-container');
     if (enginePanel) {
         const rd = game.activeEngineRD;
-        const engineCards = game.inHouseEngines.map(engine => {
+        const engineCards = (game.inHouseEngines || []).map(engine => {
             const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
             return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados ($20.000 + $4.000/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
         }).join('');
         enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
     }
 
-    // 3. Competitor Hardware Reverse Engineering Grid
-    const revGrid = document.getElementById('reverse-engineering-grid');
-    if (revGrid && typeof REVERSE_ENGINEERING_CATALOG !== 'undefined') {
-        revGrid.innerHTML = '';
-        REVERSE_ENGINEERING_CATALOG.forEach(item => {
-            const isDismantled = mgr.dismantledHardware.has(item.id);
-            const isAvailableByYear = historicalYear >= item.minYear;
-            const canAfford = game.funds >= item.costMoney;
+    // 4. Asistente Visual de Construcción de Motores
+    renderEngineWorkshop(mgr, historicalYear);
 
-            const card = document.createElement('div');
-            card.className = 'rev-card' + (isDismantled ? ' dismantled' : '');
-            
-            let actionHtml = '';
-            if (isDismantled) {
-                actionHtml = `<span style="font-size: 11px; font-weight: 700; color: var(--accent-green);">[[DE_ICON_149]] Desmantelado (+${item.rpGain} RP)</span>`;
-            } else if (!isAvailableByYear) {
-                actionHtml = `<span style="font-size: 11px; color: var(--accent-red); font-weight: 700;">[[DE_ICON_093]] Bloqueado (Año ${item.minYear})</span>`;
-            } else {
-                actionHtml = `
-                    <button class="dock-btn btn-primary-action" style="padding: 5px 12px; font-size: 11px;" ${!canAfford ? 'disabled style="opacity:0.5;"' : ''} onclick="dismantleHardware('${item.id}')">
-                        [[DE_ICON_106]] Desmantelar ($${item.costMoney.toLocaleString()})
-                    </button>
-                `;
-            }
+    // 5. Banco de Análisis de Hardware Rival (Ingeniería Inversa)
+    renderHardwareWorkbench(mgr, historicalYear);
+}
 
-            card.innerHTML = `
+/* =========================================================================
+   ASISTENTE VISUAL DE CONSTRUCCIÓN DE MOTORES (ENGINE WORKSHOP)
+   ========================================================================= */
+
+const engineWorkshopState = {
+    currentStage: 1, // 1: Identidad, 2: Especializaciones, 3: Arquitectura Blueprint, 4: Revisión
+    name: 'Titan Forge',
+    version: 'v1.0',
+    selectedGenres: new Set(['Action', 'RPG']),
+    selectedModules: new Set(),
+    paletteBranchFilter: 'all',
+    initialized: false
+};
+
+const ENGINE_RANDOM_NAMES = [
+    'Titan Forge', 'Apex Velocity', 'Vanguard Core', 'CyberPulse',
+    'Nova Engine', 'Aether Tech', 'Matrix Core', 'Quantum Strike',
+    'RetroGrid Pro', 'OmniVision', 'HyperDrive 3D', 'Zenith Engine',
+    'Chrono Shift', 'Hydra System', 'Solaris FX', 'Pulse Dynamic'
+];
+
+const ENGINE_GENRE_DEFINITIONS = [
+    { id: 'Action', label: 'Acción & Arcade', icon: '[[DE_ICON_070]]', desc: 'Optimizado para alta tasa de FPS, latencia nula de mandos y cálculo rápido de colisiones.' },
+    { id: 'RPG', label: 'Rol & Aventura Gráfica', icon: '[[DE_ICON_071]]', desc: 'Gestión masiva de árboles de estadísticas, inventarios dinámicos y persistencia de mundos.' },
+    { id: 'Strategy', label: 'Estrategia & Táctica', icon: '[[DE_ICON_072]]', desc: 'Simulación multihilo de agentes concurrentes, cálculo de rutas e IA táctica.' },
+    { id: 'Simulation', label: 'Simulación Continua', icon: '[[DE_ICON_073]]', desc: 'Modelado vehicular y físico de precisión, telemetría y ecuaciones de variables complejas.' },
+    { id: 'Adventure', label: 'Aventura Narrativa', icon: '[[DE_ICON_074]]', desc: 'Manejo cinemático de cámaras, sincronización de diálogos y máquinas de estado para puzzles.' },
+    { id: 'Casual', label: 'Casual & Accesible', icon: '[[DE_ICON_075]]', desc: 'Carga instantánea, bajo consumo de memoria y ejecución perfecta en hardware modesto.' }
+];
+
+const BAY_DEFINITIONS = [
+    { id: 'render', label: 'Render & Gráficos', match: ['render', 'Graphics'], icon: '[[DE_ICON_020]]' },
+    { id: 'physics', label: 'Físicas & Colisiones', match: ['physics', 'Physics'], icon: '[[DE_ICON_021]]' },
+    { id: 'netcode', label: 'Red & Multijugador', match: ['net', 'netcode', 'Network'], icon: '[[DE_ICON_023]]' },
+    { id: 'ai', label: 'Inteligencia Artificial', match: ['ai', 'AI'], icon: '[[DE_ICON_024]]' },
+    { id: 'audio', label: 'Audio & Acústica', match: ['audio', 'Audio'], icon: '[[DE_ICON_025]]' },
+    { id: 'systems', label: 'Contenido & Sistemas', match: ['content', 'systems', 'Engine'], icon: '[[DE_ICON_026]]' }
+];
+
+window.setEngineWorkshopStage = function(stage) {
+    if (stage < 1 || stage > 4) return;
+    const nameInput = document.getElementById('workshop-engine-name');
+    if (nameInput && nameInput.value.trim()) {
+        engineWorkshopState.name = nameInput.value.trim();
+    }
+    engineWorkshopState.currentStage = stage;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.randomizeEngineName = function() {
+    const randomName = ENGINE_RANDOM_NAMES[Math.floor(Math.random() * ENGINE_RANDOM_NAMES.length)];
+    engineWorkshopState.name = randomName;
+    const input = document.getElementById('workshop-engine-name');
+    if (input) input.value = randomName;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.setEngineVersion = function(version) {
+    engineWorkshopState.version = version;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.toggleEngineGenre = function(genreId) {
+    if (engineWorkshopState.selectedGenres.has(genreId)) {
+        if (engineWorkshopState.selectedGenres.size <= 1) {
+            showToast('El motor debe tener al menos una especialización de género.', 'warn');
+            return;
+        }
+        engineWorkshopState.selectedGenres.delete(genreId);
+    } else {
+        engineWorkshopState.selectedGenres.add(genreId);
+    }
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.filterEnginePalette = function(filter) {
+    engineWorkshopState.paletteBranchFilter = filter;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.toggleEngineModule = function(moduleId) {
+    if (engineWorkshopState.selectedModules.has(moduleId)) {
+        engineWorkshopState.selectedModules.delete(moduleId);
+    } else {
+        engineWorkshopState.selectedModules.add(moduleId);
+    }
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.removeEngineModule = function(moduleId) {
+    engineWorkshopState.selectedModules.delete(moduleId);
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderEngineWorkshop(mgr, historicalYear);
+};
+
+window.submitEngineWorkshop = function() {
+    if (!game) return;
+    const input = document.getElementById('workshop-engine-name');
+    if (input && input.value.trim()) {
+        engineWorkshopState.name = input.value.trim();
+    }
+    const fullName = `${engineWorkshopState.name.trim()} ${engineWorkshopState.version}`.trim();
+    const modules = Array.from(engineWorkshopState.selectedModules);
+    if (modules.length === 0) {
+        showToast('Debes seleccionar al menos un módulo tecnológico para el motor.', 'warn');
+        return;
+    }
+    const affineGenres = Array.from(engineWorkshopState.selectedGenres);
+    const historicalTechIds = modules.filter(id => id.startsWith('tech_'));
+    const bakedNodes = modules.filter(id => !id.startsWith('tech_'));
+
+    const res = game.startInHouseEngineRD({
+        name: fullName,
+        bakedNodes,
+        historicalTechIds,
+        affineGenres
+    });
+
+    if (res.success) {
+        if (typeof updateEngineOptions === 'function') updateEngineOptions();
+        if (typeof renderTechTree === 'function') renderTechTree();
+        if (typeof renderPipelineSelector === 'function') renderPipelineSelector();
+        showToast(res.message || `[[DE_ICON_049]] ¡Proyecto de motor "${fullName}" iniciado con éxito!`, 'success');
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+    } else {
+        showToast(res.message, 'warn');
+        if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
+    }
+};
+
+function renderEngineWorkshop(mgr, year) {
+    const container = document.getElementById('engine-workshop-container');
+    if (!container || !mgr || !game) return;
+
+    // Initialize default unlocked modules if empty
+    if (!engineWorkshopState.initialized) {
+        const unlocked = mgr.catalog.filter(n => mgr.isUnlocked(n.id));
+        unlocked.slice(0, 4).forEach(n => engineWorkshopState.selectedModules.add(n.id));
+        engineWorkshopState.initialized = true;
+    }
+
+    const seniorProgrammers = (game.employees || []).filter(e => (e.tech || 0) >= 30 && (!e.role || /program|desarroll|ingenier|líder/i.test(e.role)));
+    const leadSenior = seniorProgrammers.length > 0 ? seniorProgrammers[0] : null;
+
+    const moduleCount = engineWorkshopState.selectedModules.size;
+    const costMoney = 18000 + (moduleCount * 2000);
+    const costRP = 10 + (moduleCount * 3);
+    const historicalTechIds = Array.from(engineWorkshopState.selectedModules).filter(id => id.startsWith('tech_'));
+    const incompatibility = typeof calculateTechIncompatibility === 'function' ? calculateTechIncompatibility(historicalTechIds) : { multiplier: 1, debt: 0 };
+    const engineWeeks = Math.ceil(8 * (incompatibility.multiplier || 1));
+    const canAfford = game.funds >= costMoney && game.researchPoints >= costRP && !!leadSenior && moduleCount > 0;
+
+    const stage = engineWorkshopState.currentStage;
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // Stepper HTML
+    const stepperSteps = [
+        { num: 1, title: 'Identidad', sub: 'Nombre y versión' },
+        { num: 2, title: 'Especialización', sub: 'Géneros optimizados' },
+        { num: 3, title: 'Arquitectura', sub: 'Plano tecnológico' },
+        { num: 4, title: 'Revisión & I+D', sub: 'Presupuesto final' }
+    ];
+
+    const stepperHtml = `
+        <div class="engine-stepper">
+            ${stepperSteps.map(s => `
+                <button type="button" class="engine-step-btn ${stage === s.num ? 'active' : ''}" onclick="window.setEngineWorkshopStage(${s.num})">
+                    <span class="step-num">0${s.num}</span>
+                    <div class="step-info">
+                        <strong>${s.title}</strong>
+                        <small>${s.sub}</small>
+                    </div>
+                </button>
+            `).join('')}
+        </div>
+    `;
+
+    // Stage 1: Identity
+    const versionPills = ['v1.0', 'v1.5', 'v2.0 Pro', 'v3.0 Ultra'];
+    const stage1Html = `
+        <div class="engine-stage-panel ${stage === 1 ? 'active' : ''}">
+            <div class="engine-identity-grid">
+                <div class="engine-badge-preview">
+                    <div class="engine-badge-icon">[[DE_ICON_015]]</div>
+                    <div style="font-weight: 800; font-size: 15px; color: #fff; text-align: center;">${safe(engineWorkshopState.name)}</div>
+                    <span class="engine-badge-tag">${safe(engineWorkshopState.version)}</span>
+                </div>
                 <div>
-                    <div class="rev-card-title">
-                        <span>${item.icon}</span> ${item.name}
+                    <div class="form-group" style="margin-bottom: 14px;">
+                        <label class="form-label" style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block;">
+                            Nombre del Motor Tecnológico
+                        </label>
+                        <div class="engine-name-input-wrap">
+                            <input type="text" id="workshop-engine-name" class="form-input" value="${safe(engineWorkshopState.name)}" placeholder="Ej: Titan Forge" style="flex: 1;" onchange="engineWorkshopState.name = this.value">
+                            <button type="button" class="dock-btn" onclick="window.randomizeEngineName()" style="gap: 6px; font-weight: 700;">
+                                [[DE_ICON_028]] Generar Nombre
+                            </button>
+                        </div>
                     </div>
-                    <div style="font-size: 11px; color: var(--accent-gold); margin: 3px 0 6px 0;">
-                        ${item.era} • Año min: ${item.minYear} • +${item.rpGain} RP
+
+                    <label class="form-label" style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block;">
+                        Generación de Versión
+                    </label>
+                    <div class="engine-version-pills">
+                        ${versionPills.map(v => `
+                            <button type="button" class="engine-version-pill ${engineWorkshopState.version === v ? 'active' : ''}" onclick="window.setEngineVersion('${v}')">
+                                ${v}
+                            </button>
+                        `).join('')}
                     </div>
-                    <div class="rev-card-desc">${item.desc}</div>
+
+                    <div style="margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);">
+                        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 4px;">
+                            Ingeniero Jefe de Arquitectura
+                        </div>
+                        ${leadSenior ? `
+                            <div style="font-size: 13px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
+                                <span>[[DE_ICON_059]]</span> ${safe(leadSenior.name)} (Habilidad Técnica: ${leadSenior.tech}) · Asignado automáticamente al proyecto.
+                            </div>
+                        ` : `
+                            <div style="font-size: 12px; font-weight: 700; color: #ef4444; display: flex; align-items: center; gap: 8px;">
+                                <span>[[DE_ICON_093]]</span> Se requiere al menos un desarrollador con 30+ de Habilidad Técnica para liderar el motor.
+                            </div>
+                        `}
+                    </div>
                 </div>
-                <div class="rev-card-footer">
-                    <span style="font-size: 12px; font-weight: 700; color: #fff;">$${item.costMoney.toLocaleString()}</span>
-                    ${actionHtml}
+            </div>
+            <div class="engine-stage-actions">
+                <span style="font-size: 12px; color: #94a3b8;">Coste base inicial: $18.000 y 10 RP.</span>
+                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(2)" style="font-weight: 700; padding: 10px 20px;">
+                    Siguiente: Elegir Especialización →
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Stage 2: Genres
+    const stage2Html = `
+        <div class="engine-stage-panel ${stage === 2 ? 'active' : ''}">
+            <div style="margin-bottom: 14px;">
+                <h4 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0 0 4px 0;">Especializaciones de Género</h4>
+                <p style="font-size: 12px; color: #94a3b8; margin: 0;">
+                    Selecciona los géneros para los que este motor brindará bonificaciones automáticas de puntuación y rendimiento técnico.
+                </p>
+            </div>
+            <div class="engine-genres-grid">
+                ${ENGINE_GENRE_DEFINITIONS.map(g => {
+                    const isSelected = engineWorkshopState.selectedGenres.has(g.id);
+                    return `
+                        <div class="engine-genre-card ${isSelected ? 'selected' : ''}" onclick="window.toggleEngineGenre('${g.id}')">
+                            <div class="engine-genre-icon">${g.icon}</div>
+                            <div>
+                                <h5 class="engine-genre-title">${g.label}</h5>
+                                <p class="engine-genre-desc">${g.desc}</p>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+            <div class="engine-stage-actions">
+                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(1)" style="font-weight: 700;">
+                    ← Volver a Identidad
+                </button>
+                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(3)" style="font-weight: 700; padding: 10px 20px;">
+                    Siguiente: Arquitectura Tecnológica →
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Stage 3: Architecture Blueprint
+    const branchFilter = engineWorkshopState.paletteBranchFilter;
+    const filterCategories = {
+        all: null,
+        render: ['render', 'Graphics'],
+        physics: ['physics', 'Physics'],
+        netcode: ['net', 'netcode', 'Network'],
+        ai: ['ai', 'AI'],
+        audio: ['audio', 'Audio'],
+        systems: ['content', 'systems', 'Engine']
+    };
+
+    const unlockedCatalog = mgr.catalog.filter(n => mgr.isUnlocked(n.id));
+    const filteredCatalog = unlockedCatalog.filter(n => {
+        if (branchFilter === 'all') return true;
+        const valid = filterCategories[branchFilter];
+        return valid ? valid.includes(n.category) : true;
+    });
+
+    const stage3Html = `
+        <div class="engine-stage-panel ${stage === 3 ? 'active' : ''}">
+            <div class="engine-blueprint-layout">
+                <!-- Left Palette -->
+                <div class="engine-palette-panel">
+                    <div class="engine-palette-header">
+                        <span>Módulos Desbloqueados</span>
+                        <span style="color: #38bdf8;">${unlockedCatalog.length} disp.</span>
+                    </div>
+                    <div style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; flex-shrink: 0;">
+                        ${['all', 'render', 'physics', 'netcode', 'ai', 'audio', 'systems'].map(b => `
+                            <button type="button" class="dock-btn" style="padding: 3px 8px; font-size: 10px; ${branchFilter === b ? 'background:#0284c7;color:#fff;border-color:#38bdf8;' : ''}" onclick="window.filterEnginePalette('${b}')">
+                                ${b.toUpperCase()}
+                            </button>
+                        `).join('')}
+                    </div>
+                    <div class="engine-palette-list">
+                        ${filteredCatalog.length === 0 ? `<div style="font-size:11px;color:#94a3b8;text-align:center;padding:12px;">Sin módulos en esta categoría</div>` : ''}
+                        ${filteredCatalog.map(node => {
+                            const isSlotted = engineWorkshopState.selectedModules.has(node.id);
+                            return `
+                                <div class="engine-palette-item ${isSlotted ? 'integrated' : ''}" onclick="window.toggleEngineModule('${node.id}')">
+                                    <div class="engine-palette-item-name">
+                                        <span>${node.icon}</span>
+                                        <span>${safe(node.name)}</span>
+                                    </div>
+                                    <button type="button" class="engine-palette-item-btn">
+                                        ${isSlotted ? '[[DE_ICON_149]] En Plano' : '[[DE_ICON_015]] Añadir'}
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
                 </div>
+
+                <!-- Center Blueprint Canvas -->
+                <div class="engine-blueprint-canvas">
+                    <div class="engine-core-hub">
+                        <span>[[DE_ICON_049]]</span>
+                        <span>${safe(engineWorkshopState.name)} CORE</span>
+                        <span style="font-size: 10px; opacity: 0.8; margin-left: 6px;">(${moduleCount} Módulos)</span>
+                    </div>
+
+                    <div class="engine-bays-grid">
+                        ${BAY_DEFINITIONS.map(bay => {
+                            const bayModules = Array.from(engineWorkshopState.selectedModules)
+                                .map(id => mgr.catalogMap.get(id))
+                                .filter(Boolean)
+                                .filter(node => bay.match.includes(node.category));
+
+                            return `
+                                <div class="engine-bay-box">
+                                    <div class="engine-bay-title">
+                                        <span>${bay.icon}</span> ${bay.label}
+                                    </div>
+                                    <div class="engine-bay-slots">
+                                        ${bayModules.length === 0 ? `
+                                            <div class="engine-empty-slot">Sin módulos asignados</div>
+                                        ` : bayModules.map(node => `
+                                            <div class="engine-slotted-chip">
+                                                <span style="display:flex;align-items:center;gap:6px;">
+                                                    <span>${node.icon}</span> ${safe(node.name)}
+                                                </span>
+                                                <button type="button" class="chip-remove" onclick="event.stopPropagation(); window.removeEngineModule('${node.id}')" title="Quitar módulo">&times;</button>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- Right Telemetry -->
+                <div class="engine-telemetry-panel">
+                    <div class="engine-telemetry-header">
+                        <span>Telemetría & Costes</span>
+                        <span style="color: #fbbf24;">[[DE_ICON_059]]</span>
+                    </div>
+
+                    <div class="engine-telemetry-item">
+                        <div class="engine-telemetry-label">Módulos Instalados</div>
+                        <div class="engine-telemetry-value" style="color: #38bdf8;">${moduleCount} <span style="font-size:12px;color:#94a3b8;">subsistemas</span></div>
+                    </div>
+
+                    <div class="engine-telemetry-item">
+                        <div class="engine-telemetry-label">Presupuesto de Fabricación</div>
+                        <div class="engine-telemetry-value" style="color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
+                            $${costMoney.toLocaleString()}
+                        </div>
+                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
+                            Estudio: $${game.funds.toLocaleString()}
+                        </div>
+                    </div>
+
+                    <div class="engine-telemetry-item">
+                        <div class="engine-telemetry-label">Puntos de I+D Requeridos</div>
+                        <div class="engine-telemetry-value" style="color: ${game.researchPoints >= costRP ? '#38bdf8' : '#ef4444'};">
+                            ${costRP} RP
+                        </div>
+                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
+                            Disponibles: ${game.researchPoints} RP
+                        </div>
+                    </div>
+
+                    <div class="engine-telemetry-item">
+                        <div class="engine-telemetry-label">Compilación Estimada</div>
+                        <div class="engine-telemetry-value" style="color: #f8fafc;">
+                            ${engineWeeks} semanas
+                        </div>
+                    </div>
+
+                    ${incompatibility.debt > 0 ? `
+                        <div class="engine-telemetry-warning">
+                            [[DE_ICON_093]] Deuda Técnica Proyectada: +${incompatibility.debt} pts de riesgo.
+                        </div>
+                    ` : ''}
+
+                    <div style="margin-top: auto; padding-top: 10px;">
+                        ${moduleCount === 0 ? `
+                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">Debe añadir al menos 1 módulo al plano.</div>
+                        ` : (game.funds < costMoney ? `
+                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">Fondos insuficientes para compilar.</div>
+                        ` : (game.researchPoints < costRP ? `
+                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">RP insuficientes para compilar.</div>
+                        ` : `
+                            <div style="font-size: 11px; color: #10b981; font-weight: 700;">[[DE_ICON_149]] Arquitectura validada y lista.</div>
+                        `))}
+                    </div>
+                </div>
+            </div>
+            <div class="engine-stage-actions">
+                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(2)" style="font-weight: 700;">
+                    ← Volver a Especialización
+                </button>
+                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(4)" style="font-weight: 700; padding: 10px 20px;">
+                    Siguiente: Revisión y Financiación →
+                </button>
+            </div>
+        </div>
+    `;
+
+    // Stage 4: Review
+    const stage4Html = `
+        <div class="engine-stage-panel ${stage === 4 ? 'active' : ''}">
+            <div class="engine-review-dossier">
+                <div class="engine-review-header">
+                    <div>
+                        <span style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.08em;">
+                            Dossier de Fabricación de Software
+                        </span>
+                        <h4 style="font-size: 20px; font-weight: 800; color: #fff; margin: 4px 0 2px 0;">
+                            ${safe(engineWorkshopState.name)} ${safe(engineWorkshopState.version)}
+                        </h4>
+                        <div style="font-size: 12px; color: #94a3b8;">
+                            Especializaciones: <strong style="color: #38bdf8;">${Array.from(engineWorkshopState.selectedGenres).join(', ')}</strong>
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="engine-lead-badge">
+                            [[DE_ICON_059]] ${leadSenior ? safe(leadSenior.name) : 'Sin líder asignado'}
+                        </span>
+                    </div>
+                </div>
+
+                <div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">
+                    Módulos Ensamblados en Arquitectura (${moduleCount}):
+                </div>
+                <div class="engine-review-modules-summary">
+                    ${Array.from(engineWorkshopState.selectedModules).map(id => {
+                        const node = mgr.catalogMap.get(id);
+                        if (!node) return '';
+                        return `
+                            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.06); padding: 8px 10px; border-radius: 6px; font-size: 11px; display: flex; align-items: center; gap: 8px;">
+                                <span>${node.icon}</span>
+                                <span style="color: #e2e8f0; font-weight: 600;">${safe(node.name)}</span>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+
+                <div class="engine-review-finance-box">
+                    <div>
+                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Inversión Monetaria</div>
+                        <div style="font-size: 18px; font-weight: 900; color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
+                            $${costMoney.toLocaleString()}
+                        </div>
+                    </div>
+                    <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
+                    <div>
+                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Coste de Investigación</div>
+                        <div style="font-size: 18px; font-weight: 900; color: ${game.researchPoints >= costRP ? '#38bdf8' : '#ef4444'};">
+                            ${costRP} RP
+                        </div>
+                    </div>
+                    <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
+                    <div>
+                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Tiempo de Compilación</div>
+                        <div style="font-size: 18px; font-weight: 900; color: #f8fafc;">
+                            ${engineWeeks} semanas
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(3)" style="font-weight: 700;">
+                    ← Volver a Arquitectura
+                </button>
+                <button type="button" class="dock-btn btn-primary-action" id="btn-submit-engine-workshop" style="flex: 1; justify-content: center; padding: 14px; font-size: 15px; font-weight: 800;" ${!canAfford ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onclick="window.submitEngineWorkshop()">
+                    [[DE_ICON_015]] INICIAR DESARROLLO DEL MOTOR
+                </button>
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = `
+        <div class="engine-workshop-header">
+            <div>
+                <span class="engine-workshop-kicker">[[DE_ICON_015]] Taller de Ingeniería In-House</span>
+                <h3 class="engine-workshop-title">Asistente de Construcción de Motores</h3>
+                <p class="engine-workshop-subtitle">Diseña la arquitectura técnica de tu próximo motor gráfico y de simulación modular.</p>
+            </div>
+            ${leadSenior ? `
+                <div class="engine-lead-badge">
+                    [[DE_ICON_059]] Ingeniero Jefe: ${safe(leadSenior.name)} (${leadSenior.tech} Tech)
+                </div>
+            ` : `
+                <div class="engine-lead-badge" style="border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.1);">
+                    [[DE_ICON_093]] Falta Programador Senior
+                </div>
+            `}
+        </div>
+        ${stepperHtml}
+        ${stage1Html}
+        ${stage2Html}
+        ${stage3Html}
+        ${stage4Html}
+    `;
+}
+
+/* =========================================================================
+   BANCO DE ANÁLISIS DE HARDWARE RIVAL (INGENIERÍA INVERSA EN 3 ZONAS)
+   ========================================================================= */
+
+const hardwareWorkbenchState = {
+    selectedHwId: 'rev_rom_cartridge',
+    isScanning: false
+};
+
+const HARDWARE_ORIGINS = {
+    rev_rom_cartridge: {
+        manufacturer: 'Atari / Nintendo Standards',
+        origin: 'Kioto / California · 1982',
+        summary: 'Arquitectura de cartucho con doble ROM en encapsulado DIP. Permite direccionamiento directo sobre el bus de memoria sin latencia de carga.',
+        subsystems: ['Bus multiplexado de 8 bits', 'Mapeo directo de memoria PRG/CHR', 'Conector de borde chapado en oro']
+    },
+    rev_sound_synthesizer: {
+        manufacturer: 'Yamaha / Mega Circuits',
+        origin: 'Hamamatsu, Japón · 1986',
+        summary: 'Procesador de sonido con síntesis FM pura de 6 canales. Proporciona modulación de frecuencia armónica y conversión estéreo digital-analógica.',
+        subsystems: ['6 operadores FM independientes', 'Generador de onda sinusoidal y LFO', 'Convertidor DAC estéreo de 16 bits']
+    },
+    rev_arcade_coprocessor: {
+        manufacturer: 'Namco / Commodore Micro-Arcade',
+        origin: 'Tokio / West Chester · 1990',
+        summary: 'Coprocesador dedicado a transferencias masivas de bits (Bit-Blt) por hardware con acceso directo a memoria (DMA), liberando a la CPU.',
+        subsystems: ['Canal DMA paralelo de 16 bits a 16MHz', 'Acelerador de scroll multicapa', 'Búfer de composición de sprites por hardware']
+    },
+    rev_cdrom_controller: {
+        manufacturer: 'Sony & Philips Optical Alliance',
+        origin: 'Eindhoven / Tokio · 1994',
+        summary: 'Unidad de lectura óptica de disco con servomecanismo de alta precisión, corrección de errores en tiempo real y memoria búfer FIFO para streaming continuo.',
+        subsystems: ['Lente óptica láser semiconductora', 'Controladora DSP de flujo a 300 KB/s', 'Búfer FIFO antidesbordamiento de 128KB']
+    },
+    rev_gpu_architecture: {
+        manufacturer: '3dfx Glide Graphics',
+        origin: 'San José, California · 1999',
+        summary: 'Arquitectura de rasterizado 3D por aceleración de silicio. Integra motor de Transform & Lighting, memoria Z-Buffer de 16 bits y filtrado bilineal de texturas.',
+        subsystems: ['Die de silicio GPU con tuberías paralelas', '4 módulos SGRAM a 100MHz en estrella', 'Bus AGP de 4X con ancho de banda ultra-rápido']
+    },
+    rev_cloud_blade_server: {
+        manufacturer: 'Apex Cloud Clúster Systems',
+        origin: 'Seattle / Estocolmo · 2012',
+        summary: 'Servidor blade para arquitectura de juego en la nube distribuida. Procesamiento masivo paralelo multihilo con enlaces Ethernet de 10 Gigabits.',
+        subsystems: ['Sockets duales Intel Xeon de 8 núcleos', '64GB de memoria DDR3 ECC registrada', 'Controladoras de red dual SFP+ 10GbE']
+    }
+};
+
+function getHardwareCircuitSvg(hwId) {
+    switch (hwId) {
+        case 'rev_rom_cartridge':
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#032b1b" stroke="#059669" stroke-width="2"/>
+                    <rect x="50" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="70" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="90" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="110" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="130" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="150" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="170" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="190" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="210" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="230" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="250" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="270" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="290" y="188" width="12" height="12" fill="#f59e0b" rx="2"/><rect x="310" y="188" width="12" height="12" fill="#f59e0b" rx="2"/>
+                    <path d="M 56 188 L 56 130 L 90 130 L 90 90" stroke="#10b981" stroke-width="2" fill="none" opacity="0.6"/>
+                    <path d="M 116 188 L 116 140 L 150 140 L 150 90" stroke="#10b981" stroke-width="2" fill="none" opacity="0.6"/>
+                    <path d="M 236 188 L 236 140 L 260 140 L 260 90" stroke="#10b981" stroke-width="2" fill="none" opacity="0.6"/>
+                    <path d="M 296 188 L 296 130 L 310 130 L 310 90" stroke="#10b981" stroke-width="2" fill="none" opacity="0.6"/>
+                    <rect x="45" y="45" width="130" height="75" rx="4" fill="#0f172a" stroke="#38bdf8" stroke-width="1.5"/>
+                    <text x="110" y="75" fill="#f8fafc" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">ROM-PRG 32KB</text>
+                    <text x="110" y="92" fill="#38bdf8" font-size="9" font-family="monospace" text-anchor="middle">DIP-28 // 8-BIT BUS</text>
+                    <circle cx="55" cy="55" r="3" fill="#38bdf8"/>
+                    <rect x="205" y="45" width="130" height="75" rx="4" fill="#0f172a" stroke="#f59e0b" stroke-width="1.5"/>
+                    <text x="270" y="75" fill="#f8fafc" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">ROM-CHR 16KB</text>
+                    <text x="270" y="92" fill="#f59e0b" font-size="9" font-family="monospace" text-anchor="middle">TILE PATTERN VRAM</text>
+                    <circle cx="215" cy="55" r="3" fill="#f59e0b"/>
+                    <text x="190" y="165" fill="#94a3b8" font-size="10" font-family="monospace" text-anchor="middle">NES/ATARI ROM ARCHITECTURE - 1982</text>
+                </svg>
             `;
-            revGrid.appendChild(card);
-        });
+        case 'rev_sound_synthesizer':
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#1e1b4b" stroke="#6366f1" stroke-width="2"/>
+                    <rect x="115" y="45" width="150" height="90" rx="6" fill="#090d16" stroke="#c084fc" stroke-width="2"/>
+                    <text x="190" y="80" fill="#ffffff" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">YM2612 FM-CORE</text>
+                    <text x="190" y="98" fill="#c084fc" font-size="9" font-family="monospace" text-anchor="middle">6-CH 4-OPERATOR FM</text>
+                    <text x="190" y="114" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="middle">FM FREQ SYNTHESIS</text>
+                    <path d="M 40 85 Q 55 60 70 85 T 100 85" stroke="#38bdf8" stroke-width="2" fill="none"/>
+                    <text x="70" y="105" fill="#38bdf8" font-size="8" font-family="monospace" text-anchor="middle">OSC LFO</text>
+                    <rect x="140" y="150" width="100" height="38" rx="4" fill="#0f172a" stroke="#ec4899" stroke-width="1.5"/>
+                    <text x="190" y="172" fill="#ec4899" font-size="9" font-weight="bold" font-family="monospace" text-anchor="middle">YM3012 STEREO DAC</text>
+                    <circle cx="310" cy="70" r="12" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5"/><text x="310" y="74" fill="#ffffff" font-size="9" font-weight="bold" text-anchor="middle">L</text>
+                    <circle cx="310" cy="115" r="12" fill="#0284c7" stroke="#38bdf8" stroke-width="1.5"/><text x="310" y="119" fill="#ffffff" font-size="9" font-weight="bold" text-anchor="middle">R</text>
+                    <path d="M 240 168 L 290 168 L 290 92 L 298 92" stroke="#ec4899" stroke-width="2" fill="none" opacity="0.7"/>
+                    <line x1="190" y1="135" x2="190" y2="150" stroke="#c084fc" stroke-width="2"/>
+                </svg>
+            `;
+        case 'rev_arcade_coprocessor':
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#082f49" stroke="#0284c7" stroke-width="2"/>
+                    <rect x="120" y="40" width="140" height="95" rx="6" fill="#0f172a" stroke="#f59e0b" stroke-width="2"/>
+                    <text x="190" y="75" fill="#f8fafc" font-size="12" font-weight="bold" font-family="monospace" text-anchor="middle">BLITTER ASIC-2D</text>
+                    <text x="190" y="94" fill="#fbbf24" font-size="9" font-family="monospace" text-anchor="middle">HARDWARE BIT-BLT 16MHz</text>
+                    <text x="190" y="110" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="middle">DMA CHANNEL CONTROLLER</text>
+                    <rect x="35" y="45" width="65" height="40" rx="3" fill="#034e7b" stroke="#38bdf8" stroke-width="1.2"/><text x="67" y="68" fill="#e0f2fe" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">VRAM-0</text>
+                    <rect x="35" y="95" width="65" height="40" rx="3" fill="#034e7b" stroke="#38bdf8" stroke-width="1.2"/><text x="67" y="118" fill="#e0f2fe" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">VRAM-1</text>
+                    <rect x="280" y="45" width="65" height="40" rx="3" fill="#034e7b" stroke="#38bdf8" stroke-width="1.2"/><text x="312" y="68" fill="#e0f2fe" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">SPRITE-BUF</text>
+                    <rect x="280" y="95" width="65" height="40" rx="3" fill="#034e7b" stroke="#38bdf8" stroke-width="1.2"/><text x="312" y="118" fill="#e0f2fe" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">TILE-PALETTE</text>
+                    <path d="M 100 65 L 120 65" stroke="#38bdf8" stroke-width="2"/><path d="M 100 115 L 120 115" stroke="#38bdf8" stroke-width="2"/><path d="M 260 65 L 280 65" stroke="#38bdf8" stroke-width="2"/><path d="M 260 115 L 280 115" stroke="#38bdf8" stroke-width="2"/>
+                    <rect x="70" y="155" width="240" height="30" rx="4" fill="#032b43" stroke="#10b981" stroke-width="1.5"/><text x="190" y="174" fill="#10b981" font-size="10" font-weight="bold" font-family="monospace" text-anchor="middle">16-BIT PARALLEL SYSTEM BUS (DMA)</text>
+                </svg>
+            `;
+        case 'rev_cdrom_controller':
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#090f1d" stroke="#3b82f6" stroke-width="2"/>
+                    <circle cx="95" cy="110" r="65" fill="#0f172a" stroke="#64748b" stroke-width="2"/><circle cx="95" cy="110" r="40" fill="#1e293b" stroke="#38bdf8" stroke-dasharray="3,3"/><circle cx="95" cy="110" r="14" fill="#334155" stroke="#f1f5f9" stroke-width="2"/>
+                    <circle cx="115" cy="100" r="8" fill="#ef4444" stroke="#fca5a5" stroke-width="1.5"/><line x1="115" y1="100" x2="180" y2="80" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,2"/>
+                    <rect x="180" y="45" width="160" height="65" rx="5" fill="#020617" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="260" y="72" fill="#ffffff" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">CXD2500Q DSP CORE</text>
+                    <text x="260" y="90" fill="#38bdf8" font-size="8" font-family="monospace" text-anchor="middle">ERROR CORRECTION (CIRC/EDC)</text>
+                    <text x="260" y="102" fill="#94a3b8" font-size="7" font-family="monospace" text-anchor="middle">300 KB/s 2X OPTICAL STREAM</text>
+                    <rect x="180" y="125" width="160" height="55" rx="5" fill="#020617" stroke="#10b981" stroke-width="1.5"/>
+                    <text x="260" y="150" fill="#10b981" font-size="10" font-weight="bold" font-family="monospace" text-anchor="middle">128KB FIFO DATA BUFFER</text>
+                    <text x="260" y="168" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="middle">SCSI / ATAPI PACKET BUS</text>
+                </svg>
+            `;
+        case 'rev_gpu_architecture':
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#18181b" stroke="#71717a" stroke-width="2"/>
+                    <rect x="130" y="55" width="120" height="100" rx="6" fill="#09090b" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="190" y="90" fill="#ffffff" font-size="11" font-weight="bold" font-family="monospace" text-anchor="middle">VOODOO 3D-ENGINE</text>
+                    <text x="190" y="110" fill="#38bdf8" font-size="8" font-family="monospace" text-anchor="middle">GEOMETRY T&L ENGINE</text>
+                    <text x="190" y="125" fill="#f59e0b" font-size="8" font-family="monospace" text-anchor="middle">16-BIT HARDWARE Z-BUFFER</text>
+                    <text x="190" y="140" fill="#94a3b8" font-size="7" font-family="monospace" text-anchor="middle">TEXTURE FILTERING MIPMAP</text>
+                    <rect x="45" y="45" width="60" height="35" rx="3" fill="#27272a" stroke="#a1a1aa" stroke-width="1"/><text x="75" y="66" fill="#f4f4f5" font-size="8" font-family="monospace" text-anchor="middle">SGRAM 4MB</text>
+                    <rect x="45" y="120" width="60" height="35" rx="3" fill="#27272a" stroke="#a1a1aa" stroke-width="1"/><text x="75" y="141" fill="#f4f4f5" font-size="8" font-family="monospace" text-anchor="middle">SGRAM 4MB</text>
+                    <rect x="275" y="45" width="60" height="35" rx="3" fill="#27272a" stroke="#a1a1aa" stroke-width="1"/><text x="305" y="66" fill="#f4f4f5" font-size="8" font-family="monospace" text-anchor="middle">SGRAM 4MB</text>
+                    <rect x="275" y="120" width="60" height="35" rx="3" fill="#27272a" stroke="#a1a1aa" stroke-width="1"/><text x="305" y="141" fill="#f4f4f5" font-size="8" font-family="monospace" text-anchor="middle">SGRAM 4MB</text>
+                    <rect x="110" y="185" width="160" height="12" fill="#eab308" rx="2"/><text x="190" y="178" fill="#eab308" font-size="8" font-weight="bold" font-family="monospace" text-anchor="middle">AGP 4X HIGH SPEED BUS</text>
+                </svg>
+            `;
+        case 'rev_cloud_blade_server':
+        default:
+            return `
+                <svg viewBox="0 0 380 220" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="20" y="20" width="340" height="180" rx="8" fill="#042f2e" stroke="#0d9488" stroke-width="2"/>
+                    <rect x="65" y="45" width="100" height="75" rx="6" fill="#021f1e" stroke="#14b8a6" stroke-width="1.8"/>
+                    <text x="115" y="75" fill="#f0fdfa" font-size="10" font-weight="bold" font-family="monospace" text-anchor="middle">XEON-X1 8-CORE</text>
+                    <text x="115" y="93" fill="#14b8a6" font-size="8" font-family="monospace" text-anchor="middle">L3 CACHE 20MB</text>
+                    <text x="115" y="107" fill="#99f6e4" font-size="7" font-family="monospace" text-anchor="middle">2.8 GHz MULTITHREAD</text>
+                    <rect x="215" y="45" width="100" height="75" rx="6" fill="#021f1e" stroke="#14b8a6" stroke-width="1.8"/>
+                    <text x="265" y="75" fill="#f0fdfa" font-size="10" font-weight="bold" font-family="monospace" text-anchor="middle">XEON-X2 8-CORE</text>
+                    <text x="265" y="93" fill="#14b8a6" font-size="8" font-family="monospace" text-anchor="middle">L3 CACHE 20MB</text>
+                    <text x="265" y="107" fill="#99f6e4" font-size="7" font-family="monospace" text-anchor="middle">2.8 GHz MULTITHREAD</text>
+                    <line x1="165" y1="82" x2="215" y2="82" stroke="#38bdf8" stroke-width="3" stroke-dasharray="2,2"/>
+                    <rect x="40" y="140" width="300" height="45" rx="5" fill="#021817" stroke="#38bdf8" stroke-width="1.5"/>
+                    <text x="190" y="160" fill="#38bdf8" font-size="10" font-weight="bold" font-family="monospace" text-anchor="middle">DUAL 10-GIGABIT SFP+ CLOUD FABRIC</text>
+                    <text x="190" y="174" fill="#94a3b8" font-size="8" font-family="monospace" text-anchor="middle">64GB REGISTERED ECC DDR3 // LOW LATENCY NETWORKING</text>
+                </svg>
+            `;
+    }
+}
+
+window.selectWorkbenchHardware = function(hwId) {
+    hardwareWorkbenchState.selectedHwId = hwId;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderHardwareWorkbench(mgr, historicalYear);
+};
+
+window.workbenchDismantleHardware = function(hwId) {
+    if (!game) return;
+    hardwareWorkbenchState.isScanning = true;
+    const mgr = techTreeManager || (game && game.techTreeManager);
+    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
+    renderHardwareWorkbench(mgr, historicalYear);
+
+    setTimeout(() => {
+        const res = game.reverseEngineerHardware(hwId);
+        hardwareWorkbenchState.isScanning = false;
+        if (res.success) {
+            renderTechTree();
+            renderHUD(game);
+            showToast(res.message, 'success');
+        } else {
+            showToast(res.message, 'warn');
+            if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
+            renderHardwareWorkbench(mgr, historicalYear);
+        }
+    }, 600);
+};
+
+function renderHardwareWorkbench(mgr, year) {
+    const container = document.getElementById('hardware-workbench-container');
+    if (!container || !mgr || !game || typeof REVERSE_ENGINEERING_CATALOG === 'undefined') return;
+
+    let selectedHw = REVERSE_ENGINEERING_CATALOG.find(h => h.id === hardwareWorkbenchState.selectedHwId);
+    if (!selectedHw) {
+        selectedHw = REVERSE_ENGINEERING_CATALOG[0];
+        hardwareWorkbenchState.selectedHwId = selectedHw.id;
     }
 
-    // 4. Tech Tree Branches Container (22 Specialized Nodes)
-    const branchesContainer = document.getElementById('tech-tree-branches-container');
-    if (branchesContainer) {
-        branchesContainer.innerHTML = '';
+    const isDismantled = mgr.dismantledHardware.has(selectedHw.id);
+    const isAvailableByYear = year >= selectedHw.minYear;
+    const canAfford = game.funds >= selectedHw.costMoney;
+    const originInfo = HARDWARE_ORIGINS[selectedHw.id] || { manufacturer: 'Competencia Internacional', origin: 'Mundial', summary: selectedHw.desc, subsystems: [] };
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-        const branchDefs = [
-            { id: 'render', name: 'Motor Gráfico & Renderizado', icon: '[[DE_ICON_054]]' },
-            { id: 'physics', name: 'Físicas & Colisiones Cinemáticas', icon: '[[DE_ICON_055]]' },
-            { id: 'netcode', name: 'Netcode & Sincronización de Red', icon: '[[DE_ICON_020]]' },
-            { id: 'ai', name: 'Inteligencia Artificial & Lógica', icon: '[[DE_ICON_056]]' },
-            { id: 'audio', name: 'Pipeline Acústico & Audio Espacial', icon: '[[DE_ICON_045]]' },
-            { id: 'content', name: 'Contenido & Estructura de Mundo', icon: '[[DE_ICON_057]]' },
-            { id: 'systems', name: 'Sistemas Avanzados & Jugabilidad', icon: '[[DE_ICON_049]]' }
-        ];
+    // Zone A: Inventory
+    const inventoryHtml = `
+        <div class="workbench-inventory">
+            <div class="inventory-header">
+                <h4>Dispositivos Rival</h4>
+                <span style="font-size: 11px; color: #fbbf24; font-weight: 700;">${REVERSE_ENGINEERING_CATALOG.length} modelos</span>
+            </div>
+            <div class="inventory-list">
+                ${REVERSE_ENGINEERING_CATALOG.map(item => {
+                    const itemDismantled = mgr.dismantledHardware.has(item.id);
+                    const itemAvailable = year >= item.minYear;
+                    const isSelected = item.id === selectedHw.id;
 
-        branchDefs.forEach(branch => {
-            if (activeTechBranchFilter !== 'all' && activeTechBranchFilter !== branch.id) {
-                return;
-            }
-
-            const branchNodes = mgr.catalog.filter(n => {
-                if (branch.id === 'netcode') return n.category === 'netcode' || n.category === 'net';
-                return n.category === branch.id;
-            });
-
-            if (branchNodes.length === 0) return;
-
-            const block = document.createElement('div');
-            block.className = 'tech-tree-branch-block';
-            block.innerHTML = `<div class="tech-tree-branch-title"><span>${branch.icon}</span> ${branch.name} (${branchNodes.length} módulos)</div>`;
-
-            const grid = document.createElement('div');
-            grid.className = 'tech-tree-branch-grid';
-
-            branchNodes.forEach(node => {
-                const stateInfo = mgr.getNodeState(node.id, historicalYear);
-                const isUnlocked = stateInfo.state === 'DESBLOQUEADO';
-                const isInvestigable = stateInfo.state === 'INVESTIGABLE';
-                const isLocked = stateInfo.state === 'BLOQUEADO';
-
-                const card = document.createElement('div');
-                card.className = 'tech-node-card' +
-                    (isUnlocked ? ' unlocked' : '') +
-                    (isInvestigable ? ' investigable' : '') +
-                    (isLocked ? ' locked' : '');
-
-                // Status Badge
-                let badgeClass = 'badge-locked';
-                let badgeLabel = '[[DE_ICON_093]] Bloqueado';
-                if (isUnlocked) {
-                    badgeClass = 'badge-unlocked';
-                    badgeLabel = '[[DE_ICON_149]] Desbloqueado';
-                } else if (isInvestigable) {
-                    badgeClass = 'badge-investigable';
-                    badgeLabel = '[[DE_ICON_022]] Investigable';
-                }
-
-                // Requirements preview
-                const prereqs = node.prerequisites || [];
-                let prereqHtml = '';
-                if (prereqs.length > 0) {
-                    const pills = prereqs.map(pId => {
-                        const pDef = mgr.catalogMap.get(pId);
-                        const pName = pDef ? pDef.name : pId;
-                        const met = mgr.isUnlocked(pId);
-                        return `<span class="req-pill ${met ? 'req-ok' : 'req-missing'}">${met ? '[[DE_ICON_149]]' : '[[DE_ICON_150]]'} ${pName}</span>`;
-                    }).join(' ');
-                    prereqHtml = `<div class="tech-prereq-row"><span style="opacity: 0.7;">Req:</span> ${pills}</div>`;
-                } else {
-                    prereqHtml = `<div class="tech-prereq-row"><span class="req-pill req-ok">[[DE_ICON_064]] Fundación Base</span></div>`;
-                }
-
-                // Action button or status description
-                let actionArea = '';
-                if (isUnlocked) {
-                    actionArea = `
-                        <div style="text-align: right; font-size: 11px; font-weight: 700; color: var(--accent-green); padding: 8px 0;">
-                            [[DE_ICON_149]] Integrado en el catálogo de producción
-                        </div>
-                    `;
-                } else if (isInvestigable) {
-                    const canAffordRP = game.researchPoints >= (node.costRP ?? 30);
-                    const isBusy = game.activeResearch !== null;
-                    const disabled = !canAffordRP || isBusy;
-                    const btnText = isBusy ? '[[DE_ICON_060]] Equipo Ocupado en I+D' : (!canAffordRP ? `RP Insuficiente (${node.costRP} RP)` : `[[DE_ICON_006]] Iniciar Investigación (${node.costRP} RP)`);
-
-                    actionArea = `
-                        <button class="btn-start-research" ${disabled ? 'disabled' : ''} onclick="startTechResearch('${node.id}')">
-                            ${btnText}
-                        </button>
-                    `;
-                } else {
-                    // Locked: show exact reason
-                    let reasonText = stateInfo.reason;
-                    if (stateInfo.isHistoricalLock) {
-                        reasonText = `[[DE_ICON_093]] Tecnología Desconocida (Aparición: Año ${stateInfo.minYear})`;
+                    let badgeColor = '#fbbf24';
+                    let badgeText = `$${item.costMoney.toLocaleString()}`;
+                    if (itemDismantled) {
+                        badgeColor = '#10b981';
+                        badgeText = 'ANALIZADO';
+                    } else if (!itemAvailable) {
+                        badgeColor = '#ef4444';
+                        badgeText = `AÑO ${item.minYear}`;
                     }
-                    actionArea = `
-                        <div style="font-size: 11px; color: var(--accent-red); padding: 8px 0; line-height: 1.3;">
-                            ${reasonText}
+
+                    return `
+                        <div class="hw-device-item ${isSelected ? 'selected' : ''} ${itemDismantled ? 'dismantled' : ''}" onclick="window.selectWorkbenchHardware('${item.id}')">
+                            <div class="hw-device-item-title">
+                                <span>${item.icon}</span>
+                                <span>${safe(item.name)}</span>
+                            </div>
+                            <div class="hw-device-item-meta">
+                                <span>${item.era}</span>
+                                <span class="hw-device-item-price" style="color: ${badgeColor};">${badgeText}</span>
+                            </div>
                         </div>
                     `;
-                }
+                }).join('')}
+            </div>
+        </div>
+    `;
 
-                // Name: if historical lock, display "Tecnología Desconocida" according to requirements!
-                const displayName = stateInfo.isHistoricalLock ? `[[DE_ICON_093]] Tecnología Desconocida (Tier ${node.tier})` : `${node.icon} ${node.name}`;
-                const displayDesc = stateInfo.isHistoricalLock ? `Esta tecnología aún no ha sido descubierta por la industria de los videojuegos. Estará disponible a partir del año histórico ${stateInfo.minYear}.` : node.desc;
+    // Zone B: Bench
+    const benchHtml = `
+        <div class="workbench-bench">
+            <div class="bench-toolbar">
+                <span class="bench-device-tag">[[DE_ICON_067]] ${safe(selectedHw.name)}</span>
+                <div class="bench-telemetry">
+                    <span>CIRCUIT: OK</span>
+                    <span>BUS: 16-BIT</span>
+                    <span style="color: ${isDismantled ? '#10b981' : (isAvailableByYear ? '#38bdf8' : '#ef4444')};">
+                        STATUS: ${isDismantled ? 'ANALYZED' : (isAvailableByYear ? 'READY' : 'LOCKED')}
+                    </span>
+                </div>
+            </div>
 
-                card.innerHTML = `
-                    <div>
-                        <div class="tech-node-header">
-                            <span class="tech-node-title">${displayName}</span>
-                            <span class="tech-status-badge ${badgeClass}">${badgeLabel}</span>
+            <div class="bench-canvas-wrap">
+                <div class="bench-scanner-beam ${hardwareWorkbenchState.isScanning ? 'active' : ''}"></div>
+                <div class="bench-circuit-display">
+                    ${getHardwareCircuitSvg(selectedHw.id)}
+                </div>
+
+                ${isDismantled ? `
+                    <div class="bench-analysis-overlay">
+                        <div class="analysis-card">
+                            <span class="analysis-status-badge">[[DE_ICON_149]] HARDWARE DESMANTELADO</span>
+                            <h3>Análisis Completado</h3>
+                            <p>Los ingenieros del estudio han extraído y asimilado la arquitectura técnica de este dispositivo rival.</p>
+                            <div class="analysis-reward-pill">
+                                +${selectedHw.rpGain} Puntos de I+D Obtenidos
+                            </div>
+                            <div style="font-size: 11px; color: #94a3b8;">Tecnología integrada permanentemente en el laboratorio.</div>
                         </div>
-                        <div class="tech-meta-row">
-                            <span class="tech-meta-item">[[DE_ICON_066]] ${node.eraName || 'Era 8-bit'}</span>
-                            <span class="tech-meta-item">Año min: ${node.minYear || 1982}</span>
-                            <span class="tech-meta-item" style="color: var(--accent-cyan); font-weight: 700;">Coste: ${node.costRP || 0} RP</span>
-                        </div>
-                        <p class="tech-node-desc">${displayDesc}</p>
                     </div>
-                    <div>
-                        ${prereqHtml}
-                        ${actionArea}
+                ` : ''}
+            </div>
+        </div>
+    `;
+
+    // Zone C: Report
+    let actionBtnHtml = '';
+    if (isDismantled) {
+        actionBtnHtml = `
+            <button type="button" class="dock-btn" disabled style="width: 100%; justify-content: center; padding: 12px; font-weight: 700; background: rgba(16, 185, 129, 0.15); border-color: #10b981; color: #10b981; cursor: default;">
+                [[DE_ICON_149]] Análisis Ya Completado (+${selectedHw.rpGain} RP)
+            </button>
+        `;
+    } else if (!isAvailableByYear) {
+        actionBtnHtml = `
+            <button type="button" class="dock-btn" disabled style="width: 100%; justify-content: center; padding: 12px; font-weight: 700; background: rgba(239, 68, 68, 0.15); border-color: #ef4444; color: #ef4444; cursor: not-allowed;">
+                [[DE_ICON_093]] Bloqueado hasta el Año ${selectedHw.minYear}
+            </button>
+        `;
+    } else if (!canAfford) {
+        actionBtnHtml = `
+            <button type="button" class="dock-btn" disabled style="width: 100%; justify-content: center; padding: 12px; font-weight: 700; opacity: 0.5; cursor: not-allowed;">
+                Fondos Insuficientes ($${selectedHw.costMoney.toLocaleString()} requeridos)
+            </button>
+        `;
+    } else {
+        actionBtnHtml = `
+            <button type="button" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center; padding: 12px; font-size: 13px; font-weight: 800;" onclick="window.workbenchDismantleHardware('${selectedHw.id}')">
+                [[DE_ICON_106]] INICIAR ANÁLISIS & DESMONTAJE ($${selectedHw.costMoney.toLocaleString()})
+            </button>
+        `;
+    }
+
+    const reportHtml = `
+        <div class="workbench-report">
+            <div>
+                <span class="report-section-kicker">[[DE_ICON_067]] Informe de Inteligencia Técnica</span>
+                <h3 class="report-title">${safe(selectedHw.name)}</h3>
+                <div class="report-origin-row">
+                    <span class="report-origin-pill">Fabricante: ${safe(originInfo.manufacturer)}</span>
+                    <span class="report-origin-pill">${safe(originInfo.origin)}</span>
+                </div>
+                <p class="report-desc">${safe(originInfo.summary)}</p>
+
+                <div class="report-rewards-box">
+                    <div style="font-size: 11px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; font-weight: 700;">
+                        Subsistemas Detectados:
                     </div>
-                `;
+                    <ul style="margin: 0; padding-left: 18px; font-size: 11px; color: #cbd5e1; line-height: 1.5;">
+                        ${originInfo.subsystems.map(sub => `<li>${safe(sub)}</li>`).join('')}
+                    </ul>
+                </div>
 
-                grid.appendChild(card);
-            });
+                <div style="background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; padding: 10px 12px; margin-bottom: 16px;">
+                    <div style="font-size: 11px; color: #fbbf24; font-weight: 800; text-transform: uppercase;">
+                        Inyección de Puntos de I+D:
+                    </div>
+                    <div style="font-size: 18px; font-weight: 900; color: #ffffff; margin-top: 2px;">
+                        +${selectedHw.rpGain} RP <span style="font-size: 12px; font-weight: normal; color: #94a3b8;">inmediatos</span>
+                    </div>
+                </div>
+            </div>
 
-            block.appendChild(grid);
-            branchesContainer.appendChild(block);
+            <div>
+                ${actionBtnHtml}
+            </div>
+        </div>
+    `;
+
+    container.innerHTML = `
+        <div class="workbench-header">
+            <div>
+                <span class="workbench-kicker">[[DE_ICON_067]] Banco de Análisis Electrónico</span>
+                <h3 class="workbench-title">Ingeniería Inversa de Hardware Rival</h3>
+                <p class="workbench-subtitle">Adquiere prototipos de la competencia en el mercado negro tecnológico y desmantela su silicio para ganar RP.</p>
+            </div>
+            <div class="workbench-status-pill">
+                [[DE_ICON_106]] ${mgr.dismantledHardware.size} / ${REVERSE_ENGINEERING_CATALOG.length} Hardware Analizado
+            </div>
+        </div>
+        <div class="workbench-layout">
+            ${inventoryHtml}
+            ${benchHtml}
+            ${reportHtml}
+        </div>
+    `;
+}
+
+let researchSelectedId = null;
+const researchMapTransform = { x: 0, y: 0, scale: 0.85, initialized: false };
+
+function renderResearchMap(mgr, year, centerSelection = false) {
+    const host = document.getElementById('tech-tree-branches-container');
+    if (!host) return;
+    const priorSearch = host.querySelector('#research-map-search')?.value || '';
+    const categoryFilter = {render:['render','Graphics'],physics:['physics','Physics'],netcode:['net','netcode','Network'],ai:['ai','AI'],audio:['audio','Audio'],content:['content'],systems:['systems','Engine']};
+    const historical = mgr.catalog.filter(n => activeTechBranchFilter === 'all' || (categoryFilter[activeTechBranchFilter] || []).includes(n.category));
+    const selected = historical.find(n => n.id === researchSelectedId) || historical.find(n => mgr.getNodeState(n.id, year).canResearch) || historical[0];
+    if (!selected) return;
+    const selectionChanged = selected.id !== researchSelectedId;
+    researchSelectedId = selected.id;
+    const categories = [...new Set(historical.map(n => n.category))];
+    const state = mgr.getNodeState(selected.id, year);
+    const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const positions = new Map();
+    historical.forEach((node, i) => { const lane = categories.indexOf(node.category); const same = historical.slice(0, i).filter(n => n.category === node.category && n.minYear === node.minYear).length; positions.set(node.id, {x: 30 + ((node.minYear || 1982) - 1982) * 165, y: 35 + lane * 150 + same * 60}); });
+    const height = categories.length * 150 + 80;
+    const width = Math.max(2000, ...[...positions.values()].map(p => p.x + 170));
+    const lines = historical.flatMap(node => (node.requiredNodes || node.prerequisites || []).map(id => { const a = positions.get(id), b = positions.get(node.id); return a && b ? `<path class="${mgr.isUnlocked(id) ? 'completed' : ''}" d="M${a.x+145} ${a.y+25} C${a.x+170} ${a.y+25},${b.x-25} ${b.y+25},${b.x} ${b.y+25}"/>` : ''; })).join('');
+    const nodes = historical.map(node => { const p = positions.get(node.id), status = mgr.getNodeState(node.id, year); return `<button type="button" class="research-node ${status.state.toLowerCase()} ${node.id === selected.id ? 'selected' : ''}" style="left:${p.x}px;top:${p.y}px" data-research-node="${safe(node.id)}"><strong>${status.isHistoricalLock ? 'Tecnología futura' : safe(node.name)}</strong><small>${node.minYear || 1982} · ${status.isHistoricalLock ? 'Bloqueada por época' : safe(status.label)}</small></button>`; }).join('');
+    const pending = new Map();
+    const visit = (node, seen = new Set()) => { if (!node || seen.has(node.id)) return; seen.add(node.id); for (const id of node.requiredNodes || node.prerequisites || []) { const dependency = mgr.catalogMap.get(id); visit(dependency, seen); if (dependency && !mgr.isUnlocked(id) && !pending.has(id)) pending.set(id, dependency); } };
+    visit(selected);
+    const plan = [...pending.values()];
+    const planText = plan.length ? plan.map(n => n.minYear > year ? 'Tecnología futura (' + n.minYear + ')' : safe(n.name)).join(' → ') + ' · ' + plan.reduce((sum, n) => sum + (n.costRP || 0), 0) + ' RP pendientes' : 'No hay dependencias pendientes.';
+    const requirements = (selected.requiredNodes || selected.prerequisites || []).map(id => mgr.catalogMap.get(id)).filter(Boolean).map(n => `${mgr.isUnlocked(n.id) ? '[[DE_ICON_149]] Investigada' : '[[DE_ICON_093]] Pendiente'}: ${n.minYear > year ? 'Tecnología futura' : safe(n.name)}`).join('<br>') || 'Sin requisitos previos';
+
+    // Downstream unlocks
+    const unlocks = mgr.catalog.filter(n => (n.requiredNodes || n.prerequisites || []).includes(selected.id));
+    const unlocksHtml = unlocks.length > 0
+        ? `<div class="research-detail-section-title">Tecnologías que habilita</div><div class="research-detail-unlocks-list">${unlocks.map(u => `<span class="research-detail-unlock-pill">${safe(u.name)}</span>`).join('')}</div>`
+        : '';
+
+    let statusClass = 'locked';
+    let statusText = state.label;
+    if (mgr.isUnlocked(selected.id)) {
+        statusClass = 'unlocked';
+        statusText = '[[DE_ICON_149]] Dominada e Integrada';
+    } else if (state.canResearch) {
+        statusClass = 'available';
+        statusText = '[[DE_ICON_006]] Lista para Investigar';
+    } else if (state.isHistoricalLock) {
+        statusClass = 'locked';
+        statusText = `[[DE_ICON_093]] Bloqueada (Año ${selected.minYear})`;
+    } else {
+        statusClass = 'locked';
+        statusText = '[[DE_ICON_093]] Prerrequisitos Pendientes';
+    }
+
+    let btnText = 'Investigar tecnología';
+    let btnDisabled = !state.canResearch || !!game.activeResearch || game.researchPoints < (selected.costRP ?? 0);
+    if (mgr.isUnlocked(selected.id)) {
+        btnText = 'Tecnología ya dominada';
+        btnDisabled = true;
+    } else if (game.activeResearch) {
+        btnText = `Investigación en curso (${game.activeResearch.weeksRemaining} sem)`;
+        btnDisabled = true;
+    } else if (state.canResearch && game.researchPoints < (selected.costRP ?? 0)) {
+        btnText = `Faltan RP (${game.researchPoints} / ${selected.costRP} RP)`;
+        btnDisabled = true;
+    } else if (!state.canResearch) {
+        btnText = state.isHistoricalLock ? `Disponible en Año ${selected.minYear}` : 'Prerrequisitos pendientes';
+        btnDisabled = true;
+    }
+
+    host.innerHTML = `
+        <div class="research-map-tools">
+            <label style="display:flex;align-items:center;gap:8px;">
+                <span>Buscar:</span>
+                <input id="research-map-search" placeholder="Nombre de tecnología...">
+            </label>
+            <div class="research-map-zoom" role="group" aria-label="Controles del mapa">
+                <button type="button" id="research-map-zoom-out" aria-label="Alejar mapa">−</button>
+                <output id="research-map-zoom-value" aria-live="polite">85%</output>
+                <button type="button" id="research-map-zoom-in" aria-label="Acercar mapa">+</button>
+                <button type="button" id="research-map-reset">Centrar selección</button>
+            </div>
+        </div>
+        <div class="research-map-layout">
+            <div class="research-map-viewport" tabindex="0" aria-label="Mapa tecnológico. Arrastra para desplazarte, usa la rueda para acercar y alejar, o las flechas del teclado para mover el mapa">
+                <div class="research-map-canvas" style="width:${width}px;height:${height}px;transform-origin:0 0">
+                    <svg width="${width}" height="${height}" aria-hidden="true">${lines}</svg>
+                    ${nodes}
+                </div>
+            </div>
+            <aside class="research-detail">
+                <div>
+                    <span class="research-detail-kicker">${safe(selected.category)} · Año ${selected.minYear || 1982}</span>
+                    <h3>${state.isHistoricalLock ? 'Tecnología futura' : safe(selected.name)}</h3>
+                    <div class="research-detail-status ${statusClass}">${statusText}</div>
+                    ${state.isHistoricalLock ? `<p style="color:#94a3b8;font-size:12px;">${safe(state.reason)}</p>` : `
+                        <p style="font-size:12px;color:#cbd5e1;line-height:1.4;">${safe(selected.desc || 'Módulo técnico para videojuegos y motores de juego.')}</p>
+                        <div class="research-detail-section-title">Parámetros de I+D</div>
+                        <p style="font-size:12px;margin:4px 0;"><b>Coste:</b> ${selected.costRP ?? 0} RP · <b>Disponibles:</b> ${game.researchPoints} RP</p>
+                        <p style="font-size:12px;margin:4px 0;"><b>Deuda técnica base:</b> ${selected.baseDebt ?? 2}</p>
+                        
+                        <div class="research-detail-section-title">Prerrequisitos</div>
+                        <div style="font-size:11px;color:#94a3b8;line-height:1.4;">${requirements}</div>
+
+                        ${unlocksHtml}
+
+                        <div class="research-detail-section-title">Ruta estratégica</div>
+                        <div style="font-size:11px;color:#64748b;line-height:1.4;">${planText}</div>
+                    `}
+                </div>
+                <div class="research-detail-btn-wrap">
+                    <button type="button" class="dock-btn btn-primary-action" id="research-map-start" ${btnDisabled ? 'disabled' : ''}>
+                        ${btnText}
+                    </button>
+                </div>
+            </aside>
+        </div>
+    `;
+
+    const viewport = host.querySelector('.research-map-viewport');
+    const canvas = host.querySelector('.research-map-canvas');
+    const zoomValue = host.querySelector('#research-map-zoom-value');
+    const clampScale = scale => Math.min(1.8, Math.max(0.4, scale));
+    const applyTransform = () => {
+        canvas.style.transform = `translate(${researchMapTransform.x}px, ${researchMapTransform.y}px) scale(${researchMapTransform.scale})`;
+        zoomValue.value = `${Math.round(researchMapTransform.scale * 100)}%`;
+        zoomValue.textContent = zoomValue.value;
+    };
+    const centerNode = (nodeId, resetZoom = false) => {
+        const point = positions.get(nodeId);
+        if (!point) return;
+        if (resetZoom) researchMapTransform.scale = 0.85;
+        const scale = clampScale(researchMapTransform.scale);
+        researchMapTransform.scale = scale;
+        researchMapTransform.x = viewport.clientWidth / 2 - (point.x + 72) * scale;
+        researchMapTransform.y = viewport.clientHeight / 2 - (point.y + 26) * scale;
+        applyTransform();
+    };
+    if (!researchMapTransform.initialized) {
+        researchMapTransform.initialized = true;
+        centerNode(selected.id, true);
+    } else if (centerSelection || selectionChanged) {
+        centerNode(selected.id);
+    } else {
+        applyTransform();
+    }
+
+    let drag = null;
+    viewport.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || event.target.closest('[data-research-node]')) return;
+        drag = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, x: researchMapTransform.x, y: researchMapTransform.y };
+        viewport.classList.add('dragging');
+        viewport.setPointerCapture(event.pointerId);
+    });
+    viewport.addEventListener('pointermove', event => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        researchMapTransform.x = drag.x + event.clientX - drag.startX;
+        researchMapTransform.y = drag.y + event.clientY - drag.startY;
+        applyTransform();
+    });
+    const endDrag = event => {
+        if (!drag || drag.pointerId !== event.pointerId) return;
+        drag = null;
+        viewport.classList.remove('dragging');
+    };
+    viewport.addEventListener('pointerup', endDrag);
+    viewport.addEventListener('pointercancel', endDrag);
+
+    const zoomAt = (scale, x = viewport.clientWidth / 2, y = viewport.clientHeight / 2) => {
+        const nextScale = clampScale(scale);
+        const worldX = (x - researchMapTransform.x) / researchMapTransform.scale;
+        const worldY = (y - researchMapTransform.y) / researchMapTransform.scale;
+        researchMapTransform.scale = nextScale;
+        researchMapTransform.x = x - worldX * nextScale;
+        researchMapTransform.y = y - worldY * nextScale;
+        applyTransform();
+    };
+    viewport.addEventListener('wheel', event => {
+        event.preventDefault();
+        const rect = viewport.getBoundingClientRect();
+        zoomAt(researchMapTransform.scale * (event.deltaY < 0 ? 1.12 : 0.89), event.clientX - rect.left, event.clientY - rect.top);
+    }, { passive: false });
+    viewport.addEventListener('keydown', event => {
+        if (event.target !== viewport) return;
+        const step = 48;
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+            event.preventDefault();
+            researchMapTransform.x += event.key === 'ArrowLeft' ? step : event.key === 'ArrowRight' ? -step : 0;
+            researchMapTransform.y += event.key === 'ArrowUp' ? step : event.key === 'ArrowDown' ? -step : 0;
+            applyTransform();
+        } else if (event.key === '+' || event.key === '=') zoomAt(researchMapTransform.scale * 1.12);
+        else if (event.key === '-') zoomAt(researchMapTransform.scale * 0.89);
+    });
+
+    const search = host.querySelector('#research-map-search');
+    search.value = priorSearch;
+    host.querySelectorAll('[data-research-node]').forEach(button => {
+        button.classList.toggle('dimmed', !!priorSearch && !button.textContent.toLocaleLowerCase('es').includes(priorSearch.toLocaleLowerCase('es')));
+        button.addEventListener('click', () => {
+            const nodeId = button.dataset.researchNode;
+            researchSelectedId = nodeId;
+            renderResearchMap(mgr, year, true);
         });
-    }
-
-    // 5. Populate Engine Feature Checkboxes (Only for Unlocked Nodes)
-    const checkContainer = document.getElementById('engine-features-checkboxes');
-    if (checkContainer) {
-        checkContainer.innerHTML = '';
-        mgr.catalog.filter(node => mgr.isUnlocked(node.id)).forEach((node, index) => {
-            const lbl = document.createElement('label');
-            lbl.style.display = 'flex';
-            lbl.style.alignItems = 'center';
-            lbl.style.gap = '8px';
-            lbl.style.fontSize = '12px';
-            lbl.style.margin = '4px 0';
-            lbl.style.color = '#fff';
-            lbl.innerHTML = `<input type="checkbox" name="engine-feat" value="${node.id}" ${index < 3 ? 'checked' : ''}> ${node.icon} ${node.name}`;
-            checkContainer.appendChild(lbl);
-        });
-        const refreshWarning = () => updateHistoricalWarning('engine-historical-warning', Array.from(checkContainer.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value).filter(id => id.startsWith('tech_')));
-        checkContainer.onchange = refreshWarning;
-        refreshWarning();
-    }
-    const genreContainer = document.getElementById('engine-specialty-genres');
-    if (genreContainer && !genreContainer.dataset.rendered) {
-        const genres = [['Action', 'Acción'], ['RPG', 'RPG'], ['Strategy', 'Estrategia'], ['Simulation', 'Simulación'], ['Adventure', 'Aventura'], ['Casual', 'Casual']];
-        genreContainer.innerHTML = genres.map(([id, label], i) => `<label style="font-size:12px;color:#fff"><input type="checkbox" name="engine-genre" value="${id}" ${i < 2 ? 'checked' : ''}> ${label}</label>`).join('');
-        genreContainer.dataset.rendered = 'true';
-    }
+    });
+    host.querySelector('#research-map-start')?.addEventListener('click', () => window.startTechResearch(selected.id));
+    host.querySelector('#research-map-reset').addEventListener('click', () => centerNode(researchSelectedId));
+    host.querySelector('#research-map-zoom-in').addEventListener('click', () => zoomAt(researchMapTransform.scale * 1.2));
+    host.querySelector('#research-map-zoom-out').addEventListener('click', () => zoomAt(researchMapTransform.scale / 1.2));
+    host.querySelector('#research-map-search').addEventListener('input', event => { const query = event.target.value.toLocaleLowerCase('es'); host.querySelectorAll('[data-research-node]').forEach(button => { button.classList.toggle('dimmed', !!query && !button.textContent.toLocaleLowerCase('es').includes(query)); }); });
+    search.addEventListener('keydown', event => {
+        if (event.key !== 'Enter') return;
+        const match = [...host.querySelectorAll('[data-research-node]')].find(button => !button.classList.contains('dimmed'));
+        if (!match) return;
+        event.preventDefault();
+        const nodeId = match.dataset.researchNode;
+        researchSelectedId = nodeId;
+        renderResearchMap(mgr, year, true);
+    });
 }
 
 window.upgradeStudioEngine = function(engineId) {
@@ -3589,17 +5046,50 @@ window.upgradeStudioEngine = function(engineId) {
     if (result.success) renderTechTree();
 };
 
-window.licenseStudioEngine = function(engineId) {
-    const studio = window.prompt('Nombre del estudio que recibirá la licencia:');
-    if (!studio) return;
-    const fee = Number(window.prompt('Regalía mensual ($):', '4500'));
-    if (!Number.isFinite(fee) || fee <= 0) {
-        showToast('Introduce una regalía mensual mayor que cero.', 'warn');
-        return;
+let engineToLicense;
+let gameToRetire;
+
+function initGameDialogs() {
+    for (const dialog of document.querySelectorAll('.game-dialog')) {
+        dialog.querySelector('[data-dialog-cancel]').addEventListener('click', () => dialog.close());
     }
-    const result = game.licenseInHouseEngineToStudio(engineId, studio.trim(), fee);
-    showToast(result.message, result.success ? 'success' : 'warn');
-    if (result.success) renderTechTree();
+    document.getElementById('retire-game-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const gameId = gameToRetire;
+        document.getElementById('retire-game-dialog').close();
+        retireConfirmedGame(gameId);
+    });
+    document.getElementById('license-engine-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const studioInput = document.getElementById('license-studio-name');
+        const feeInput = document.getElementById('license-monthly-fee');
+        const error = document.getElementById('license-form-error');
+        const studio = studioInput.value.trim();
+        const fee = feeInput.valueAsNumber;
+        if (!studio || !Number.isFinite(fee) || fee <= 0) {
+            error.textContent = !studio ? 'Introduce el nombre del estudio.' : 'La regalía mensual debe ser mayor que cero.';
+            (!studio ? studioInput : feeInput).focus();
+            return;
+        }
+        const result = game.licenseInHouseEngineToStudio(engineToLicense, studio, fee);
+        if (!result.success) {
+            error.textContent = result.message;
+            return;
+        }
+        document.getElementById('license-engine-dialog').close();
+        showToast(result.message, 'success');
+        renderTechTree();
+        if (document.activeElement === document.body) {
+            document.querySelector('#modal-research.active .modal-close')?.focus({ preventScroll: true });
+        }
+    });
+}
+
+window.licenseStudioEngine = function(engineId) {
+    engineToLicense = engineId;
+    document.getElementById('license-engine-form').reset();
+    document.getElementById('license-form-error').textContent = '';
+    document.getElementById('license-engine-dialog').showModal();
 };
 
 window.startTechResearch = function(techId) {
@@ -3632,31 +5122,45 @@ window.researchTech = function(id) {
     window.startTechResearch(id);
 };
 
-document.getElementById('form-custom-engine').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const name = document.getElementById('input-engine-name').value.trim() || 'Motor Pro v' + (game.customEngines.length + 1);
-    const checked = Array.from(document.querySelectorAll('input[name="engine-feat"]:checked')).map(el => el.value);
-
-    if (checked.length === 0) {
-        showToast("Debes seleccionar al menos un módulo tecnológico.", "warn");
-        return;
-    }
-
-    const affineGenres = Array.from(document.querySelectorAll('input[name="engine-genre"]:checked')).map(el => el.value);
-    const historicalTechIds = checked.filter(id => id.startsWith('tech_'));
-    const res = game.startInHouseEngineRD({ name, bakedNodes: checked.filter(id => !id.startsWith('tech_')), historicalTechIds, affineGenres });
-    if (res.success) {
-        updateEngineOptions();
-        renderTechTree();
-        renderPipelineSelector();
-        showToast(res.message || `[[DE_ICON_049]] ¡Nuevo motor "${name}" compilado con éxito!`, 'success');
-        document.getElementById('input-engine-name').value = '';
-    } else {
-        showToast(res.message, 'warn');
-    }
-});
+const legacyEngineForm = document.getElementById('form-custom-engine');
+if (legacyEngineForm) {
+    legacyEngineForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        window.submitEngineWorkshop();
+    });
+}
 
 // --- CHARTS & HISTORY MODAL (WITH TOP 10 RIVAL LEADERBOARD) ---
+
+function openSalesPanel() {
+    const modal = document.getElementById('modal-history');
+    if (modal && modal.classList.contains('active')) {
+        closeAllModals();
+        return;
+    }
+    if (window.uwuntuOS && window.uwuntuOS.isOpen) {
+        window.uwuntuOS.close();
+    }
+    renderHistoryAndCharts();
+    openModal('modal-history');
+}
+window.openSalesPanel = openSalesPanel;
+window.renderHistoryAndCharts = renderHistoryAndCharts;
+window.renderResearchLabUI = () => { renderTechTree(); };
+window.renderMarketingHub = renderMarketingHub;
+window.renderLiveOps = renderLiveOps;
+window.openStudioPanel = () => openCompanyCreatorModal(false, true);
+window.renderRecruitment = renderRecruitment;
+window.refreshOfficeManager = refreshOfficeManager;
+window.renderCommunityWorkshop = renderCommunityWorkshop;
+window.renderAdminConsole = () => {
+    const adminFunds = document.getElementById('admin-current-funds');
+    if (adminFunds && typeof game !== 'undefined') {
+        adminFunds.textContent = `$${Math.floor(game.funds).toLocaleString('es-ES')}`;
+    }
+};
+window.renderHUD = renderHUD;
+window.autosaveCurrentGame = autosaveCurrentGame;
 
 function renderHistoryAndCharts() {
     renderTop10Leaderboard();
@@ -3746,18 +5250,26 @@ function renderTop10Leaderboard() {
             <tbody>
     `;
 
-    game.top10Chart.slice(0, 10).forEach(item => {
-        let trendIcon = '<span class="trend-arrow same">▬</span>';
-        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up">[[DE_ICON_151]]</span>';
-        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down">[[DE_ICON_152]]</span>';
-        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new">[[DE_ICON_148]]</span>';
+    if (!game.top10Chart || game.top10Chart.length === 0) {
+        if (typeof game.cycleRivalMarket === 'function') {
+            game.cycleRivalMarket();
+        }
+    }
 
-        const rowClass = item.isPlayer ? 'leaderboard-row player-row' : 'leaderboard-row';
-        const rankColor = item.rank === 1 ? 'var(--accent-gold)' : (item.rank <= 3 ? 'var(--accent-cyan)' : '#fff');
+    if (!game.top10Chart || game.top10Chart.length === 0) {
+        html += '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 22px 14px; font-size: 13px;">La clasificación semanal se actualizará al cerrar el primer ciclo comercial.</td></tr>';
+    } else {
+        game.top10Chart.slice(0, 10).forEach(item => {
+        let trendIcon = '<span class="trend-arrow same" title="Sin cambios" aria-label="Sin cambios">—</span>';
+        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up" title="Sube" aria-label="Sube">[[DE_ICON_151]]</span>';
+        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down" title="Baja" aria-label="Baja">[[DE_ICON_152]]</span>';
+        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new" title="Nuevo" aria-label="Nuevo">[[DE_ICON_148]]</span>';
+
+        const rowClass = `leaderboard-row rank-${item.rank}${item.isPlayer ? ' player-row' : ''}`;
 
         html += `
             <tr class="${rowClass}">
-                <td style="font-weight: 900; color: ${rankColor};">${trendIcon} #${item.rank}</td>
+                <td><div class="chart-rank"><strong>${String(item.rank).padStart(2, '0')}</strong>${trendIcon}</div></td>
                 <td><strong style="color: #fff;">${item.title}</strong></td>
                 <td style="color: var(--text-secondary); font-size: 13px;">${item.dev}</td>
                 <td style="text-align: right; font-weight: 700; color: var(--accent-cyan);">${item.weeklySales.toLocaleString()}</td>
@@ -3766,6 +5278,7 @@ function renderTop10Leaderboard() {
             </tr>
         `;
     });
+    }
 
     html += `</tbody></table>`;
     container.innerHTML = html;
@@ -3821,9 +5334,12 @@ window.generateReport = function(gameId) {
 window.retireGameFromHistory = function(gameId) {
     const g = game.gamesHistory.find(item => item.id === gameId);
     if (!g) return;
-    if (!confirm(`¿Estás seguro de que deseas retirar "${g.name}" de las tiendas? Se detendrán costes recurrentes y se congelarán sus cifras definitivas.`)) {
-        return;
-    }
+    gameToRetire = gameId;
+    document.getElementById('retire-game-name').textContent = g.name;
+    document.getElementById('retire-game-dialog').showModal();
+};
+
+function retireConfirmedGame(gameId) {
     const res = game.retireGameFromMarket(gameId);
     if (res.success) {
         showToast(res.message, 'info');
@@ -3831,8 +5347,8 @@ window.retireGameFromHistory = function(gameId) {
 
         // 1. Desmontar y cerrar el modal emergente de la gráfica de ventas si está activo
         const chartModal = document.getElementById('modal-sales-chart');
-        if (chartModal && (chartModal.classList.contains('active') || chartModal.style.display !== 'none')) {
-            closeModal('modal-sales-chart');
+        if (chartModal?.classList.contains('active')) {
+            closeAllModals();
         }
 
         // 2. Si el juego retirado era el activo en el HUD widget, reasignar al siguiente activo o desmontar
@@ -3843,6 +5359,10 @@ window.retireGameFromHistory = function(gameId) {
 
         // 3. Actualizar o desmontar widget del HUD en vivo
         if (typeof updateLiveSalesWidget === 'function') updateLiveSalesWidget();
+        if (document.activeElement === document.body) {
+            (document.querySelector('#modal-history.active .modal-close') || document.getElementById('btn-history'))
+                ?.focus({ preventScroll: true });
+        }
     } else {
         showToast(res.message, 'warn');
     }
@@ -4170,9 +5690,6 @@ window.openGamePostMortemFromChart = function() {
 };
 
 // --- ON-SCREEN LIVE SALES WIDGET CONTROLLER (REAL-TIME EVOLVING SALES REPORT) ---
-
-let currentLiveSalesWidgetGameId = null;
-let isLiveSalesWidgetMinimized = false;
 
 function updateLiveSalesWidget() {
     const widget = document.getElementById('hud-live-sales-widget');
@@ -4567,22 +6084,31 @@ function startExpoVisitorLoop() {
         const p = document.createElement('div');
         p.className = 'expo-visitor';
 
-        const avatar = avatars[Math.floor(Math.random() * avatars.length)];
+        const variant = Math.floor(Math.random() * avatars.length);
+        const avatar = avatars[variant];
         const startX = -30;
         const targetX = 890;
         const duration = 2800 + Math.random() * 1200;
         const pauseTime = 900 + Math.random() * 600;
 
-        p.innerHTML = `<span class="expo-visitor-avatar">${avatar}</span>`;
+        const jackets = ['#b5745d', '#6c8e9f', '#be9663', '#7e8d6a', '#927d9f'];
+        const skin = ['#deb391', '#aa7453', '#e4bf9d', '#84573f'][variant % 4];
+        p.innerHTML = `<svg class="expo-visitor-art" viewBox="0 0 18 26" aria-hidden="true" shape-rendering="crispEdges">
+            <path d="M5 18h8v6H5z M4 24h4v2H4z M10 24h4v2h-4z" fill="#202832"/>
+            <path d="M4 10h10v3h2v7H2v-7h2z" fill="${jackets[variant % jackets.length]}"/>
+            <path d="M5 3h8v7H5z M7 10h4v2H7z" fill="${skin}"/>
+            <path d="M5 2h8v2h1v3h-2V5H5z" fill="#302526"/>
+            <path d="M8 13h2v7H8z" fill="#16191e" opacity=".35"/>
+        </svg>`;
         floor.appendChild(p);
 
         // Animate pedestrian walking from left to right
         const startTime = Date.now();
-        const pauseAt = 280 + Math.random() * 260; // Middle booth area
+        const pauseAt = duration * (.40 + Math.random() * .18); // Middle booth area
 
         const step = () => {
             const elapsed = Date.now() - startTime;
-            if (elapsed > duration + pauseTime) {
+            if (!p.isConnected || elapsed > duration + pauseTime) {
                 if (p.parentNode) p.parentNode.removeChild(p);
                 return;
             }
@@ -4602,7 +6128,7 @@ function startExpoVisitorLoop() {
                 curX = startX + (postPause / duration) * (targetX - startX);
             }
 
-            p.style.left = `${curX}px`;
+            p.style.transform = `translateX(${curX}px)`;
             requestAnimationFrame(step);
         };
         requestAnimationFrame(step);
@@ -4627,7 +6153,7 @@ function startExpoVisitorLoop() {
                 footer.style.display = 'block';
                 const summaryText = document.getElementById('expo-summary-text');
                 if (summaryText) {
-                    summaryText.innerHTML = `[[DE_ICON_040]] <b>¡Convención finalizada con éxito rotundo!</b><br>Tu stand acogió a <b>${expoSession.visitors.toLocaleString()}</b> visitantes, sumó <b>+${expoSession.fans.toLocaleString()} nuevos fans devotos</b>, generó <b>${expoSession.press} artículos de prensa</b> y disparó el Hype global en <b>+${expoSession.hype}</b>.`;
+                    summaryText.textContent = 'La feria ha terminado. Aplica los resultados para volver al estudio.';
                 }
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
             }
@@ -4737,14 +6263,26 @@ let localCustomization = {
     accessory: 'glasses_retro'
 };
 let localLogo = '[[DE_ICON_001]]';
+studioPreviewDirty = false;
+
+initCompanyCreatorModal();
+
+function previewStudioAppearance() {
+    studioPreviewDirty = true;
+    world?.updateCharacterMesh(0, localCustomization, { preview: true });
+}
 
 function initCompanyCreatorModal() {
     // Populate Logo Picker
     const logoContainer = document.getElementById('company-logo-picker');
     if (logoContainer) {
         logoContainer.innerHTML = '';
-        COMPANY_LOGOS.forEach(logo => {
-            const item = document.createElement('div');
+        const names = ['Mando', 'Cohete', 'Arcade', 'Robot', 'Disquete', 'Rayo', 'Monitor', 'Corona', 'Escudo', 'Diamante'];
+        COMPANY_LOGOS.forEach((logo, index) => {
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.dataset.logo = logo;
+            item.setAttribute('aria-label', names[index]);
             item.className = 'logo-option' + (logo === game.companyLogo ? ' active' : '');
             item.innerText = logo;
             item.addEventListener('click', () => {
@@ -4773,7 +6311,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-skin .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.skin = sw.dataset.skin;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4784,7 +6322,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-hair-style .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.hairStyle = btn.dataset.style;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4795,7 +6333,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-hair-color .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.hairColor = sw.dataset.color;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4806,7 +6344,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-shirt-style .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.shirtStyle = btn.dataset.shirt;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4817,7 +6355,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-shirt-color .color-swatch').forEach(s => s.classList.remove('active'));
             sw.classList.add('active');
             localCustomization.shirtColor = sw.dataset.color;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4828,7 +6366,7 @@ function initCompanyCreatorModal() {
             document.querySelectorAll('#picker-accessory .pill-option').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
             localCustomization.accessory = btn.dataset.acc;
-            if (world) world.updateCharacterMesh(0, localCustomization);
+            previewStudioAppearance();
             if (soundEngine) soundEngine.playClick();
         });
     });
@@ -4861,22 +6399,31 @@ function initCompanyCreatorModal() {
                 characterCustomization: { ...localCustomization }
             });
 
+            studioPreviewDirty = false;
             if (startsNewGame) {
                 creatingNewGame = false;
                 void enterGameplay({ checkpoint: true });
                 soundEngine.playLevelUp();
                 return;
             }
-            world.updateCharacterMesh(0, localCustomization);
-            closeAllModals();
+            if (world) world.updateCharacterMesh(0, localCustomization);
+            const winEl = formCreator.closest('.uwuntu-window');
+            if (winEl && window.uwuntuOS) {
+                window.uwuntuOS.closeWindow('app-studio');
+            } else if (formCreator.closest('#phone-view-studio')) {
+                window.studioPhoneNav?.returnHome();
+            } else {
+                closeAllModals();
+            }
             showToast(`[[DE_ICON_073]] ¡Estudio "${companyName}" y personaje guardados con éxito!`, 'success');
             if (soundEngine) soundEngine.playLevelUp();
         });
     }
 }
 
-function openCompanyCreatorModal(newGame = false) {
-    const profile = newGame ? initialProfile : game;
+function syncStudioFormValues(newGame = false) {
+    const profile = newGame ? initialProfile : (typeof game !== 'undefined' ? game : initialProfile);
+    if (!profile) return;
     localCustomization = { ...profile.characterCustomization };
     localLogo = profile.companyLogo;
 
@@ -4884,16 +6431,16 @@ function openCompanyCreatorModal(newGame = false) {
     if (inputComp) inputComp.value = profile.companyName;
 
     const inputFounder = document.getElementById('input-founder-name');
-    if (inputFounder) inputFounder.value = profile.founder.name;
+    if (inputFounder) inputFounder.value = profile.founder?.name || 'Raúl Vance';
 
     const traitSelect = document.getElementById('select-founder-trait');
-    if (traitSelect) traitSelect.value = profile.founder.trait;
+    if (traitSelect) traitSelect.value = profile.founder?.trait || 'balanced';
     const submit = document.querySelector('#form-company-creator button[type="submit"]');
     if (submit) submit.textContent = newGame ? 'Empezar partida' : 'Guardar perfil de estudio y personaje';
 
     // Sync active classes
     document.querySelectorAll('.logo-option').forEach(l => {
-        l.classList.toggle('active', l.innerText === localLogo);
+        l.classList.toggle('active', l.dataset.logo === localLogo);
     });
     document.querySelectorAll('#picker-skin .color-swatch').forEach(s => {
         s.classList.toggle('active', s.dataset.skin === localCustomization.skin);
@@ -4914,14 +6461,108 @@ function openCompanyCreatorModal(newGame = false) {
         b.classList.toggle('active', b.dataset.acc === localCustomization.accessory);
     });
 
-    openModal('modal-company-creator');
+    selectCompactMenuTab(document.getElementById('studio-tab-identity'));
+    syncStudioSelection();
+}
+window.syncStudioFormValues = syncStudioFormValues;
+window.openStudioPanel = () => syncStudioFormValues(false);
+
+function openCompanyCreatorModal(newGame = false) {
+    syncStudioFormValues(newGame);
     if (newGame) {
-        world.updateCharacterMesh(0, localCustomization);
-        inputComp?.focus();
+        window.studioPhoneNav?.detachStudioModal();
+        openModal('modal-company-creator');
+        if (world) world.updateCharacterMesh(0, localCustomization);
+        document.getElementById('input-company-name')?.focus();
+    } else if (window.uwuntuOS) {
+        window.uwuntuOS.openStudio();
+    } else {
+        openModal('modal-company-creator');
     }
 }
 
+window.openCompanyStudioPanel = () => openCompanyCreatorModal(false);
+
 // --- MODAL HELPERS ---
+
+function selectCompactMenuTab(tab) {
+    if (!tab) return;
+    const modal = tab.closest('.compact-menu');
+    for (const button of modal.querySelectorAll('[role="tab"]')) {
+        const selected = button === tab;
+        button.setAttribute('aria-selected', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        const panel = document.getElementById(button.getAttribute('aria-controls'));
+        if (panel) panel.hidden = !selected;
+    }
+    modal.querySelector('.menu-scroll').scrollTop = 0;
+    const preview = modal.querySelector('#studio-preview-toggle');
+    if (preview) preview.hidden = tab.id !== 'studio-tab-look';
+}
+
+function syncStudioSelection() {
+    document.querySelectorAll('.studio-menu :is(.logo-option, .pill-option, .color-swatch)').forEach(button => {
+        button.setAttribute('aria-pressed', String(button.classList.contains('active')));
+    });
+}
+
+function toggleOfficePreview(visible) {
+    const button = document.getElementById('studio-preview-toggle');
+    button.closest('.modal-backdrop').classList.toggle('office-preview', visible);
+    button.textContent = visible ? 'Volver a editar' : 'Ver en la oficina';
+    button.setAttribute('aria-pressed', String(visible));
+}
+
+function initCompactMenuControls() {
+    for (const menu of document.querySelectorAll('.compact-menu')) {
+        menu.addEventListener('click', event => {
+            const tab = event.target.closest('[role="tab"]');
+            if (tab) selectCompactMenuTab(tab);
+            if (event.target.closest('#studio-preview-toggle')) {
+                const backdrop = menu.closest('.modal-backdrop') || menu.closest('.uwuntu-window');
+                toggleOfficePreview(!backdrop?.classList.contains('office-preview'));
+            }
+            if (event.target.closest('.studio-menu :is(.logo-option, .pill-option, .color-swatch)')) syncStudioSelection();
+        });
+    }
+    document.getElementById('form-company-creator').addEventListener('invalid', event => {
+        if (event.target.closest('#studio-identity')) selectCompactMenuTab(document.getElementById('studio-tab-identity'));
+    }, true);
+    document.addEventListener('keydown', event => {
+        if (document.querySelector('.game-dialog[open]')) return;
+        const pressCover = document.getElementById('modal-marketing-press-cover');
+        if (event.key === 'Escape' && pressCover.classList.contains('active')) {
+            event.preventDefault();
+            event.stopPropagation();
+            window.closePressCoverModal(true);
+            return;
+        }
+        const menu = document.querySelector('.modal-backdrop.active .compact-menu');
+        if (!menu) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            event.stopPropagation();
+            if (menu.closest('.office-preview')) toggleOfficePreview(false);
+            else closeAllModals();
+        } else if (event.key === 'Tab') {
+            const focusable = [...menu.querySelectorAll('button, input, select, summary, a[href], [tabindex]')].filter(item =>
+                item.tabIndex >= 0 && !item.disabled && item.getClientRects().length);
+            const first = focusable[0], last = focusable.at(-1);
+            if (!menu.contains(document.activeElement) || (event.shiftKey ? document.activeElement === first : document.activeElement === last)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first)?.focus();
+            }
+        } else if (event.target.matches('[role="tab"]') && ['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {
+            event.preventDefault();
+            const tabs = [...menu.querySelectorAll('[role="tab"]')];
+            const index = tabs.indexOf(event.target);
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
+                (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+            selectCompactMenuTab(tabs[next]);
+            tabs[next].focus();
+        }
+    }, true);
+}
 
 function openModal(id) {
     closeAllModals();
@@ -4931,25 +6572,38 @@ function openModal(id) {
         renderPipelineSelector();
         renderPublishingContractSelector();
         renderBusinessModelSelector();
+        preproductionWizard?.open();
     }
     const modal = document.getElementById(id);
     if (modal) {
+        const opener = document.activeElement;
         modal.style.display = 'flex';
         modal.classList.add('active');
+        if (modal.querySelector('.compact-menu')) {
+            compactMenuTrigger = opener;
+            modal.querySelector('.modal-close, [data-workspace-back]')?.focus({ preventScroll: true });
+        }
         if (soundEngine) soundEngine.playClick();
     }
 }
 
 function closeAllModals() {
     const cancelNewGame = creatingNewGame && document.getElementById('modal-company-creator').classList.contains('active');
-    const closedOffices = document.getElementById('modal-offices').classList.contains('active');
+    const closedOffices = document.getElementById('modal-offices')?.classList.contains('active');
+    if (studioPreviewDirty) {
+        world?.updateCharacterMesh(0, game.characterCustomization, { preview: true });
+        studioPreviewDirty = false;
+    }
+    if (document.getElementById('modal-company-creator').classList.contains('office-preview')) toggleOfficePreview(false);
     document.querySelectorAll('.modal-backdrop').forEach(m => {
         m.style.display = 'none';
         m.classList.remove('active');
     });
+    compactMenuTrigger?.focus({ preventScroll: true });
+    compactMenuTrigger = null;
     const devMenu = document.getElementById('developer-context-menu');
     if (devMenu) devMenu.style.display = 'none';
-    if (closedOffices) document.getElementById('btn-upgrade-office').focus();
+    if (closedOffices) (document.getElementById('device-launcher') || document.getElementById('btn-upgrade-office')).focus();
     if (cancelNewGame) {
         creatingNewGame = false;
         world.updateCharacterMesh(0, game.characterCustomization);
@@ -4971,6 +6625,9 @@ window.closePressCoverModal = function(returnToMarketing = true) {
         if (mktModal) {
             mktModal.style.display = 'flex';
             mktModal.classList.add('active');
+            const selected = mktModal.querySelector('#mkt-campaigns:not([hidden]) .mkt-channel[aria-pressed="true"]');
+            (selected || mktModal.querySelector('[role="tab"][aria-selected="true"]'))?.focus({ preventScroll: true });
+            compactMenuTrigger = document.getElementById('device-launcher') || document.getElementById('btn-marketing');
         }
     } else {
         closeAllModals();
@@ -5190,54 +6847,54 @@ window.showMarketingPressCover = function(coverOrId) {
     let coverHtml = '';
     if (cover.period === '80s') {
         coverHtml = `
-            <div class="press-cover-card cover-80s-retro ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-80s-retro ${marketingText(cover.styleClass)}">
                 <div class="cover-80s-masthead">
                     <div class="cover-80s-issue-line">
-                        <span>${cover.issue}</span>
-                        <span>${cover.tagline}</span>
-                        <span class="cover-price-tag">${cover.priceBadge}</span>
+                        <span>${marketingText(cover.issue)}</span>
+                        <span>${marketingText(cover.tagline)}</span>
+                        <span class="cover-price-tag">${marketingText(cover.priceBadge)}</span>
                     </div>
-                    <div class="cover-80s-title">${cover.publicationName}</div>
+                    <div class="cover-80s-title">${marketingText(cover.publicationName)}</div>
                 </div>
                 <div class="cover-80s-content">
-                    <div class="cover-star-burst">${cover.badgeTop}</div>
+                    <div class="cover-star-burst">${marketingText(cover.badgeTop)}</div>
                     <div class="cover-feature-box">
-                        <div class="cover-pill-badge">${cover.featureBadge}</div>
-                        <h1 class="cover-big-headline">${cover.headline}</h1>
-                        <p class="cover-lead-summary">${cover.subheadline}</p>
-                        <div class="cover-quote-banner">${cover.quote}</div>
+                        <div class="cover-pill-badge">${marketingText(cover.featureBadge)}</div>
+                        <h1 class="cover-big-headline">${marketingText(cover.headline)}</h1>
+                        <p class="cover-lead-summary">${marketingText(cover.subheadline)}</p>
+                        <div class="cover-quote-banner">${marketingText(cover.quote)}</div>
                     </div>
                     <div class="cover-80s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">[[DE_ICON_153]] ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item">[[DE_ICON_153]] ${marketingText(tag)}</span>`).join('')}
                     </div>
                     <div class="cover-bottom-bar">
                         <span class="cover-barcode">||| | |||| ||| ||||||| | |||</span>
-                        <span>DEP. LEGAL B-${cover.year}92 · EDICIÓN NACIONAL</span>
+                        <span>DEP. LEGAL B-${marketingText(cover.year)}92 · EDICIÓN NACIONAL</span>
                     </div>
                 </div>
             </div>
         `;
     } else if (cover.period === '90s') {
         coverHtml = `
-            <div class="press-cover-card cover-90s-retro ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-90s-retro ${marketingText(cover.styleClass)}">
                 <div class="cover-90s-masthead">
                     <div class="cover-90s-issue-line">
-                        <span>${cover.issue}</span>
-                        <span>${cover.tagline}</span>
-                        <span class="cover-price-tag gold">${cover.priceBadge}</span>
+                        <span>${marketingText(cover.issue)}</span>
+                        <span>${marketingText(cover.tagline)}</span>
+                        <span class="cover-price-tag gold">${marketingText(cover.priceBadge)}</span>
                     </div>
-                    <div class="cover-90s-title">${cover.publicationName}</div>
+                    <div class="cover-90s-title">${marketingText(cover.publicationName)}</div>
                 </div>
                 <div class="cover-90s-content">
-                    <div class="cover-cd-burst">${cover.badgeTop}</div>
+                    <div class="cover-cd-burst">${marketingText(cover.badgeTop)}</div>
                     <div class="cover-feature-box-90s">
-                        <div class="cover-pill-badge neon">${cover.featureBadge}</div>
-                        <h1 class="cover-big-headline-90s">${cover.headline}</h1>
-                        <p class="cover-lead-summary">${cover.subheadline}</p>
-                        <div class="cover-quote-banner-90s">${cover.quote}</div>
+                        <div class="cover-pill-badge neon">${marketingText(cover.featureBadge)}</div>
+                        <h1 class="cover-big-headline-90s">${marketingText(cover.headline)}</h1>
+                        <p class="cover-lead-summary">${marketingText(cover.subheadline)}</p>
+                        <div class="cover-quote-banner-90s">${marketingText(cover.quote)}</div>
                     </div>
                     <div class="cover-90s-tags">
-                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">[[DE_ICON_148]] ${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="cover-tag-item-90s">[[DE_ICON_148]] ${marketingText(tag)}</span>`).join('')}
                     </div>
                 </div>
             </div>
@@ -5245,30 +6902,30 @@ window.showMarketingPressCover = function(coverOrId) {
     } else {
         // Modern Digital 2000s Web Portal Article Layout
         coverHtml = `
-            <div class="press-cover-card cover-2000s-portal ${cover.styleClass || ''}">
+            <div class="press-cover-card cover-2000s-portal ${marketingText(cover.styleClass)}">
                 <div class="portal-header-browser">
                     <div class="portal-dots"><span></span><span></span><span></span></div>
-                    <div class="portal-url">https://www.${cover.publicationName.toLowerCase()}/previews/${cover.year}/exclusive</div>
+                    <div class="portal-url">https://www.${marketingText(String(cover.publicationName || 'prensa').toLowerCase())}/previews/${marketingText(cover.year)}/exclusive</div>
                 </div>
                 <div class="portal-masthead">
-                    <div class="portal-brand">${cover.publicationName}</div>
-                    <div class="portal-sub-text">${cover.tagline}</div>
-                    <div class="portal-live-pill">${cover.priceBadge}</div>
+                    <div class="portal-brand">${marketingText(cover.publicationName)}</div>
+                    <div class="portal-sub-text">${marketingText(cover.tagline)}</div>
+                    <div class="portal-live-pill">${marketingText(cover.priceBadge)}</div>
                 </div>
                 <div class="portal-body">
                     <div class="portal-status-row">
-                        <span class="portal-trending-badge">${cover.badgeTop}</span>
-                        <span class="portal-date-stamp">${cover.issue}</span>
+                        <span class="portal-trending-badge">${marketingText(cover.badgeTop)}</span>
+                        <span class="portal-date-stamp">${marketingText(cover.issue)}</span>
                     </div>
-                    <h1 class="portal-title">${cover.headline}</h1>
+                    <h1 class="portal-title">${marketingText(cover.headline)}</h1>
                     <div class="portal-author-strip">
                         <span>Por Redacción Internacional · Periodismo del Videojuego</span>
-                        <span class="portal-score-badge">${cover.featureBadge}</span>
+                        <span class="portal-score-badge">${marketingText(cover.featureBadge)}</span>
                     </div>
-                    <p class="portal-lead">${cover.subheadline}</p>
-                    <div class="portal-quote-box">${cover.quote}</div>
+                    <p class="portal-lead">${marketingText(cover.subheadline)}</p>
+                    <div class="portal-quote-box">${marketingText(cover.quote)}</div>
                     <div class="portal-tags-list">
-                        ${(cover.tags || []).map(tag => `<span class="portal-tag-pill">#${tag}</span>`).join('')}
+                        ${(cover.tags || []).map(tag => `<span class="portal-tag-pill">#${marketingText(tag)}</span>`).join('')}
                     </div>
                 </div>
             </div>
@@ -5277,4 +6934,10 @@ window.showMarketingPressCover = function(coverOrId) {
 
     container.innerHTML = coverHtml;
     openModal('modal-marketing-press-cover');
+    modal.querySelector('button')?.focus({ preventScroll: true });
 };
+
+
+window.openModal = openModal;
+window.closeAllModals = closeAllModals;
+window.renderTechTree = renderTechTree;

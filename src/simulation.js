@@ -1,9 +1,9 @@
 import { soundEngine } from './audio.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
-import INDUSTRY_EVENT_CATALOG from './data/events.json';
+import INDUSTRY_EVENT_CATALOG from './data/events.json' with { type: 'json' };
 import { PLATFORMS_DATABASE as PLATFORMS, getPlatformsByYear } from './data/platformsData.js';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
-import CREATOR_PROFILES from './data/streamers.json';
+import CREATOR_PROFILES from './data/streamers.json' with { type: 'json' };
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
 import { OFFICE_CATALOG, STARTING_OFFICE, findOffice } from './data/offices.js';
@@ -1661,6 +1661,7 @@ class TycoonGame {
 
     // --- PROJECT CREATION & DEV CYCLES ---
     startNewGameProject(config) {
+        if (this.currentProject) return { success: false, message: 'Ya hay un videojuego en desarrollo.' };
         // Validación de Modo Parche de Emergencia Post-Lanzamiento (Punto 5)
         if (this.isEmergencyPatchActive && this.emergencyPatchData) {
             return {
@@ -1670,10 +1671,14 @@ class TycoonGame {
         }
 
         // config: { name, topicId, genreId, platformId, targetAudience, engineId, pipelineType, selectedNodeIds, sliders }
-        const topic = findTheme(config.topicId) || TOPICS[0];
-        const genre = findGenre(config.genreId) || GENRES[0];
+        const topic = findTheme(config.topicId);
+        const genre = findGenre(config.genreId);
+        const matchesCatalog = (value, item) => !value || [item.id, item.name, ...(item.aliases || [])].some(label => label.toLowerCase() === String(value?.id || value).toLowerCase());
+        if (!matchesCatalog(config.topicId, topic) || !matchesCatalog(config.genreId, genre)) return { success: false, message: 'Selecciona una temática y un género válidos.' };
         const platform = this.getPlatformById(config.platformId);
         if (!platform) return { success: false, message: 'La plataforma seleccionada aún no está disponible.' };
+        if (platform.releaseYear != null && this.getHistoricalYear() < platform.releaseYear) return { success: false, message: `${platform.name} todavía no está disponible.` };
+        if (platform.retireYear != null && this.getHistoricalYear() >= platform.retireYear) return { success: false, message: `${platform.name} ya está retirada.` };
         if (platform.status === 'RETIRED') return { success: false, message: `${platform.name} ya está retirada y no admite nuevos proyectos.` };
 
         const ip = config.ipId ? this.ipState.properties.find(item => item.id === config.ipId) : null;
@@ -1719,7 +1724,7 @@ class TycoonGame {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === dagPipeline.id)) ||
                      (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === dagPipeline.id)) ||
                      (this.inHouseEngines && this.inHouseEngines.find(e => e.id === dagPipeline.id)) ||
-                     dagPipeline;
+                     null;
         } else if (pipelineType === 'commercial') {
             engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === config.engineId)) ||
                      (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === config.engineId)) ||
@@ -1730,6 +1735,8 @@ class TycoonGame {
                      (this.inHouseEngines && this.inHouseEngines[0]) ||
                      (this.customEngines && this.customEngines[0]);
         }
+
+        if (!engine) return { success: false, message: 'El motor seleccionado no está disponible.' };
 
         if (pipelineType === 'commercial' && engine && this.getHistoricalYear() < (engine.minYear || 1990)) {
             return { success: false, message: `Los motores comerciales generalistas estarán disponibles a partir de ${engine.minYear || 1990}. Desarrolla un motor propio para esta época.` };
@@ -2048,7 +2055,7 @@ class TycoonGame {
 
         // Current stage sliders focus (for backward-compatibility)
         const currentStageKey = proj.stage <= 3 ? `stage${proj.stage}` : 'stage3';
-        const currentSliders = proj.sliders[currentStageKey] || {};
+        const currentSliders = (proj.sliders && proj.sliders[currentStageKey]) || {};
 
         let stageTechWeight = 0.5;
         let stageDesignWeight = 0.5;
@@ -2288,7 +2295,7 @@ class TycoonGame {
 
         ['stage1', 'stage2', 'stage3'].forEach((sKey) => {
             const idealStage = ideal[`ideal${sKey.charAt(0).toUpperCase() + sKey.slice(1)}`];
-            const actualStage = proj.sliders[sKey] || {};
+            const actualStage = (proj.sliders && proj.sliders[sKey]) || {};
             for (let k in idealStage) {
                 const diff = Math.abs(idealStage[k] - (actualStage[k] || 0.7));
                 sliderAccuracy += Math.max(0, 1.0 - diff * 1.25);

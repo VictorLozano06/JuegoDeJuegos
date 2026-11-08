@@ -42,6 +42,19 @@ test('proyectos y ventas validan propiedad antes de gastar y no bloquean secuela
  assert.equal(game.sellIP(ip.id,'r1',10000).success,false);assert.equal(ip.ownerId,'player');
 });
 
+test('un segundo inicio de producción no sustituye el proyecto ni cobra dos veces', () => {
+ const game=fresh();
+ const first=game.startNewGameProject({name:'Primer juego',platformId:'pc',force:true});
+ assert.equal(first.success,true,first.message);
+ const funds=game.funds;
+ const kits=[...game.ownedDevKits];
+ const second=game.startNewGameProject({name:'Duplicado',platformId:'pc',force:true});
+ assert.equal(second.success,false);
+ assert.equal(game.currentProject,first.project);
+ assert.equal(game.funds,funds);
+ assert.deepEqual(game.ownedDevKits,kits);
+});
+
 test('partida real guarda y recupera franquicia, fondos y vínculo a videojuego', async () => {
  const {SaveSystem}=await import('../src/SaveSystem.js');
  class MemoryStorage {constructor(){this.data=new Map()} get length(){return this.data.size} key(i){return [...this.data.keys()][i]??null} getItem(k){return this.data.get(k)??null} setItem(k,v){this.data.set(k,String(v))} removeItem(k){this.data.delete(k)}}
