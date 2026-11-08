@@ -37,6 +37,8 @@ let appState = STATE_MAIN_MENU;
 let mainMenu;
 let financeUI;
 let creatingNewGame = false;
+let studioPreviewDirty = false;
+let compactMenuTrigger = null;
 let appliedSettings;
 const initialProfile = {
     officeTier: game.getActiveOffice().tier,
@@ -6261,7 +6263,7 @@ let localCustomization = {
     accessory: 'glasses_retro'
 };
 let localLogo = '[[DE_ICON_001]]';
-let studioPreviewDirty = false;
+studioPreviewDirty = false;
 
 initCompanyCreatorModal();
 
@@ -6482,8 +6484,6 @@ function openCompanyCreatorModal(newGame = false) {
 window.openCompanyStudioPanel = () => openCompanyCreatorModal(false);
 
 // --- MODAL HELPERS ---
-
-let compactMenuTrigger;
 
 function selectCompactMenuTab(tab) {
     if (!tab) return;
