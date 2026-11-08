@@ -21,6 +21,7 @@
     </script>
     <div id="debug-errors" style="position:fixed;top:60px;left:20px;z-index:9999;color:#ff3333;font-size:16px;background:rgba(0,0,0,0.8);max-width:90%;"></div>
     <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="src/ip-ui.css">
     <link rel="stylesheet" href="/src/main-menu.css">
 </head>
 <body class="menu-active">
@@ -360,6 +361,7 @@
             <button id="btn-community-workshop" class="dock-btn" title="Mods, conversiones y vida útil de tus juegos">
                 <span>[[DE_ICON_034]]</span> Workshop
             </button>
+            <button id="btn-company-ip" class="dock-btn" type="button" title="Gestión de propiedad intelectual">Empresa · Propiedad intelectual</button>
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
                 <span>[[DE_ICON_019]]</span> Tu Estudio
             </button>
@@ -559,6 +561,11 @@
                         <label class="form-label">Género (19 por eras)</label>
                         <select id="select-genre" class="form-select"></select>
                     </div>
+                </div>
+
+                <div class="ip-wizard-grid">
+                    <div class="form-group"><label class="form-label" for="select-ip">Propiedad intelectual</label><select id="select-ip" class="form-select"><option value="">Juego independiente</option></select></div>
+                    <div class="form-group"><label class="form-label" for="select-ip-installment">Tipo de entrega</label><select id="select-ip-installment" class="form-select" disabled><option value="original">Juego original</option><option value="sequel">Entrega principal / Secuela</option><option value="prequel">Precuela</option><option value="spin_off">Spin-off</option><option value="remake">Remake</option><option value="remaster">Remasterización</option></select></div>
                 </div>
 
                 <div id="wizard-synergy-indicator" style="margin: -4px 0 14px 0;"></div>

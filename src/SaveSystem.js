@@ -146,6 +146,11 @@ function persistentFields(game) {
 function replaceGame(game, savedState) {
     const defaults = persistentFields(new game.constructor());
     const state = { ...defaults, ...savedState };
+    // Version 1 saves predate IP. Preserve existing data and fill only missing fields.
+    if (defaults.ipState && state.ipState && typeof state.ipState === 'object' && !Array.isArray(state.ipState)) {
+        state.ipState = { ...defaults.ipState, ...state.ipState,
+            settings: { ...defaults.ipState.settings, ...state.ipState.settings } };
+    }
     const liveManager = game.techTreeManager;
     for (const key of Object.keys(persistentFields(game))) delete game[key];
     for (const [key, value] of Object.entries(state)) {

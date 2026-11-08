@@ -6,6 +6,7 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
 import CREATOR_PROFILES from './data/streamers.json';
 import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
 import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
+import { createIPState, registerIP, linkGame, recordRelease, updateIPSales, getIPBenefits, advanceIPYear, transferIP, getIPValue, setIPForSale } from './ipSystem.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
@@ -444,6 +445,9 @@ class TycoonGame {
         this.currentProject = null;
         this.gamesHistory = [];
         this.activeSales = [];
+        this.ipState = createIPState();
+        // Future AI companies must be persistent entities with their own actual funds.
+        this.ipCompanies = [];
         this.platforms = Array.isArray(PLATFORMS) ? JSON.parse(JSON.stringify(PLATFORMS)) : [];
         // Array simple: también se puede serializar con el resto de la partida.
         this.ownedDevKits = [];
@@ -512,6 +516,72 @@ class TycoonGame {
         this.rollNewMarketTrend();
 
         this.listeners = [];
+    }
+
+    getIPOwner(id = 'player') {
+        if (id !== 'player') return (this.ipCompanies || []).find(company => company.id === id) || null;
+        const game = this;
+        return { id: 'player', get name() { return game.companyName; },
+            get funds() { return game.funds; }, set funds(value) { game.funds = value; } };
+    }
+
+    registerIP(details = {}) {
+        const originalGame = details.originalGameId ? this.gamesHistory.find(game => game.id === details.originalGameId) : null;
+        if (details.originalGameId && !originalGame) return { success: false, message: 'No se encontró el juego original en el catálogo del estudio.' };
+        const originalMetadata = originalGame ? { originalGenre: originalGame.genreId || originalGame.genre, originalTopic: originalGame.topicId || originalGame.topic } : {};
+        const result = registerIP(this.ipState, this.getIPOwner(), { ...details, ...originalMetadata, originalGame }, { year: this.getHistoricalYear(), ownedGames: this.gamesHistory });
+        if (result.success) this.notify();
+        return result;
+    }
+
+    linkGameToIP(ipId, gameId) {
+        const game = this.gamesHistory.find(item => item.id === gameId);
+        if (!game) return { success: false, message: 'No se encontró el juego en el catálogo del estudio.' };
+        const result = linkGame(this.ipState, 'player', ipId, game, { year: this.getHistoricalYear() });
+        if (result.success) recordRelease(this.ipState, ipId, game, this.gamesHistory, { year: game.releaseYear ?? this.getHistoricalYear() });
+        if (result.success) this.notify();
+        return result;
+    }
+
+    getIPValue(ipId) {
+        const ip = this.ipState.properties.find(item => item.id === ipId);
+        return ip ? getIPValue(ip, this.gamesHistory, this.getHistoricalYear(), this.ipState.settings) : 0;
+    }
+
+    getIPMarket() {
+        return this.ipState.properties.filter(ip => ip.ownerId !== 'player' && ip.forSale && this.getIPOwner(ip.ownerId));
+    }
+
+    setIPForSale(ipId, askingPrice) {
+        const result = setIPForSale(this.ipState, 'player', ipId, askingPrice, { year: this.getHistoricalYear() });
+        if (result.success) this.notify();
+        return result;
+    }
+
+    buyIP(ipId) {
+        const ip = this.ipState.properties.find(item => item.id === ipId);
+        if (!ip || !ip.forSale || ip.ownerId === 'player') return { success: false, message: 'La franquicia no está disponible para compra.' };
+        const seller = this.getIPOwner(ip.ownerId);
+        if (!seller) return { success: false, message: 'La empresa propietaria no dispone de una tesorería registrada.' };
+        const result = transferIP(this.ipState, ipId, seller, this.getIPOwner(), ip.askingPrice, { year: this.getHistoricalYear() });
+        if (result.success) this.notify();
+        return result;
+    }
+
+    sellIP(ipId, buyerId, price) {
+        const ip = this.ipState.properties.find(item => item.id === ipId);
+        if (!ip || ip.ownerId !== 'player') return { success: false, message: 'La franquicia no pertenece al estudio.' };
+        if (this.currentProject?.ipId === ipId) return { success: false, message: 'Termina el proyecto que utiliza esta franquicia antes de venderla.' };
+        const buyer = this.getIPOwner(buyerId);
+        if (!buyer || buyer.id === 'player') return { success: false, message: 'Selecciona una empresa compradora válida.' };
+        const agreedPrice = price ?? ip.askingPrice ?? this.getIPValue(ipId);
+        if (!Number.isSafeInteger(agreedPrice) || agreedPrice <= 0 || !Number.isFinite(buyer.funds) || buyer.funds < agreedPrice)
+            return { success: false, message: 'Precio inválido o fondos insuficientes de la empresa compradora.' };
+        const listing = setIPForSale(this.ipState, 'player', ipId, agreedPrice, { year: this.getHistoricalYear() });
+        if (!listing.success) return listing;
+        const result = transferIP(this.ipState, ipId, this.getIPOwner(), buyer, agreedPrice, { year: this.getHistoricalYear() });
+        if (result.success) this.notify();
+        return result;
     }
 
     updateCompanyProfile(config) {
@@ -1677,6 +1747,11 @@ class TycoonGame {
         if (!platform) return { success: false, message: 'La plataforma seleccionada aún no está disponible.' };
         if (platform.status === 'RETIRED') return { success: false, message: `${platform.name} ya está retirada y no admite nuevos proyectos.` };
 
+        const ip = config.ipId ? this.ipState.properties.find(item => item.id === config.ipId) : null;
+        if (config.ipId && (!ip || ip.ownerId !== 'player')) return { success: false, message: 'La franquicia seleccionada no pertenece al estudio.' };
+        const installmentTypes = ['original', 'sequel', 'prequel', 'spin_off', 'remake', 'remaster'];
+        if (ip && !installmentTypes.includes(config.ipInstallmentType)) return { success: false, message: 'Selecciona un tipo de entrega válido.' };
+
         const allowLocked = Boolean(config.force || config.forced || config.bypassUnlockCheck);
 
         // 0. Validación de Desbloqueo de Temática y Género
@@ -1873,6 +1948,8 @@ class TycoonGame {
         }
 
         this.currentProject = {
+            ipId: ip?.id || null,
+            ipInstallmentType: ip ? config.ipInstallmentType : null,
             name: config.name || 'Juego Sin Nombre',
             topic: topic,
             genre: genre,
@@ -2481,11 +2558,17 @@ class TycoonGame {
         const launchPlatform = this.getPlatformById(proj.platform.id) || proj.platform;
         const marketShareBonus = (launchPlatform.marketShare ?? 0.1) + 0.25;
         const trendSalesMultiplier = isTrendMatch ? 1.35 : 1.0;
+        const releaseIP = proj.ipId ? this.ipState.properties.find(item => item.id === proj.ipId) : null;
+        const ipBenefits = releaseIP ? getIPBenefits(releaseIP) : null;
 
         let totalSalesPotential = Math.floor(
             Math.pow(finalScore / 2.2, 3.85) * eraSalesFactor * marketShareBonus * trendSalesMultiplier * synergyQualityMultiplier
         );
-        const marketingHype = Math.max(0, Math.min(100, proj.marketingHype || 0));
+        if (ipBenefits) {
+            const unmetExpectations = Math.max(0, (releaseIP.expectations / 10 - finalScore) / 10);
+            totalSalesPotential = Math.floor(totalSalesPotential * ipBenefits.salesMultiplier * (1 - ipBenefits.expectationPenalty * unmetExpectations));
+        }
+        const marketingHype = Math.max(0, Math.min(100, (proj.marketingHype || 0) + (ipBenefits?.hypeBonus || 0)));
         const marketingMultiplier = 1 + Math.min(0.35, marketingHype / 250) + Math.min(0.1, (proj.brandAwareness || 0) / 1000) + Math.max(0, proj.demoConversionBonus || 0);
         totalSalesPotential = Math.floor(totalSalesPotential * marketingMultiplier);
         const convertedWishlists = Math.floor((proj.wishlists || 0) * (proj.demoConversionBonus > 0.15 ? 0.22 : 0.12));
@@ -2531,6 +2614,10 @@ class TycoonGame {
 
         const releasedGame = {
             id: 'game_' + Date.now(),
+            releaseYear: this.getHistoricalYear(),
+            ipId: proj.ipId || null,
+            ipInstallmentType: proj.ipInstallmentType || null,
+            ipReleaseType: proj.ipInstallmentType || null,
             name: proj.name,
             topic: proj.topic.name,
             topicId: proj.topic.id,
@@ -2725,6 +2812,9 @@ class TycoonGame {
         }
         this.gamesHistory.unshift(releasedGame);
         this.activeSales.push(releasedGame);
+        if (releasedGame.ipId) {
+            recordRelease(this.ipState, releasedGame.ipId, releasedGame, this.gamesHistory, { year: this.getHistoricalYear() });
+        }
 
         // Fan growth based on score
         const loyaltyMultiplier = userApproval >= 80 ? 1.2 : (userApproval < 70 ? 0.65 : 1);
@@ -3133,6 +3223,7 @@ class TycoonGame {
                 const exclusiveMarketing = game.weeksOnMarket <= game.exclusiveWeeks ? (game.platformMarketingMultiplier || 1) : 1;
                 grossRevenueThisWeek = Math.floor(unitsThisWeek * unitPrice * exclusiveMarketing * (game.directSalesMultiplier || 1));
             }
+            if (game.ipId) updateIPSales(this.ipState, game.ipId, game, { year: this.getHistoricalYear() });
 
             // Paid post-launch content available only after its historical unlock date.
             if (!isService && !isEarlyAccess && game.postLaunchContent === 'season_pass' && game.weeksOnMarket === 4) {
@@ -3417,6 +3508,7 @@ class TycoonGame {
             if (this.month > 12) {
                 this.month = 1;
                 this.year++;
+                advanceIPYear(this.ipState, this.getHistoricalYear());
                 this.triggerAnnualAwards();
             }
         }
