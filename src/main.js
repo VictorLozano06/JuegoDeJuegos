@@ -1,6 +1,7 @@
 import './ui-icons.js';
 import { initializeIPUI, refreshIPWizard } from './ip-ui.js';
 import { initializeRivalUI } from './rival-ui.js';
+import { initializeFinanceUI } from './finance-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -24,6 +25,7 @@ const STATE_TRANSITION = 'transition';
 const STATE_PLAYING = 'playing';
 let appState = STATE_MAIN_MENU;
 let mainMenu;
+let financeUI;
 let creatingNewGame = false;
 let appliedSettings;
 const initialProfile = {
@@ -126,6 +128,21 @@ document.addEventListener('DOMContentLoaded', () => {
     setupKeyboardShortcuts();
     initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
     initializeRivalUI({ game, openModal });
+    financeUI = initializeFinanceUI({ game, openModal, showToast,
+        resumeRecovery: () => {
+            if (game.prepareBankruptcy().success) return { success:false, message:'La insolvencia sigue sin una solución viable. Revisa las medidas o el procedimiento.' };
+            game.financeState.procedurePending = false;
+            game.isPaused = false;
+            if (game.gameSpeed === 0) game.gameSpeed = 1;
+            startSimulationLoops();
+            return { success:true, message:'Plan revisado; simulación reanudada.' };
+        },
+        onBankruptcyCommitted: () => {
+            game.financeState.procedurePending = false;
+            if (game.financeState.bankruptcy.mode === 'spectator') { game.isPaused = false; startSimulationLoops(); }
+            if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+        }
+    });
 
     // 3. Populate Modal Dropdowns & DAG Architecture
     populateProjectWizard();
@@ -272,12 +289,14 @@ async function enterGameplay({ checkpoint = false } = {}) {
         return;
     }
     appState = STATE_PLAYING;
-    game.isPaused = false;
+    game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
     game.notify();
     mainMenu.hide();
     mainMenu.setBusy(false);
     if (checkpoint && saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
     startSimulationLoops();
+    if (game.financeState?.procedurePending && !game.financeState?.bankruptcy?.confirmed) game.onBankruptcyProcedureRequired?.();
+    else if (game.financeState?.bankruptcy?.confirmed) financeUI?.open();
 }
 
 function returnToMainMenu() {

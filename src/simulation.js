@@ -10,6 +10,8 @@ import { OFFICE_CATALOG, STARTING_OFFICE, findOffice } from './data/offices.js';
 import { createIPState, registerIP, linkGame, recordRelease, updateIPSales, getIPBenefits, advanceIPYear, transferIP, getIPValue, setIPForSale } from './ipSystem.js';
 import { generateRivalCompanies, RIVAL_COMPANY_DEFAULTS } from './rivalCompanies.js';
 import { tickRivals } from './rivalAI.js';
+import { createFinanceState, getFinanceMetrics, getCreditOffer, requestLoan, refinanceLoan, updateFinanceWeek } from './financeSystem.js';
+import { cancelPlayerProject, reduceStaff, stopResearch, restructureCompany, prepareBankruptcy, confirmBankruptcy } from './bankruptcy.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
@@ -370,6 +372,7 @@ const BASE_CANDIDATE_POOL = [
 class TycoonGame {
     constructor(options = {}) {
         this.funds = 75000;
+        this.financeState = createFinanceState(this.funds);
         this.fans = 25;
         this.researchPoints = 30;
         this.year = 1;
@@ -502,6 +505,17 @@ class TycoonGame {
 
         this.listeners = [];
     }
+
+    getFinancialReport() { return getFinanceMetrics(this); }
+    getFinanceCreditOffer(type) { return getCreditOffer(this, type); }
+    requestFinanceLoan(options) { const result = requestLoan(this, options); if (result.success) this.notify(); return result; }
+    refinanceFinanceLoan(id) { const result = refinanceLoan(this, id); if (result.success) this.notify(); return result; }
+    cancelProjectForFinance() { const result = cancelPlayerProject(this); if (result.success) this.notify(); return result; }
+    reduceFinanceStaff(id) { const result = reduceStaff(this, id); if (result.success) this.notify(); return result; }
+    stopFinanceResearch() { const result = stopResearch(this); if (result.success) this.notify(); return result; }
+    beginRestructuring() { const result = restructureCompany(this); if (result.success) this.notify(); return result; }
+    prepareBankruptcy() { return prepareBankruptcy(this); }
+    confirmBankruptcy(options) { const result = confirmBankruptcy(this, options); if (result.success) this.notify(); return result; }
 
     getIPOwner(id = 'player') {
         if (id !== 'player') return (this.ipCompanies || []).find(company => company.id === id) || null;
@@ -3051,6 +3065,11 @@ class TycoonGame {
     }
 
     processWeeklySales() {
+        if (this.financeState?.bankruptcy?.confirmed) {
+            this.lastWeeklySalesIncome = 0;
+            this.cycleRivalMarket();
+            return;
+        }
         let weeklyIncomeTotal = 0;
 
         for (let i = this.activeSales.length - 1; i >= 0; i--) {
@@ -3259,11 +3278,13 @@ class TycoonGame {
         // office costs weekly so long projects cannot defer their expenses.
         const totalSalaries = this.employees.reduce((acc, e) => acc + (Number(e.salary) || 0), 0);
         const year = this.getHistoricalYear();
-        const officeCost = this.getActiveOffice().monthlyCost;
+        const officeBaseCost = this.getActiveOffice().monthlyCost;
+        const officeCost = officeBaseCost * (this.financeState?.restructuring?.active ? (this.financeState.restructuring.officeMultiplier ?? 1) : 1);
         const utilities = year < 1990 ? 100 : (year < 2000 ? 700 : 1800);
         const network = year >= 1995 ? (this.era === 3 ? 3000 : 600) : 0;
         this.lastMonthlyOperatingCosts = { salaries: totalSalaries, office: officeCost, utilities, network };
         this.funds -= (totalSalaries + officeCost + utilities + network) / 4;
+        this.lastWeeklySalesIncome = weeklyIncomeTotal;
 
         // Passive stamina recovery for employees when not in an active project
         if (!this.currentProject) {
@@ -3415,7 +3436,11 @@ class TycoonGame {
     }
 
     advanceCalendar() {
-        if (this.isPaused) return;
+        if (this.isPaused || (this.financeState?.bankruptcy?.confirmed && this.financeState.bankruptcy.mode === 'end')) return;
+        if (this.financeState?.procedurePending) {
+            if (prepareBankruptcy(this).success) { this.isPaused = true; return; }
+            this.financeState.procedurePending = false;
+        }
         this.week++;
         if (this.week > 4) {
             this.week = 1;
@@ -3424,8 +3449,14 @@ class TycoonGame {
                 this.month = 1;
                 this.year++;
                 advanceIPYear(this.ipState, this.getHistoricalYear());
-                this.triggerAnnualAwards();
+                if (!this.financeState.bankruptcy?.confirmed) this.triggerAnnualAwards();
             }
+        }
+        if (this.financeState.bankruptcy?.confirmed) {
+            tickRivals(this);
+            this.cycleRivalMarket();
+            this.notify();
+            return;
         }
         this.processEmployeeWeeklyWellbeing();
         if (typeof this.processHeadhunters === 'function') this.processHeadhunters();
@@ -3569,6 +3600,15 @@ class TycoonGame {
 
         tickRivals(this);
         this.processWeeklySales();
+        if (!this.financeState.bankruptcy?.confirmed) {
+            const report = updateFinanceWeek(this);
+            if (report.previousStatus !== report.status) this.onFinanceStatusChanged?.(report);
+            if (this.financeState.status === 'SEVERE' && prepareBankruptcy(this).success) {
+                this.financeState.procedurePending = true;
+                this.isPaused = true;
+                this.onBankruptcyProcedureRequired?.();
+            }
+        }
         this.checkIndustryEvents();
     }
 
@@ -4646,6 +4686,41 @@ class TycoonGame {
             message: `[[DE_ICON_015]] ¡Parche de Emergencia Hotfix v1.1 desplegado con éxito! La deuda técnica ha descendido a 14 pts (Código Limpio). Los servidores se han estabilizado y la comunidad te recompensa con +180 fans.`
         };
     }
+}
+
+// A liquidated studio remains readable in historical mode, but cannot make
+// decisions through alternate UI entry points or direct simulation calls.
+const closedCompanyActions = [
+    'updateCompanyProfile', 'registerIP', 'linkGameToIP', 'setIPForSale', 'buyIP', 'sellIP',
+    'startNewGameProject', 'updateDevSliders', 'acceptProjectOffer', 'negotiateProjectOffer', 'rejectProjectOffer',
+    'runProjectMarketing', 'sendStreamerKeys', 'resolveIndustryEvent', 'launchEarlyAccess', 'launchOfficialVersion',
+    'enableCommunityWorkshop', 'publishModToolsUpdate', 'deployContentPatch', 'launchBattlePass', 'closeGameServers',
+    'upgradeOffice', 'purchaseOffice', 'activateOffice', 'hireEmployee', 'refreshCandidatePool', 'adjustEmployeeSalary', 'assignLeadership',
+    'resolveHeadhunt', 'orderTeamCoffee', 'sendOnVacation', 'trainEmployee', 'mentorEmployee',
+    'startPostMortemAnalysis', 'retireGameFromMarket', 'executeExpoAttendance', 'startTopicResearch',
+    'startGenreResearch', 'startTechResearch', 'reverseEngineerHardware', 'researchTechnology',
+    'createCustomEngine', 'startInHouseEngineRD', 'upgradeInHouseEngine', 'licenseInHouseEngineToStudio',
+    'setProjectDevMode', 'refactorCodebase', 'refactorTechDebt', 'deployEmergencyPatch'
+];
+const restrictedInvestments = new Set([
+    'registerIP', 'buyIP', 'startNewGameProject', 'runProjectMarketing', 'sendStreamerKeys',
+    'upgradeOffice', 'purchaseOffice', 'hireEmployee', 'refreshCandidatePool', 'trainEmployee',
+    'executeExpoAttendance', 'reverseEngineerHardware', 'createCustomEngine',
+    'startInHouseEngineRD', 'upgradeInHouseEngine', 'enableCommunityWorkshop',
+    'publishModToolsUpdate', 'deployContentPatch', 'launchBattlePass'
+]);
+for (const name of closedCompanyActions) {
+    const action = TycoonGame.prototype[name];
+    if (typeof action !== 'function') continue;
+    TycoonGame.prototype[name] = function (...args) {
+        if (this.financeState?.bankruptcy?.confirmed) return { success:false, message:'La empresa está liquidada; solo se puede consultar su historia.' };
+        const status = this.financeState?.status;
+        if (restrictedInvestments.has(name) && (['INSOLVENT', 'SEVERE'].includes(status) ||
+            (status === 'DIFFICULTIES' && ['upgradeOffice', 'purchaseOffice', 'startInHouseEngineRD'].includes(name)))) {
+            return { success:false, message:'La situación financiera restringe esta inversión; revisa el plan de recuperación.' };
+        }
+        return action.apply(this, args);
+    };
 }
 
 // Global game instance
