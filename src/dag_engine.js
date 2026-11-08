@@ -18,7 +18,7 @@ const DAG_CATALOG = [
         category: 'render',
         group: 'render_arch',
         tier: 1,
-        icon: '🖥️',
+        icon: '[[DE_ICON_054]]',
         desc: 'Canal de renderizado estándar por rasterización directa. Rápido, ligero y compatible con hardware modesto.',
         workload: { engine: 25, gameplay: 5, network: 0, net: 0, art: 20, qa: 10 },
         complexity: 20,
@@ -42,7 +42,7 @@ const DAG_CATALOG = [
         category: 'render',
         group: 'render_arch',
         tier: 3,
-        icon: '✨',
+        icon: '[[DE_ICON_068]]',
         desc: 'Trazado de rayos físico en tiempo real con reflejos fotorrealistas e iluminación global volumétrica.',
         workload: { engine: 90, gameplay: 10, network: 0, net: 0, art: 75, qa: 45 },
         complexity: 80,
@@ -66,7 +66,7 @@ const DAG_CATALOG = [
         category: 'render',
         group: 'render_arch',
         tier: 1,
-        icon: '👾',
+        icon: '[[DE_ICON_083]]',
         desc: 'Shader de escalado de píxeles nítidos con paletas indexadas y atlas de sprites optimizados.',
         workload: { engine: 15, gameplay: 10, network: 0, net: 0, art: 35, qa: 10 },
         complexity: 15,
@@ -92,7 +92,7 @@ const DAG_CATALOG = [
         category: 'physics',
         group: 'physics_arch',
         tier: 1,
-        icon: '⚖️',
+        icon: '[[DE_ICON_097]]',
         desc: 'Detección de colisiones mediante AABB y trigonometría básica sin cálculo inercial de cuerpos rígidos.',
         workload: { engine: 20, gameplay: 25, network: 0, net: 0, art: 5, qa: 10 },
         complexity: 18,
@@ -116,7 +116,7 @@ const DAG_CATALOG = [
         category: 'physics',
         group: 'physics_arch',
         tier: 2,
-        icon: '🤸',
+        icon: '[[DE_ICON_084]]',
         desc: 'Solucionador de impulsos cinéticos y articulaciones dinámicas para personajes y colisiones creíbles.',
         workload: { engine: 45, gameplay: 40, network: 5, net: 5, art: 15, qa: 25 },
         complexity: 45,
@@ -140,7 +140,7 @@ const DAG_CATALOG = [
         category: 'physics',
         group: 'physics_arch',
         tier: 3,
-        icon: '💥',
+        icon: '[[DE_ICON_081]]',
         desc: 'Fractura procedural de mallas y cálculo de tensión estructural en tiempo real con escombros persistentes.',
         workload: { engine: 85, gameplay: 50, network: 15, net: 15, art: 40, qa: 45 },
         complexity: 82,
@@ -166,7 +166,7 @@ const DAG_CATALOG = [
         category: 'netcode',
         group: 'netcode_arch',
         tier: 1,
-        icon: '👤',
+        icon: '[[DE_ICON_039]]',
         desc: 'Bucle de ejecución local sin hilos de sincronización de red ni validación de paquetes remotos.',
         workload: { engine: 10, gameplay: 15, network: 0, net: 0, art: 0, qa: 10 },
         complexity: 10,
@@ -190,7 +190,7 @@ const DAG_CATALOG = [
         category: 'netcode',
         group: 'netcode_arch',
         tier: 2,
-        icon: '👥',
+        icon: '[[DE_ICON_031]]',
         desc: 'Topología peer-to-peer con predicción de entrada (rollback netcode) para cooperativo y partidas casuales.',
         workload: { engine: 40, gameplay: 25, network: 55, net: 55, art: 5, qa: 35 },
         complexity: 52,
@@ -214,7 +214,7 @@ const DAG_CATALOG = [
         category: 'netcode',
         group: 'netcode_arch',
         tier: 3,
-        icon: '🌐',
+        icon: '[[DE_ICON_020]]',
         desc: 'Servidor headless con autoridad total, compensación de lag, tickrate de 128Hz y detección de trampas.',
         workload: { engine: 75, gameplay: 35, network: 95, net: 95, art: 5, qa: 60 },
         complexity: 86,
@@ -240,7 +240,7 @@ const DAG_CATALOG = [
         category: 'ai',
         group: 'ai_arch',
         tier: 1,
-        icon: '📜',
+        icon: '[[DE_ICON_077]]',
         desc: 'Máquinas de estados finitos deterministas. Respuestas directas y predecibles por evento.',
         workload: { engine: 15, gameplay: 25, network: 0, net: 0, art: 0, qa: 10 },
         complexity: 16,
@@ -264,7 +264,7 @@ const DAG_CATALOG = [
         category: 'ai',
         group: 'ai_arch',
         tier: 2,
-        icon: '🧠',
+        icon: '[[DE_ICON_056]]',
         desc: 'Behavior Trees jerárquicos con nodos selectores, secuencias, decoradores y memoria sensorial.',
         workload: { engine: 35, gameplay: 55, network: 5, net: 5, art: 0, qa: 25 },
         complexity: 44,
@@ -288,7 +288,7 @@ const DAG_CATALOG = [
         category: 'ai',
         group: 'ai_arch',
         tier: 3,
-        icon: '🤖',
+        icon: '[[DE_ICON_082]]',
         desc: 'Modelos de lenguaje y redes neuronales inferidas en local para diálogos dinámicos y objetivos emergentes.',
         workload: { engine: 80, gameplay: 70, network: 25, net: 25, art: 10, qa: 50 },
         complexity: 88,
@@ -314,7 +314,7 @@ const DAG_CATALOG = [
         category: 'audio',
         group: 'audio_arch',
         tier: 1,
-        icon: '🔊',
+        icon: '[[DE_ICON_008]]',
         desc: 'Mezcla básica de pistas duales con atenuación lineal por distancia y balance izquierda/derecha.',
         workload: { engine: 10, gameplay: 10, network: 0, net: 0, art: 20, qa: 5 },
         complexity: 12,
@@ -338,7 +338,7 @@ const DAG_CATALOG = [
         category: 'audio',
         group: 'audio_arch',
         tier: 2,
-        icon: '🎧',
+        icon: '[[DE_ICON_045]]',
         desc: 'Simulación de propagación acústica HRTF, oclusión física volumétrica y reverberación en tiempo real.',
         workload: { engine: 35, gameplay: 15, network: 5, net: 5, art: 45, qa: 20 },
         complexity: 40,
@@ -364,7 +364,7 @@ const DAG_CATALOG = [
         category: 'content',
         group: 'content_arch',
         tier: 1,
-        icon: '🛤️',
+        icon: '[[DE_ICON_086]]',
         desc: 'Secuencia estricta de salas o fases diseñadas artesanalmente con puntos de control determinados.',
         workload: { engine: 15, gameplay: 35, network: 0, net: 0, art: 30, qa: 15 },
         complexity: 18,
@@ -388,7 +388,7 @@ const DAG_CATALOG = [
         category: 'content',
         group: 'content_arch',
         tier: 2,
-        icon: '🎲',
+        icon: '[[DE_ICON_038]]',
         desc: 'Algoritmos de ruido Perlin, autómatas celulares y gramáticas generativas para niveles infinitos.',
         workload: { engine: 50, gameplay: 55, network: 10, net: 10, art: 25, qa: 40 },
         complexity: 55,
@@ -412,7 +412,7 @@ const DAG_CATALOG = [
         category: 'content',
         group: 'content_arch',
         tier: 3,
-        icon: '🗺️',
+        icon: '[[DE_ICON_057]]',
         desc: 'Streaming de niveles asíncrono en cuadrícula con jerarquía LOD dinámica y sin pantallas de carga.',
         workload: { engine: 95, gameplay: 75, network: 20, net: 20, art: 85, qa: 65 },
         complexity: 88,
@@ -438,7 +438,7 @@ const DAG_CATALOG = [
         category: 'systems',
         group: 'sys_daynight',
         tier: 2,
-        icon: '☀️',
+        icon: '[[DE_ICON_140]]',
         desc: 'Posicionamiento solar astronómico con sombras proyectadas en tiempo real y rutinas temporales de NPCs.',
         workload: { engine: 25, gameplay: 15, network: 5, net: 5, art: 35, qa: 15 },
         complexity: 30,
@@ -462,7 +462,7 @@ const DAG_CATALOG = [
         category: 'systems',
         group: 'sys_weather',
         tier: 2,
-        icon: '🌧️',
+        icon: '[[DE_ICON_141]]',
         desc: 'Simulación de fluidos atmosféricos: lluvia con acumulación de charcos, niebla volumétrica y viento.',
         workload: { engine: 45, gameplay: 20, network: 10, net: 10, art: 50, qa: 25 },
         complexity: 50,
@@ -486,7 +486,7 @@ const DAG_CATALOG = [
         category: 'systems',
         group: 'sys_rpg_tree',
         tier: 2,
-        icon: '🌳',
+        icon: '[[DE_ICON_142]]',
         desc: 'Sistema nodal de estadísticas, sinergias de atributos, desbloqueo de talentos y progresión de personaje.',
         workload: { engine: 20, gameplay: 60, network: 5, net: 5, art: 25, qa: 25 },
         complexity: 35,
@@ -510,7 +510,7 @@ const DAG_CATALOG = [
         category: 'systems',
         group: 'sys_photomode',
         tier: 2,
-        icon: '📸',
+        icon: '[[DE_ICON_088]]',
         desc: 'Cámara libre cinemática con ajuste de apertura focal, bokeh, filtros cromáticos y poses para personajes.',
         workload: { engine: 30, gameplay: 15, network: 0, net: 0, art: 40, qa: 15 },
         complexity: 28,
@@ -534,7 +534,7 @@ const DAG_CATALOG = [
         category: 'systems',
         group: 'sys_modding',
         tier: 3,
-        icon: '🔧',
+        icon: '[[DE_ICON_106]]',
         desc: 'Entorno de ejecución aislado con enlaces Lua/WASM para creación comunitaria de mapas, scripts y mallas.',
         workload: { engine: 70, gameplay: 35, network: 25, net: 25, art: 10, qa: 50 },
         complexity: 72,
@@ -566,7 +566,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 1982,
         costMoney: 12000,
         rpGain: 35,
-        icon: '💾',
+        icon: '[[DE_ICON_048]]',
         desc: 'Desoldar memorias ROM y trazar los buses de direccionamiento multiplexado para entender la arquitectura de hardware rival.'
     },
     {
@@ -576,7 +576,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 1986,
         costMoney: 25000,
         rpGain: 65,
-        icon: '🎛️',
+        icon: '[[DE_ICON_143]]',
         desc: 'Analizar osciladores de modulación por frecuencia y canales estéreo para replicar calidad acústica de consola de 16 bits.'
     },
     {
@@ -586,7 +586,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 1990,
         costMoney: 48000,
         rpGain: 110,
-        icon: '⚡',
+        icon: '[[DE_ICON_022]]',
         desc: 'Estudiar transferencias DMA directas y aceleración por hardware de sprites y scroll multicapa de salones recreativos.'
     },
     {
@@ -596,7 +596,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 1994,
         costMoney: 95000,
         rpGain: 175,
-        icon: '💿',
+        icon: '[[DE_ICON_144]]',
         desc: 'Desensamblar procesadores de señal digital (DSP) y búferes de lectura de alta velocidad para juegos en disco óptico.'
     },
     {
@@ -606,7 +606,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 1999,
         costMoney: 180000,
         rpGain: 260,
-        icon: '🎮',
+        icon: '[[DE_ICON_001]]',
         desc: 'Ingeniería inversa de rasterizado 3D por hardware, memoria Z-Buffer dedicada y aceleración por hardware de geometría.'
     },
     {
@@ -616,7 +616,7 @@ const REVERSE_ENGINEERING_CATALOG = [
         minYear: 2012,
         costMoney: 350000,
         rpGain: 420,
-        icon: '🖥️',
+        icon: '[[DE_ICON_054]]',
         desc: 'Desmontar racks de servidores autoritativos concurrentes con balanceo de carga en la nube de gigantes del sector.'
     }
 ];
@@ -903,7 +903,7 @@ class ScopeDAG {
             const mgr = this.options.techTreeManager;
             if (mgr && typeof mgr.isUnlocked === 'function') {
                 if (!mgr.isUnlocked(nodeId)) {
-                    return { success: false, reason: `🔒 Tecnología bloqueada: Debes investigarla en el Laboratorio de I+D antes de incorporarla al videojuego.` };
+                    return { success: false, reason: `[[DE_ICON_093]] Tecnología bloqueada: Debes investigarla en el Laboratorio de I+D antes de incorporarla al videojuego.` };
                 }
             }
             // Check prerequisites
@@ -1564,7 +1564,7 @@ class TechnicalDebtManager {
                 remainingProgress: targetNode.progress,
                 lossPercentage: Math.round(lossRatio * 100),
                 newBugs: 2 + Math.floor(this.rawDebt / 30),
-                message: `⚠️ Regresión de código: el módulo de "${targetNode.name}" se ha desestabilizado perdiendo un ${Math.round(lossRatio * 100)}% de avance.`
+                message: `[[DE_ICON_016]] Regresión de código: el módulo de "${targetNode.name}" se ha desestabilizado perdiendo un ${Math.round(lossRatio * 100)}% de avance.`
             };
 
             this.regressionHistory.unshift(regressionEvent);
@@ -1787,7 +1787,7 @@ class InHouseEngine {
             newEfficiency: 1.0,
             bakedNodesCount: this.bakedNodes.length,
             version: this.version,
-            message: `🚀 Motor in-house "${this.name}" actualizado a v${this.version}.0. Obsolescencia reseteada al 100% de eficiencia.`
+            message: `[[DE_ICON_024]] Motor in-house "${this.name}" actualizado a v${this.version}.0. Obsolescencia reseteada al 100% de eficiencia.`
         };
     }
 
@@ -1814,7 +1814,7 @@ class InHouseEngine {
         return {
             success: true,
             contract,
-            message: `🤝 ¡Contrato de Licenciamiento firmado! ${studioName} pagará $${monthlyFee.toLocaleString()}/mes por utilizar tu tecnología.`
+            message: `[[DE_ICON_025]] ¡Contrato de Licenciamiento firmado! ${studioName} pagará $${monthlyFee.toLocaleString()}/mes por utilizar tu tecnología.`
         };
     }
 
