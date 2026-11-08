@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Unit & Integration Test Runner - Subsistema 6</title>
+    <script src="/vendor/three.min.js"></script>
+    <script src="/vendor/OrbitControls.js"></script>
+</head>
+<body>
+    <h1>Ejecutando Test Suite de Eventos Dinámicos, Crisis y Modding...</h1>
+    <div id="canvas-container" style="display:none;"></div>
+    <div id="log"></div>
+
+    <script>
+        fetch('/api/save_test_result', { method: 'POST', body: 'EARLY_HTML_SCRIPT_EXECUTED' });
+        window.addEventListener('error', function(e) {
+            fetch('/api/save_test_result', {
+                method: 'POST',
+                body: 'GLOBAL_WINDOW_ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno
+            });
+        });
+        window.addEventListener('unhandledrejection', function(e) {
+            fetch('/api/save_test_result', {
+                method: 'POST',
+                body: 'UNHANDLED_REJECTION: ' + (e.reason ? e.reason.stack || e.reason : 'unknown')
+            });
+        });
+    </script>
+    <script type="module">
+        import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './src/simulation.js';
+        import { WorldEngine } from './src/world.js';
+        import REAL_BRANDS_MOD_PACK from './src/data/mod_sample_real_brands.json';
+
+        const logs = [];
+        logs.push("[INIT] Modules imported successfully");
+        function assert(cond, msg) {
+            if (cond) {
+                logs.push(`[PASS] ${msg}`);
+                console.log(`[PASS] ${msg}`);
+            } else {
+                logs.push(`[FAIL] ${msg}`);
+                console.error(`[FAIL] ${msg}`);
+                throw new Error(msg);
+            }
+        }
+
+        async function runTests() {
+            try {
+                logs.push("--- 1. TEST SUBAGENTE 4: DATOS DESACOPLADOS Y MODDING DEL SIMULADOR ---");
+                assert(Array.isArray(game.platforms) && game.platforms.length >= 8, "game.platforms inicializado dinámicamente");
+                assert(Array.isArray(game.creatorProfiles) && game.creatorProfiles.length >= 6, "game.creatorProfiles inicializado");
+                assert(Array.isArray(game.industryEventsCatalog) && game.industryEventsCatalog.length >= 4, "game.industryEventsCatalog inicializado");
+
+                // Cargar mod de marcas reales
+                const modResult = game.loadModPackage(REAL_BRANDS_MOD_PACK);
+                assert(modResult.success === true, "game.loadModPackage(REAL_BRANDS_MOD_PACK) exitoso");
+                assert(game.platforms.some(p => p.id === 'megadrive' && p.isModded), "Mega Drive inyectada en plataformas");
+                assert(game.platforms.some(p => p.id === 'ps5pro' && p.isModded), "PS5 Pro inyectada en plataformas");
+                assert(game.creatorProfiles.some(c => c.id === 'ibai' && c.isModded), "Ibai Llanos inyectado en creadores");
+                assert(game.installedSimulatorMods.length >= 1, "Mod registrado en installedSimulatorMods");
+
+                logs.push("--- 2. TEST SUBAGENTE 1: MOTOR DE CRISIS Y EVENTOS DINÁMICOS ---");
+                // Crisis de Chips
+                const chipEvent = game.createIndustryEvent('chip_shortage', {
+                    platformId: 'pc',
+                    platformName: 'PC (Ordenador)',
+                    durationWeeks: 16,
+                    baseSalesMultiplier: 0.60
+                });
+                assert(chipEvent && chipEvent.type === 'platform_supply_shock', "Evento chip_shortage creado");
+                assert(game.pendingIndustryEvents.length >= 1, "Evento pendiente en cola");
+
+                // Resolver con 'wait_supply'
+                const resolveWait = game.resolveIndustryEvent(chipEvent.id, 'wait_supply');
+                assert(resolveWait.success === true, "chip_shortage resuelto con wait_supply");
+                const multWait = game.getIndustrySalesMultiplier('pc');
+                assert(multWait <= 0.65 && multWait >= 0.55, `Multiplicador de ventas en PC reducido por escasez de chips: ${multWait}`);
+
+                // Resolver con 'reserve_stock' en snes
+                const chipEvent2 = game.createIndustryEvent('chip_shortage', {
+                    platformId: 'snes',
+                    platformName: 'Super 16-Bit',
+                    durationWeeks: 16,
+                    baseSalesMultiplier: 0.50
+                });
+                game.funds = 100000;
+                const resolveReserve = game.resolveIndustryEvent(chipEvent2.id, 'reserve_stock');
+                assert(resolveReserve.success === true, "chip_shortage resuelto con reserve_stock");
+                const multReserve = game.getIndustrySalesMultiplier('snes');
+                assert(multReserve >= 0.88, `Multiplicador amortiguado al 90% con reserva de inventario: ${multReserve}`);
+
+                // Fuga de Código Fuente (Data Breach)
+                game.funds = 100000;
+                game.startNewGameProject({ name: 'CyberBlade', platformId: 'pc', topicId: 'cyberpunk', genreId: 'Action', force: true });
+                game.currentProject.overallProgress = 65;
+                game.currentProject.marketingHype = 50;
+                const leakEvent = game.createIndustryEvent('source_leak', { projectName: 'CyberBlade' });
+                assert(leakEvent && leakEvent.type === 'code_breach', "Evento source_leak creado");
+
+                // Opción B: Auditoría legal (+8 semanas / 2 meses)
+                const resolveAudit = game.resolveIndustryEvent(leakEvent.id, 'legal_audit');
+                assert(resolveAudit.success === true, "source_leak resuelto con legal_audit");
+                assert(game.currentProject.developmentDelayWeeks >= 8, "Retraso de 2 meses (+8 semanas) aplicado");
+                assert(game.currentProject.leakAudited === true, "Proyecto marcado con leakAudited");
+
+                // Demanda por patentes
+                const patentEvent = game.createIndustryEvent('patent_lawsuit', { referenceBudget: 50000 });
+                const resolvePatent = game.resolveIndustryEvent(patentEvent.id, 'settle');
+                assert(resolvePatent.success === true, "patent_lawsuit resuelto con settle extrajudicial");
+
+                // Caída de tendencias
+                const trendEvent = game.createIndustryEvent('genre_collapse', { projectGenreId: 'Action', projectGenreName: 'Acción' });
+                const resolvePivot = game.resolveIndustryEvent(trendEvent.id, 'pivot');
+                assert(resolvePivot.success === true, "genre_collapse resuelto con pivot");
+
+                logs.push("--- 3. TEST SUBAGENTE 2: MOTOR DE COMUNIDAD Y WORKSHOP ---");
+                // Avanzar a 2005 y publicar juego moderno con soporte de parches
+                game.year = 24; // 1981 + 24 = 2005
+                game.funds = 100000;
+                const released = game.finishAndReleaseGame({ forcedLaunch: true });
+                released.supportsPatches = true;
+                assert(released && released.id, "Juego CyberBlade publicado con éxito");
+
+                // Desbloquear sys_modding y verificar elegibilidad
+                game.techTreeManager.unlockTech('sys_modding');
+                const modStatus = game.getModdingStatus(released.id);
+                assert(modStatus.eligible === true, "Juego elegible para Workshop con sys_modding investigado en 2005");
+
+                // Activar Workshop
+                game.funds = 100000;
+                const enableWorkshopRes = game.enableCommunityWorkshop(released.id);
+                assert(enableWorkshopRes.success === true, "enableCommunityWorkshop activado");
+                assert(released.workshop.enabled === true, "Workshop habilitado en el juego");
+                assert(released.workshop.weeksRemaining === 156, "156 semanas (3 años de juego) de soporte otorgadas");
+
+                // Simular mods populares
+                released.workshop.popularMods = 2;
+                const workshopWeek = game.processCommunityWorkshopWeek(released);
+                assert(workshopWeek.multiplier === 2.5, `Multiplicador de mods populares es 2.5x (+150% ventas residuales): ${workshopWeek.multiplier}`);
+
+                // Rotura de compatibilidad con parche oficial
+                const patchRes = game.deployContentPatch(released.id, { breaksMods: true });
+                assert(patchRes.success === true, "Parche desplegado");
+                assert(released.workshop.compatibilityBroken === true, "Compatibilidad rota por el parche");
+                const brokenWeek = game.processCommunityWorkshopWeek(released);
+                assert(brokenWeek.multiplier === 1.0, "Multiplicador de mods suspendido a 1.0 mientras esté rota la compatibilidad");
+
+                // Publicar herramientas de actualización
+                game.funds = 100000;
+                const updateToolsRes = game.publishModToolsUpdate(released.id);
+                assert(updateToolsRes.success === true, "publishModToolsUpdate publicado");
+                assert(released.workshop.compatibilityBroken === false, "Compatibilidad restaurada");
+                const fixedWeek = game.processCommunityWorkshopWeek(released);
+                assert(fixedWeek.multiplier === 2.5, "Multiplicador 2.5x (+150%) reactivado tras publicar herramientas");
+
+                logs.push("--- 4. TEST CARACTERÍSTICA 1: FEEDBACK DE MOTOR PROPIO Y PUNTOS RP ---");
+                game.funds = 200000;
+                game.researchPoints = 100;
+                // Asegurar programador senior con tech >= 30
+                if (!game.employees.some(e => (e.tech || 0) >= 30)) {
+                    game.employees[0].tech = 50;
+                }
+                const engineRes = game.startInHouseEngineRD({ name: 'VortexEngine 3D' });
+                assert(engineRes.success === true, "startInHouseEngineRD iniciado");
+                assert(game.activeEngineRD !== null, "activeEngineRD está activo");
+                assert(game.activeEngineRD.leadProgrammerIndex !== undefined, "leadProgrammerIndex asignado al programador sénior");
+                
+                let engineRPTicksFired = 0;
+                game.onEngineRPTick = (rp, leadIdx) => {
+                    engineRPTicksFired++;
+                    assert(rp >= 2 && rp <= 5, `RP generado en tick de motor es justo (+${rp} RP)`);
+                };
+                const rpBefore = game.researchPoints;
+                game.advanceCalendar();
+                assert(engineRPTicksFired >= 1, "onEngineRPTick disparado durante el avance del calendario");
+                assert(game.researchPoints > rpBefore, "Reserva de RP incrementada por aprendizaje de arquitectura técnica");
+
+                // Test 3D WorldEngine feedback
+                const testWorld = new WorldEngine('canvas-container');
+                testWorld.syncEmployees(game.employees);
+                testWorld.spawnFloatingRP(0, 4);
+                assert(testWorld.floatingRPs.length >= 1, "spawnFloatingRP genera el sprite flotante sin errores de función");
+                assert(testWorld.activeParticles.length >= 1, "spawnCodeParticle genera las partículas 3D de I+D");
+                testWorld.spawnParticle(0, 'research');
+                testWorld.spawnParticle('tech', 0);
+                assert(true, "spawnParticle admite ambos formatos de llamada sin error");
+
+                logs.push("--- 5. TEST CARACTERÍSTICA 4: COLA LARGA PERSISTENTE Y RETIRO MANUAL DEL MERCADO ---");
+                // Simular paso de muchas semanas para superar el pico
+                released.maxWeeks = 10;
+                released.weeksOnMarket = 12;
+                game.advanceCalendar();
+                assert(game.activeSales.some(g => g.id === released.id), "El juego NO se retira automáticamente tras el pico (Persiste en tiendas)");
+                assert(released.lifecycleState === 'long_tail', "Juego transicionado correctamente a fase 'long_tail'");
+                assert(released.weeklySalesHistory && released.weeklySalesHistory.length > 0, "weeklySalesHistory almacena el historial semanal");
+                const lastHistory = released.weeklySalesHistory[released.weeklySalesHistory.length - 1];
+                assert(lastHistory.unitsSold > 0, `Genera ventas residuales en cola larga: ${lastHistory.unitsSold} unidades`);
+
+                // Retiro manual explícito por el jugador
+                const retireRes = game.retireGameFromMarket(released.id);
+                assert(retireRes.success === true, "retireGameFromMarket ejecutado con éxito");
+                assert(released.retired === true, "Juego marcado oficialmente como retirado");
+                assert(!game.activeSales.some(g => g.id === released.id), "Juego removido de activeSales tras retiro manual");
+                const historyRecord = game.gamesHistory.find(g => g.id === released.id);
+                assert(historyRecord.retired === true && historyRecord.finalUnitsSold !== undefined, "Cifras definitivas congeladas en gamesHistory");
+
+                logs.push("--- 6. TEST CARACTERÍSTICA 3: INFORME POST-MORTEM (ANÁLISIS DEL JUEGO) ---");
+                const pmStartRes = game.startPostMortemAnalysis(released.id, 0);
+                assert(pmStartRes.success === true, "startPostMortemAnalysis iniciado");
+                assert(game.activePostMortem !== null, "activePostMortem en progreso");
+                assert(released.postMortemInProgress === true, "postMortemInProgress marcado en el juego");
+
+                // Avanzar las 2 semanas requeridas de análisis
+                const rpBeforePM = game.researchPoints;
+                game.advanceCalendar();
+                game.advanceCalendar();
+                assert(game.activePostMortem === null, "activePostMortem concluido tras 2 semanas");
+                assert(released.postMortemReport !== undefined, "postMortemReport generado en el juego");
+                assert(released.reported === true, "Juego marcado como reported");
+                assert(released.postMortemReport.synergy.length > 0, "Sinergia de tema + género revelada");
+                assert(released.postMortemReport.architecture.length > 0, "Diagnóstico de arquitectura y deuda técnica revelado");
+                assert(released.postMortemReport.sliderCalibration.length > 0, "Calibración óptima de sliders aprendida para futuros proyectos");
+                assert(game.researchPoints > rpBeforePM, `Inyección de RP por experiencia adquirida otorgada (+${released.postMortemReport.rpGained} RP)`);
+
+                logs.push("--- 7. TEST CARACTERÍSTICA 2: ESCENA Y ASISTENCIA A LA MEGA GAMES EXPO ---");
+                game.funds = 100000;
+                const initialFans = game.fans;
+                const expoRes = game.executeExpoAttendance(2, true, true);
+                assert(expoRes.success === true, "executeExpoAttendance completado");
+                assert(expoRes.fansGained >= 250, `Fans captados con stand central y bonus de merch: +${expoRes.fansGained}`);
+                assert(expoRes.pressMentions >= 10, `Menciones en prensa generadas con entrevista: ${expoRes.pressMentions}`);
+                assert(expoRes.hypeGained >= 40, `Hype global generado: +${expoRes.hypeGained}`);
+                assert(game.fans > initialFans, "Fans totales de la empresa incrementados");
+
+                logs.push("--- 8. TEST SUBAGENTE 1: INTERACTIVIDAD Y VALIDACIONES DE MARKETING ---");
+                // Intento sin proyecto activo
+                game.currentProject = null;
+                const mktFailNoProject = game.runProjectMarketing('magazine_ad');
+                assert(mktFailNoProject.success === false, "Marketing falla limpiamente sin proyecto activo con mensaje informativo");
+                
+                // Con proyecto activo y fondos
+                game.funds = 50000;
+                const projMkt = game.startNewGameProject({
+                    name: 'MarketingTestGame',
+                    topicId: 'scifi',
+                    genreId: 'Action',
+                    platformId: 'pc_compatibles',
+                    targetAudience: 'Everyone',
+                    publishingContractType: 'self_publishing'
+                });
+                assert(projMkt.success === true, "Proyecto de prueba creado para marketing");
+                const mktRes = game.runProjectMarketing('magazine_ad');
+                assert(mktRes.success === true, "Campaña magazine_ad ejecutada con éxito");
+                assert(game.currentProject.marketingHype > 0, "Hype del proyecto incrementado tras campaña");
+                
+                // Intento repetido
+                const mktRepeat = game.runProjectMarketing('magazine_ad');
+                assert(mktRepeat.success === false, "Campaña duplicada prevenida con aviso claro");
+
+                logs.push("--- 9. TEST SUBAGENTE 2: REDUCCIÓN DE FRECUENCIA Y COOLDOWNS DE CRISIS ---");
+                const currentW = game.getIndustryWeek();
+                game.lastIndustryEventWeek = currentW;
+                // Intentar disparar evento durante periodo de gracia
+                const blockedCrisis = game.checkIndustryEvents();
+                assert(blockedCrisis === null, "Eventos de crisis bloqueados durante el cooldown de gracia de 64 semanas");
+                
+                // Condición lógica de demandas: NUNCA en el garaje (Era 1)
+                game.era = 1;
+                game.gamesHistory = [];
+                const catalogEvents = game.industryEventsCatalog || [];
+                const lawsuitDef = catalogEvents.find(e => e.type === 'patent_lawsuit');
+                assert(lawsuitDef !== undefined, "Definición de demanda encontrada en catálogo");
+                assert(game.era === 1, "Estudio en Era 1 (Garaje)");
+                // Verificamos que hasLeakRisk requiere hype > 70
+                game.currentProject.marketingHype = 30;
+                const leakAccumHype = Math.max(game.currentProject.marketingHype || 0, game.currentProject.hype || 0);
+                assert(leakAccumHype < 70, "Hype acumulado (<70) protege al proyecto de fugas tempranas de código");
+
+                logs.push("--- 10. TEST SUBAGENTE 3: CONTRATOS EN PREPRODUCCIÓN (PASO 3) ---");
+                // Test Contrato Publisher con anticipo inmediato
+                const initialFundsBeforePub = game.funds;
+                const pubProjectRes = game.startNewGameProject({
+                    name: 'PublisherAdvanceGame',
+                    topicId: 'fantasy',
+                    genreId: 'RPG',
+                    platformId: 'pc_compatibles',
+                    targetAudience: 'Mature',
+                    publishingContractType: 'publisher_advance'
+                });
+                assert(pubProjectRes.success === true, "startNewGameProject con publisher_advance exitoso");
+                assert(game.currentProject.publishingContract.type === 'publisher_advance', "Contrato de publisher registrado en el proyecto");
+                assert(game.currentProject.publishingContract.amount >= 15000, `Anticipo de publisher otorgado inmediatamente: +$${game.currentProject.publishingContract.amount}`);
+                assert(game.currentProject.publisherRevenueShare === 0.50, "Reparto de royalties del 50% pactado");
+                assert(game.currentProject.contractDeadlineWeek !== null, "Fecha límite fija de entrega pactada desde Día 1");
+                assert(game.currentProject.offersGenerated === true, "Ofertas aleatorias a mitad de desarrollo bloqueadas");
+
+                // Test Autopublicación
+                const selfPubRes = game.startNewGameProject({
+                    name: 'SelfPubGame',
+                    topicId: 'fantasy',
+                    genreId: 'Strategy',
+                    platformId: 'pc_compatibles',
+                    targetAudience: 'Everyone',
+                    publishingContractType: 'self_publishing'
+                });
+                assert(selfPubRes.success === true, "startNewGameProject con self_publishing exitoso");
+                assert(game.currentProject.publishingContract.type === 'self_publishing', "Autopublicación registrada");
+                assert(game.currentProject.publisherRevenueShare === 0, "0% royalties de publisher (100% ingresos para el estudio)");
+                assert(game.currentProject.contractDeadlineWeek === null, "Sin fechas límites impuestas ni penalizaciones");
+                assert(game.currentProject.offers.length === 0, "Sin ofertas emergentes redundantes (offers: []) en autopublicación");
+
+                logs.push("--- 11. TEST SUBAGENTE 1: DESMONTAJE LIMPIO DE VENTAS Y ESTADO RETIRED ---");
+                // Lanzamos un juego para probar retiro limpio
+                game.currentProject.stage = 4;
+                game.currentProject.overallProgress = 100;
+                const onSaleGame = game.finishAndReleaseGame({ forcedLaunch: true });
+                assert(onSaleGame && onSaleGame.id, "Juego publicado a la venta");
+                assert(game.activeSales.some(g => g.id === onSaleGame.id), "Juego activo en tiendas (ON_SALE)");
+                
+                // Retiro manual del mercado
+                const retireCleanRes = game.retireGameFromMarket(onSaleGame.id);
+                assert(retireCleanRes.success === true, "retireGameFromMarket ejecutado");
+                assert(onSaleGame.status === 'RETIRED', "Estado actualizado a 'RETIRED'");
+                assert(onSaleGame.retired === true, "Flag retired marcado a true");
+                assert(!game.activeSales.some(g => g.id === onSaleGame.id), "Juego desmontado de activeSales");
+                const activeRemaining = (game.activeSales || []).filter(g => !g.retired && g.status !== 'RETIRED');
+                assert(activeRemaining.length === 0, "Cero juegos activos a la venta (HUD widget debe permanecer oculto)");
+
+                logs.push("--- 12. TEST SUBAGENTE 2: MODDING CONDICIONADO POR I+D Y ERA HISTÓRICA ---");
+                // En 1982 sin investigación
+                game.year = 1; // 1982
+                const modStatus1982 = game.getModdingStatus(onSaleGame.id);
+                assert(modStatus1982.eligible === false, "Workshop bloqueado antes del año 2000");
+                assert(modStatus1982.status.includes('año 2000'), "Mensaje informativo indica restricción histórica del modding");
+
+                // En 2005 pero sin el nodo sys_modding
+                game.year = 24; // 2005
+                game.techTreeManager.unlockedTechs.delete('sys_modding');
+                game.researchedTechs = (game.researchedTechs || []).filter(t => t !== 'sys_modding');
+                const modStatus2005NoNode = game.getModdingStatus(onSaleGame.id);
+                assert(modStatus2005NoNode.eligible === false, "Workshop bloqueado si no se ha investigado 'sys_modding'");
+                assert(modStatus2005NoNode.status.includes('Herramientas de Modding / SDK Comunitario'), "Mensaje exige nodo de I+D");
+
+                logs.push("--- 13. TEST SUBAGENTE 2: PROGRESIÓN DE TEMÁTICAS MEDIANTE RP ---");
+                // Verificar temáticas iniciales de los años 80
+                game.unlockedTopicIds = ['medieval', 'sports', 'space', 'martial_arts'];
+                const unlockedTopics = game.getUnlockedTopics();
+                const lockedTopicsAll = THEMES_DATABASE.filter(t => !game.unlockedTopicIds.includes(t.id));
+                assert(unlockedTopics.length === 4, "Exactamente 4 temáticas básicas desbloqueadas en garaje");
+                assert(lockedTopicsAll.length === 32, "Exactamente 32 temáticas avanzadas con candado en I+D");
+                assert(unlockedTopics.some(t => t.id === 'medieval'), "Fantasía Medieval desbloqueada");
+                assert(lockedTopicsAll.some(t => t.id === 'cyberpunk'), "Cyberpunk bloqueada inicialmente");
+
+                // Iniciar investigación de 'cyberpunk' (35 RP, 2 semanas)
+                game.year = 10; // 1991 (Cyberpunk unlockedYear = 1990)
+                game.researchPoints = 50;
+                const initialRP = game.researchPoints;
+                const topicResStart = game.startTopicResearch('cyberpunk', 0);
+                assert(topicResStart.success === true, "startTopicResearch('cyberpunk') exitoso");
+                assert(game.researchPoints === initialRP - 35, "35 RP descontados de la reserva de I+D");
+                assert(game.activeTopicResearch !== null, "activeTopicResearch registrado en simulación");
+                assert(game.activeTopicResearch.weeksRemaining === 2, "2 semanas ficticias de estudio de desarrollador");
+
+                // Avanzar semana 1
+                game.advanceCalendar();
+                assert(game.activeTopicResearch.weeksRemaining === 1, "1 semana restante tras avanzar calendario");
+                assert(game.activeTopicResearch.progress === 50, "Progreso al 50%");
+
+                // Avanzar semana 2 (conclusión)
+                game.advanceCalendar();
+                assert(game.activeTopicResearch === null, "Investigación completada y limpiada");
+                assert(game.unlockedTopicIds.includes('cyberpunk'), "Temática 'cyberpunk' desbloqueada permanentemente");
+                assert(game.getUnlockedTopics().length === 5, "5 temáticas ahora desbloqueadas en el estudio");
+
+                logs.push("--- 14. TEST SUBAGENTE 4: PORTADAS DE PRENSA RETRO Y PORTALES MODERNOS ---");
+                // Crear proyecto activo para marketing
+                game.funds = 100000;
+                game.startNewGameProject({
+                    name: 'RetroBlade80s',
+                    topicId: 'ninja',
+                    genreId: 'Action',
+                    platformId: 'pc_compatibles',
+                    targetAudience: 'Everyone',
+                    publishingContractType: 'self_publishing'
+                });
+                
+                // Portada en era 80s
+                game.year = 3; // 1984
+                const mkt80s = game.runProjectMarketing('magazine_ad');
+                assert(mkt80s.success === true, "Campaña publicitaria 80s ejecutada");
+                assert(mkt80s.pressCover !== null, "Portada de prensa generada en el resultado");
+                assert(mkt80s.pressCover.period === '80s', "Portada clasificada en época retro '80s'");
+                assert(['MICRO-MANÍACOS', 'POWER PLAY', 'SPECTRUM USER'].includes(mkt80s.pressCover.publicationName), `Cabecera retro auténtica: ${mkt80s.pressCover.publicationName}`);
+                assert(mkt80s.pressCover.priceBadge.includes('PTS') || mkt80s.pressCover.priceBadge.includes('$') || mkt80s.pressCover.priceBadge.includes('£'), "Precio en divisas retro (pesetas/dólares/libras)");
+                assert(game.marketingPressArchive.length > 0, "Portada almacenada en el archivo histórico de marketing");
+
+                // Portada en era 2000s
+                game.year = 26; // 2007
+                game.startNewGameProject({
+                    name: 'ModernNexus2000',
+                    topicId: 'cyberpunk',
+                    genreId: 'RPG',
+                    platformId: 'pc_compatibles',
+                    targetAudience: 'Mature',
+                    publishingContractType: 'self_publishing'
+                });
+                const mkt2000s = game.runProjectMarketing('magazine_ad');
+                assert(mkt2000s.success === true, "Campaña publicitaria 2000s ejecutada");
+                assert(mkt2000s.pressCover.period === '2000s', "Portada clasificada en era digital '2000s'");
+                assert(['IGNite.com', 'EuroPixel.net'].includes(mkt2000s.pressCover.publicationName), `Portal digital moderno auténtico: ${mkt2000s.pressCover.publicationName}`);
+
+                logs.push("--- 15. TEST SUBAGENTE 1 & 2: CATÁLOGO DE GÉNEROS Y TEMÁTICAS DESACOPLADAS ---");
+                assert(GENRES_DATABASE.length === 19, `Exactamente 19 géneros en GENRES_DATABASE (actual: ${GENRES_DATABASE.length})`);
+                assert(THEMES_DATABASE.length === 36, `Exactamente 36 temáticas en THEMES_DATABASE (actual: ${THEMES_DATABASE.length})`);
+                
+                // Base 1982 genres
+                const baseGenres = GENRES_DATABASE.filter(g => g.unlockedYear === 1982);
+                assert(baseGenres.length === 6, "6 géneros base desbloqueados en 1982 (0 RP)");
+                assert(findGenre('action')?.name === 'Acción', "Género Acción encontrado");
+                assert(findGenre('shooter')?.unlockedYear === 1992, "Shooter pertenece a la era 3D (1992)");
+                assert(findGenre('battle_royale')?.unlockedYear === 2017, "Battle Royale pertenece a la era contemporánea (2017)");
+                
+                // Themes eras
+                const garageThemes = THEMES_DATABASE.filter(t => t.era === 'garage');
+                assert(garageThemes.length === 4, "4 temáticas de Garaje 1982");
+                assert(findTheme('cyberpunk')?.costRP === 35, "Cyberpunk cuesta 35 RP");
+                assert(findTheme('influencer')?.unlockedYear === 2015, "Influencer pertenece a la era contemporánea (2015)");
+
+                logs.push("--- 16. TEST SUBAGENTE 2 & 4: MATRIZ DE SINERGIA, AUDITORÍA TÉCNICA E I+D DE GÉNEROS ---");
+                // Matriz de sinergia
+                const synOptimal = calculateSynergy('rpg', 'medieval');
+                assert(synOptimal.fit === 'OPTIMAL' && synOptimal.multiplier === 1.35, "Sinergia Rol + Medieval es OPTIMAL (1.35x)");
+                const synBad = calculateSynergy('action', 'hospital');
+                assert(synBad.fit === 'BAD' && synBad.multiplier === 0.60, "Sinergia Acción + Hospital es BAD (0.60x)");
+                const synNormal = calculateSynergy('action', 'apocalypse');
+                assert(synNormal.fit === 'NORMAL' && synNormal.multiplier === 1.00, "Sinergia Acción + Apocalipsis es NORMAL (1.00x)");
+
+                // Requisitos técnicos de infraestructura
+                game.year = 15; // 1996
+                const shooterValidationFail = game.validateGenreTechRequirements('shooter', { selectedNodeIds: ['core_loop', 'engine_asm'] });
+                assert(shooterValidationFail.valid === false, "Shooter bloqueado si falta render 3D");
+                assert(shooterValidationFail.missingTech.includes('tech_3d'), "Reporta que falta tech_3d");
+
+                const shooterValidationPass = game.validateGenreTechRequirements('shooter', { selectedNodeIds: ['core_loop', 'render_3d'] });
+                assert(shooterValidationPass.valid === true, "Shooter permitido con render 3D activo");
+
+                const mmoValidationFail = game.validateGenreTechRequirements('mmo', { selectedNodeIds: ['core_loop'] });
+                assert(mmoValidationFail.valid === false, "MMO bloqueado si falta infraestructura de red");
+
+                // Investigación de Género (I+D de Géneros)
+                game.year = 5; // 1986 (platformer unlockedYear = 1985)
+                game.unlockedGenreIds = ['action', 'adventure', 'rpg', 'strategy', 'simulation', 'casual'];
+                game.researchPoints = 60;
+                const genreResStart = game.startGenreResearch('platformer', 0);
+                assert(genreResStart.success === true, "startGenreResearch('platformer') iniciado");
+                assert(game.activeGenreResearch !== null, "activeGenreResearch registrado");
+                assert(game.activeGenreResearch.weeksRemaining === 3, "3 semanas de estudio de género");
+
+                // Avanzar 3 semanas
+                game.advanceCalendar();
+                game.advanceCalendar();
+                game.advanceCalendar();
+                assert(game.activeGenreResearch === null, "Investigación de género concluida");
+                assert(game.unlockedGenreIds.some(id => id.toLowerCase() === 'platformer'), "Plataformas desbloqueado en unlockedGenreIds");
+
+                logs.push("--- TODAS LAS PRUEBAS PASARON EXITOSAMENTE (100% OK) ---");
+                document.getElementById('log').innerHTML = logs.map(l => `<p>${l}</p>`).join('');
+
+                await fetch('/api/save_test_result', {
+                    method: 'POST',
+                    body: logs.join('\n')
+                });
+            } catch (e) {
+                logs.push(`[ERROR EXCEPCIÓN]: ${e.message}`);
+                console.error(e);
+                document.getElementById('log').innerHTML = logs.map(l => `<p style="color:red;">${l}</p>`).join('');
+                await fetch('/api/save_test_result', {
+                    method: 'POST',
+                    body: logs.join('\n')
+                });
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

@@ -334,6 +334,377 @@ body, html {
 #project-offers-container { position: relative; z-index: 20; pointer-events: auto; }
 #modal-contract-negotiation, #modal-contract-negotiation .modal-window { pointer-events: auto; }
 #modal-marketing, #modal-marketing .modal-window, #marketing-hub-content { pointer-events: auto; }
+#modal-industry-news, #modal-industry-news .modal-window, #industry-news-content,
+#modal-community-workshop, #modal-community-workshop .modal-window, #community-workshop-games { pointer-events: auto; }
+.industry-news-window, .workshop-window { max-width: 920px; max-height: 90vh; overflow-y: auto; }
+.industry-news-window { border-color: rgba(248, 189, 74, .45); }
+.industry-news-window.retro-news {
+    background: #f4ebd0 url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" opacity="0.03"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.8"/></filter><rect width="100" height="100" filter="url(%23n)"/></svg>');
+    color: #241c13;
+    border: 6px double #5c3a1e;
+    box-shadow: 0 25px 70px rgba(0,0,0,.9), inset 0 0 40px rgba(110,70,30,.15);
+    font-family: "Georgia", "Times New Roman", serif;
+}
+.retro-news .modal-title, .retro-news .modal-close, .retro-news .industry-news-headline {
+    color: #1a120b;
+    font-family: "Georgia", "Times New Roman", serif;
+    font-weight: 900;
+}
+.industry-news-kicker {
+    color: var(--accent-gold);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.retro-news .industry-news-kicker {
+    color: #6e2e0e;
+    border-bottom: 2px solid #5c3a1e;
+    padding-bottom: 8px;
+    font-size: 12px;
+}
+.industry-news-headline {
+    margin: 12px 0 10px;
+    color: #fff;
+    font-size: clamp(22px, 3.8vw, 32px);
+    line-height: 1.18;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+}
+.industry-news-body {
+    margin: 10px 0 18px;
+    color: var(--text-secondary);
+    line-height: 1.6;
+    font-size: 14px;
+}
+.retro-news .industry-news-body, .retro-news .industry-news-context {
+    color: #2c1e13;
+    font-size: 15px;
+    line-height: 1.55;
+}
+.industry-news-context {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.1);
+    border-left: 3px solid var(--accent-cyan);
+    color: var(--text-secondary);
+    font-size: 13px;
+    margin-bottom: 16px;
+}
+.retro-news .industry-news-context {
+    background: rgba(92, 58, 30, 0.08);
+    border-left: 3px solid #5c3a1e;
+    color: #3f2b1c;
+}
+
+/* Modal Moderno Wire Feed */
+.industry-news-window.modern-news {
+    background: linear-gradient(135deg, rgba(10, 18, 32, 0.96), rgba(15, 23, 42, 0.98));
+    border: 1px solid rgba(56, 189, 248, 0.4);
+    box-shadow: 0 0 45px rgba(56, 189, 248, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+.modern-news .industry-news-kicker {
+    color: #38bdf8;
+    animation: newsTickerPulse 2s infinite ease-in-out;
+}
+@keyframes newsTickerPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.65; }
+}
+
+.industry-choice-list { display: grid; gap: 12px; margin-top: 18px; }
+.industry-choice-card {
+    padding: 16px;
+    border: 1px solid rgba(148,163,184,.24);
+    border-radius: 12px;
+    background: rgba(15,23,42,.68);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+}
+.industry-choice-card:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    transform: translateY(-2px);
+}
+.retro-news .industry-choice-card {
+    background: #fffcf4;
+    border: 2px solid #9c724e;
+    color: #1a120b;
+    box-shadow: 3px 3px 0 #5c3a1e;
+}
+.retro-news .industry-choice-card:hover {
+    transform: none;
+    background: #fbf5e6;
+}
+.choice-main-info { flex: 1; min-width: 0; }
+.choice-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
+}
+.industry-choice-card h3 {
+    margin: 0;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+}
+.retro-news .industry-choice-card h3 { color: #1f140a; }
+.industry-choice-card p {
+    margin: 4px 0 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.45;
+}
+.retro-news .industry-choice-card p { color: #423020; font-size: 13.5px; }
+
+.choice-badges { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.choice-cost-tag {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(234, 179, 8, 0.18);
+    color: var(--accent-gold);
+    font-weight: 700;
+    font-size: 12px;
+}
+.choice-cost-tag.gratis {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--accent-green);
+}
+.retro-news .choice-cost-tag {
+    background: #edd5bd;
+    color: #6e2e0e;
+    border: 1px solid #aa6f3e;
+}
+.choice-time-tag {
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: rgba(148, 163, 184, 0.16);
+    color: #cbd5e1;
+    font-size: 12px;
+}
+.retro-news .choice-time-tag {
+    background: #e2ceb8;
+    color: #3b2615;
+}
+.choice-risks-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+}
+.choice-risk-tag {
+    font-size: 11px;
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.14);
+    padding: 2px 7px;
+    border-radius: 5px;
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.retro-news .choice-risk-tag {
+    color: #7f1d1d;
+    background: #f8d7da;
+    border-color: #f5c6cb;
+}
+.choice-action-col { flex: none; }
+
+/* Workshop Navegación por Pestañas */
+.workshop-nav-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    padding-bottom: 8px;
+}
+.workshop-tab-btn {
+    padding: 9px 16px;
+    border-radius: 9px;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    background: rgba(15, 23, 42, 0.6);
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.workshop-tab-btn:hover {
+    color: #fff;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+.workshop-tab-btn.active {
+    background: var(--accent-cyan);
+    color: #030712;
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+}
+
+.workshop-intro { margin: 0 0 16px; color: var(--text-secondary); font-size: 13.5px; line-height: 1.5; }
+.workshop-game-card {
+    padding: 16px;
+    border: 1px solid rgba(148,163,184,.24);
+    border-radius: 12px;
+    background: rgba(15,23,42,.65);
+    margin: 12px 0;
+}
+.workshop-game-card.card-warning {
+    border-color: rgba(239, 68, 68, 0.45);
+    background: rgba(30, 15, 20, 0.65);
+}
+.workshop-game-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.workshop-game-heading h3 { margin: 0 0 4px; color: #fff; font-size: 17px; }
+.workshop-game-heading p { margin: 0; color: var(--text-secondary); font-size: 12px; }
+
+.workshop-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+.badge-active { background: rgba(34, 197, 94, 0.2); color: var(--accent-green); border: 1px solid rgba(34, 197, 94, 0.4); }
+.badge-broken { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); }
+.badge-ready { background: rgba(56, 189, 248, 0.2); color: var(--accent-cyan); border: 1px solid rgba(56, 189, 248, 0.4); }
+.badge-locked { background: rgba(148, 163, 184, 0.15); color: var(--text-secondary); border: 1px solid rgba(148, 163, 184, 0.25); }
+
+.workshop-metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+    gap: 10px;
+    margin: 14px 0;
+}
+.metric-box {
+    padding: 10px;
+    border-radius: 8px;
+    background: rgba(2, 6, 23, 0.45);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+}
+.metric-box small { display: block; color: var(--text-secondary); font-size: 11px; margin-bottom: 4px; }
+.metric-box strong { font-size: 16px; color: #fff; }
+
+.workshop-engagement-bar-container {
+    width: 100%;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-top: 6px;
+}
+.workshop-engagement-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #38bdf8, #22c55e);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.workshop-mod-list {
+    list-style: none;
+    display: grid;
+    gap: 8px;
+    margin: 10px 0;
+    padding: 0;
+}
+.workshop-mod-list li {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(2,6,23,.5);
+    color: #fff;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(148,163,184,.12);
+}
+.workshop-mod-list li.popular-mod-item {
+    border-color: rgba(234, 179, 8, 0.4);
+    background: rgba(234, 179, 8, 0.08);
+}
+.workshop-mod-list li span, .workshop-empty { color: var(--text-secondary); font-size: 11.5px; }
+.workshop-compatible { color: var(--accent-green); font-size: 12.5px; font-weight: 800; display: inline-flex; align-items: center; gap: 6px; }
+.workshop-actions { display: flex; justify-content: flex-end; margin-top: 12px; }
+
+/* Dashboard de Modding del Simulador */
+.simulator-mods-dashboard { display: grid; gap: 16px; }
+.sim-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+}
+.sim-stat-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(56, 189, 248, 0.2);
+}
+.sim-stat-card .stat-icon { font-size: 26px; }
+.sim-stat-card strong { font-size: 18px; color: #fff; }
+
+.sim-mod-actions-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 12px;
+    background: rgba(8, 20, 36, 0.65);
+    border: 1px dashed rgba(56, 189, 248, 0.35);
+}
+.installed-mod-list { display: grid; gap: 8px; margin-top: 8px; }
+.installed-mod-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border-radius: 9px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+}
+.platforms-pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+.platform-chip {
+    padding: 5px 10px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    color: #e2e8f0;
+    font-size: 12px;
+}
+.platform-chip.chip-mod {
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(56, 189, 248, 0.12);
+    color: #38bdf8;
+    font-weight: 700;
+}
+.btn-danger {
+    background: #dc2626 !important;
+    border-color: #ef4444 !important;
+    color: #fff !important;
+}
+
+@media (max-width: 650px) {
+    .industry-choice-card { align-items: flex-start; flex-direction: column; }
+    .workshop-game-heading { align-items: flex-start; }
+    .choice-header-row { flex-direction: column; align-items: flex-start; }
+}
 .marketing-window { max-width: 1040px; max-height: 88vh; overflow-y: auto; }
 .marketing-summary { display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0 18px; }
 .marketing-summary span { padding: 8px 11px; border-radius: 9px; background: rgba(15,23,42,.78); color: #cbd5e1; font-size: 12px; }
@@ -2526,3 +2897,1251 @@ body, html {
     color: #bae6fd;
     font-weight: 600;
 }
+
+/* ==========================================================================
+   MEGA GAME EXPO CONVENTION SCENE & SALES ANALYTICS
+   ========================================================================== */
+
+.expo-scene-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #a855f7, #3b82f6);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.expo-scene-viewport {
+    position: relative;
+    width: 100%;
+    height: 320px;
+    background: radial-gradient(circle at 50% 30%, #1e1b4b 0%, #0f172a 70%, #020617 100%);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.expo-booth-stage {
+    position: relative;
+    width: 100%;
+    height: 200px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding-top: 14px;
+    transition: all 0.3s ease;
+}
+
+/* Tier 1: Stand Pequeño Indie */
+.expo-booth-stage.tier-1 {
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border-bottom: 2px solid #38bdf8;
+}
+
+/* Tier 2: Gran Expositor Central */
+.expo-booth-stage.tier-2 {
+    background: linear-gradient(180deg, rgba(67, 56, 202, 0.5) 0%, rgba(15, 23, 42, 0.95) 100%);
+    border-bottom: 3px solid #818cf8;
+    box-shadow: inset 0 0 35px rgba(99, 102, 241, 0.3);
+}
+
+/* Tier 3: Keynote Principal AAA */
+.expo-booth-stage.tier-3 {
+    background: linear-gradient(180deg, rgba(147, 51, 234, 0.6) 0%, rgba(15, 23, 42, 0.98) 100%);
+    border-bottom: 3px solid #f43f5e;
+    box-shadow: inset 0 0 60px rgba(244, 63, 94, 0.35);
+}
+
+.expo-booth-banner {
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+    padding: 8px 24px;
+    text-align: center;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.5);
+    z-index: 5;
+}
+
+.expo-booth-banner strong {
+    font-size: 16px;
+    color: #fff;
+    display: block;
+}
+
+.expo-showcased-game {
+    font-size: 12px;
+    color: #38bdf8;
+    margin-top: 2px;
+}
+
+.expo-booth-screens {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    margin-top: 14px;
+    width: 90%;
+}
+
+.expo-screen {
+    background: #020617;
+    border: 2px solid #38bdf8;
+    border-radius: 6px;
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.4);
+    position: relative;
+    overflow: hidden;
+}
+
+.expo-screen.screen-center {
+    width: 240px;
+    height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #a7f3d0;
+    text-shadow: 0 0 8px #10b981;
+    background: radial-gradient(circle, #064e3b 0%, #022c22 100%);
+}
+
+.expo-screen.screen-left,
+.expo-screen.screen-right {
+    width: 90px;
+    height: 70px;
+    opacity: 0.7;
+    background: radial-gradient(circle, #312e81 0%, #0f172a 100%);
+    border-color: #818cf8;
+}
+
+.screen-scanline {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+    background-size: 100% 4px;
+    pointer-events: none;
+}
+
+/* Floor & Pedestrian Hallway */
+.expo-floor {
+    position: relative;
+    width: 100%;
+    height: 120px;
+    background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+    overflow: hidden;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.expo-visitor {
+    position: absolute;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    transition: transform 0.1s linear;
+    z-index: 10;
+}
+
+.expo-visitor-avatar {
+    font-size: 28px;
+    filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+}
+
+.expo-visitor-bubble {
+    position: absolute;
+    bottom: 34px;
+    background: rgba(15, 23, 42, 0.95);
+    border: 1.5px solid #38bdf8;
+    border-radius: 16px;
+    padding: 2px 8px;
+    font-size: 18px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    animation: popBubble 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    white-space: nowrap;
+}
+
+@keyframes popBubble {
+    0% { transform: scale(0.2) translateY(10px); opacity: 0; }
+    80% { transform: scale(1.15) translateY(-2px); opacity: 1; }
+    100% { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.expo-metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+}
+
+.expo-metric-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.chart-tooltip {
+    transition: opacity 0.15s ease;
+}
+
+/* ==========================================================================
+   HUD LIVE SALES WIDGET (ON-SCREEN REAL-TIME EVOLVING SALES REPORT)
+   ========================================================================== */
+
+.hud-sales-widget {
+    position: fixed;
+    top: 76px;
+    right: 20px;
+    width: 290px;
+    background: rgba(15, 23, 42, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 14px;
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.65), 0 0 20px rgba(56, 189, 248, 0.15);
+    z-index: 100;
+    pointer-events: auto;
+    font-family: inherit;
+    color: #fff;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    overflow: hidden;
+}
+
+.hud-sales-widget.minimized {
+    width: 260px;
+    border-color: rgba(56, 189, 248, 0.5);
+    background: rgba(15, 23, 42, 0.95);
+}
+
+.hud-sales-widget.minimized .hud-sales-body {
+    display: none;
+}
+
+.hud-sales-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.3) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hud-sales-score-ring {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(16, 185, 129, 0.25) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 2px solid #10b981;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: #a7f3d0;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.3);
+    flex-shrink: 0;
+}
+
+.hud-sales-score-ring.score-high {
+    border-color: #10b981;
+    color: #a7f3d0;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.4);
+}
+.hud-sales-score-ring.score-med {
+    border-color: #38bdf8;
+    color: #bae6fd;
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+.hud-sales-score-ring.score-low {
+    border-color: #ef4444;
+    color: #fca5a5;
+    box-shadow: 0 0 10px rgba(239, 68, 68, 0.4);
+}
+
+.hud-sales-meta {
+    flex: 1;
+    min-width: 0;
+}
+
+.hud-sales-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hud-sales-sub {
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hud-sales-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.hud-sales-nav {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.hud-sales-nav button,
+.hud-sales-btn-icon {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 4px;
+    color: #fff;
+    font-size: 11px;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.hud-sales-nav button:hover,
+.hud-sales-btn-icon:hover {
+    background: rgba(56, 189, 248, 0.25);
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
+.hud-sales-body {
+    padding: 10px 12px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.hud-sales-stats-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.hud-sales-stat-box {
+    display: flex;
+    flex-direction: column;
+}
+
+.hud-sales-stat-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.hud-sales-stat-val {
+    font-size: 15px;
+    font-weight: 800;
+}
+
+.val-cyan { color: #38bdf8; text-shadow: 0 0 8px rgba(56, 189, 248, 0.3); }
+.val-gold { color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
+.val-green { color: #10b981; }
+.val-red { color: #ef4444; }
+
+.hud-sales-chart-wrap {
+    background: rgba(10, 15, 29, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 8px;
+    padding: 6px 6px 4px;
+    position: relative;
+}
+
+.hud-sales-chart-wrap canvas {
+    width: 100%;
+    height: 92px;
+    display: block;
+}
+
+.hud-sales-chart-legend {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    padding: 0 2px;
+}
+
+.hud-sales-finance-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 7px 9px;
+    font-size: 11px;
+}
+
+.hud-finance-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-secondary);
+}
+
+.hud-finance-row strong,
+.hud-finance-row span:last-child {
+    font-weight: 700;
+}
+
+.hud-sales-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    margin-top: 2px;
+}
+
+.hud-sales-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 600;
+    padding: 6px 2px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: center;
+}
+
+.hud-sales-btn:hover {
+    background: rgba(56, 189, 248, 0.18);
+    border-color: #38bdf8;
+    color: #38bdf8;
+}
+
+.hud-sales-btn.btn-view-full {
+    background: rgba(0, 210, 255, 0.12);
+    border-color: rgba(0, 210, 255, 0.35);
+    color: #bae6fd;
+}
+.hud-sales-btn.btn-view-full:hover {
+    background: rgba(0, 210, 255, 0.25);
+    border-color: #00d2ff;
+}
+
+.hud-sales-btn.btn-retire:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #fca5a5;
+}
+
+/* ==========================================================================
+   PREPRODUCTION CONTRACTS & MARKETING INTERACTION STYLES
+   ========================================================================== */
+
+.btn-soft-disabled {
+    opacity: 0.65;
+    filter: grayscale(0.2);
+    cursor: pointer !important;
+}
+
+.publishing-contract-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+    margin: 12px 0 16px 0;
+}
+
+.publishing-contract-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.65);
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.publishing-contract-card:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(15, 23, 42, 0.9);
+    transform: translateY(-2px);
+}
+
+.publishing-contract-card.selected {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 18px rgba(56, 189, 248, 0.25);
+    background: rgba(8, 47, 73, 0.45);
+}
+
+.publishing-contract-card input[type="radio"] {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    accent-color: var(--accent-cyan);
+    transform: scale(1.15);
+}
+
+.publishing-contract-card.locked {
+    opacity: 0.55;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+
+.contract-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.contract-header strong {
+    color: #fff;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.contract-desc {
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.45;
+    margin: 4px 0 10px 0;
+}
+
+.contract-terms-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 11px;
+    margin-top: auto;
+}
+
+.term-benefit {
+    color: #10b981;
+    font-weight: 700;
+}
+
+.term-neutral {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.term-caution {
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+.term-cost {
+    color: #f87171;
+    font-weight: 600;
+}
+
+/* ==========================================================================
+   TOPIC RESEARCH (I+D DE TEMÁTICAS) STYLES (SUBAGENTE 2)
+   ========================================================================== */
+
+.topic-research-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 12px;
+    margin-top: 14px;
+}
+
+.topic-research-card {
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.topic-research-card.can-research:hover {
+    border-color: rgba(56, 189, 248, 0.45);
+    background: rgba(15, 23, 42, 0.9);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+}
+
+.topic-research-card.cannot-research {
+    opacity: 0.65;
+}
+
+.topic-card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.topic-icon {
+    font-size: 20px;
+}
+
+.topic-name {
+    font-size: 13px;
+    color: #fff;
+    display: block;
+}
+
+.topic-target {
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+.topic-desc {
+    font-size: 11px;
+    color: #cbd5e1;
+    line-height: 1.35;
+    margin: 0;
+}
+
+.topic-cost-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: auto;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.btn-research-topic {
+    font-size: 11px;
+    padding: 4px 10px;
+}
+
+/* ==========================================================================
+   MARKETING PRESS COVERS & RETRO MAGAZINE ARTICLES (SUBAGENTE 4)
+   ========================================================================== */
+
+.marketing-press-gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.press-gallery-card {
+    position: relative;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    overflow: hidden;
+}
+
+.press-gallery-card:hover {
+    border-color: #38bdf8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(56, 189, 248, 0.25);
+}
+
+.press-gallery-card.80s { border-top: 3px solid #ef4444; }
+.press-gallery-card.90s { border-top: 3px solid #fbbf24; }
+.press-gallery-card.2000s { border-top: 3px solid #38bdf8; }
+
+.press-gallery-badge {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    font-size: 9px;
+    font-weight: 800;
+    color: #fbbf24;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 6px;
+    border-radius: 4px;
+}
+
+.press-gallery-pub {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #94a3b8;
+}
+
+.press-gallery-head {
+    font-size: 12px;
+    color: #fff;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin: 4px 0 6px;
+    line-height: 1.3;
+}
+
+.press-gallery-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-secondary);
+}
+
+/* Standalone Full Press Cover Card Modal */
+.press-cover-card {
+    position: relative;
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.85);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* --- 1. RETRO 80s MAGAZINE COVER (Micromanía / Power Play / Sinclair) --- */
+.cover-80s-retro {
+    background: linear-gradient(135deg, #7f1d1d 0%, #1e1b4b 60%, #0f172a 100%);
+    border: 4px solid #facc15;
+    color: #fff;
+    padding: 16px;
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.7), 0 12px 35px rgba(239, 68, 68, 0.35);
+}
+
+.cover-80s-retro.cover-micromaniacos {
+    background: linear-gradient(145deg, #991b1b 0%, #450a0a 45%, #18181b 100%);
+    border-color: #fbbf24;
+}
+
+.cover-80s-retro.cover-powerplay {
+    background: linear-gradient(145deg, #1e3a8a 0%, #172554 50%, #020617 100%);
+    border-color: #38bdf8;
+}
+
+.cover-80s-retro.cover-spectrumuser {
+    background: linear-gradient(145deg, #064e3b 0%, #022c22 55%, #09090b 100%);
+    border-color: #4ade80;
+}
+
+.cover-80s-masthead {
+    border-bottom: 3px double rgba(255, 255, 255, 0.4);
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+}
+
+.cover-80s-issue-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #fef08a;
+    text-transform: uppercase;
+}
+
+.cover-price-tag {
+    background: #facc15;
+    color: #000;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 900;
+}
+
+.cover-price-tag.gold {
+    background: linear-gradient(135deg, #fbbf24, #d97706);
+    color: #000;
+}
+
+.cover-80s-title {
+    font-size: 38px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fef08a;
+    text-shadow: 3px 3px 0 #b91c1c, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    margin: 6px 0 0;
+    font-family: Impact, "Arial Black", sans-serif;
+}
+
+.cover-80s-content {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.cover-star-burst {
+    display: inline-block;
+    background: #dc2626;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 4px 14px;
+    border-radius: 20px;
+    border: 2px solid #facc15;
+    text-transform: uppercase;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+    align-self: flex-start;
+}
+
+.cover-feature-box {
+    background: rgba(0, 0, 0, 0.55);
+    border: 2px solid rgba(250, 204, 21, 0.4);
+    border-radius: 8px;
+    padding: 14px;
+    backdrop-filter: blur(4px);
+}
+
+.cover-pill-badge {
+    display: inline-block;
+    background: #facc15;
+    color: #000;
+    font-size: 10px;
+    font-weight: 900;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.cover-pill-badge.neon {
+    background: #00d2ff;
+    color: #000;
+}
+
+.cover-big-headline {
+    font-size: 22px;
+    font-weight: 900;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 1.25;
+    text-shadow: 2px 2px 0 #000;
+    margin: 0 0 8px 0;
+}
+
+.cover-lead-summary {
+    font-size: 13px;
+    color: #f1f5f9;
+    line-height: 1.4;
+    margin: 0 0 10px 0;
+}
+
+.cover-quote-banner {
+    background: rgba(220, 38, 38, 0.4);
+    border-left: 4px solid #facc15;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-style: italic;
+    color: #fef08a;
+    border-radius: 0 4px 4px 0;
+}
+
+.cover-80s-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cover-tag-item {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.cover-bottom-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px dashed rgba(255, 255, 255, 0.3);
+    padding-top: 8px;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.cover-barcode {
+    font-family: monospace;
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+/* --- 2. RETRO 90s MAGAZINE COVER (PC Gamer Ultra / Super Consoles) --- */
+.cover-90s-retro {
+    background: radial-gradient(circle at 70% 30%, #312e81 0%, #0f172a 60%, #020617 100%);
+    border: 3px solid #38bdf8;
+    color: #fff;
+    padding: 16px;
+    box-shadow: inset 0 0 40px rgba(56, 189, 248, 0.2), 0 12px 35px rgba(0, 0, 0, 0.8);
+}
+
+.cover-90s-masthead {
+    border-bottom: 2px solid #38bdf8;
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+}
+
+.cover-90s-issue-line {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    font-weight: 700;
+    color: #7dd3fc;
+    text-transform: uppercase;
+}
+
+.cover-90s-title {
+    font-size: 34px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: center;
+    color: #fff;
+    text-shadow: 0 0 14px rgba(56, 189, 248, 0.8), 2px 2px 0 #0369a1;
+    margin: 4px 0 0;
+    font-family: "Arial Black", sans-serif;
+}
+
+.cover-cd-burst {
+    display: inline-block;
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 900;
+    padding: 4px 14px;
+    border-radius: 6px;
+    border: 1.5px solid #38bdf8;
+    box-shadow: 0 4px 12px rgba(2, 132, 199, 0.4);
+    align-self: flex-start;
+}
+
+.cover-feature-box-90s {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(56, 189, 248, 0.35);
+    border-radius: 8px;
+    padding: 14px;
+}
+
+.cover-big-headline-90s {
+    font-size: 21px;
+    font-weight: 900;
+    color: #38bdf8;
+    text-transform: uppercase;
+    margin: 0 0 8px 0;
+    line-height: 1.25;
+}
+
+.cover-quote-banner-90s {
+    background: rgba(56, 189, 248, 0.12);
+    border-left: 4px solid #38bdf8;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-style: italic;
+    color: #e0f2fe;
+    border-radius: 0 4px 4px 0;
+}
+
+.cover-90s-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.cover-tag-item-90s {
+    background: rgba(56, 189, 248, 0.15);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #bae6fd;
+}
+
+/* --- 3. MODERN 2000s DIGITAL WEB PORTAL (IGNite / EuroPixel) --- */
+.cover-2000s-portal {
+    background: #0b0f19;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 12px;
+    overflow: hidden;
+    color: #e2e8f0;
+}
+
+.portal-header-browser {
+    background: #1e293b;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.portal-dots {
+    display: flex;
+    gap: 5px;
+}
+
+.portal-dots span {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #64748b;
+}
+
+.portal-dots span:nth-child(1) { background: #ef4444; }
+.portal-dots span:nth-child(2) { background: #f59e0b; }
+.portal-dots span:nth-child(3) { background: #10b981; }
+
+.portal-url {
+    background: #0f172a;
+    border-radius: 4px;
+    padding: 3px 12px;
+    font-size: 11px;
+    color: #94a3b8;
+    font-family: monospace;
+    flex: 1;
+}
+
+.portal-masthead {
+    background: #0f172a;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.portal-brand {
+    font-size: 20px;
+    font-weight: 900;
+    color: #fff;
+    letter-spacing: -0.5px;
+}
+
+.portal-sub-text {
+    font-size: 11px;
+    color: #64748b;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.portal-live-pill {
+    background: #dc2626;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}
+
+.portal-body {
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.portal-status-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.portal-trending-badge {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.portal-date-stamp {
+    font-size: 11px;
+    color: #64748b;
+}
+
+.portal-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    margin: 0;
+    line-height: 1.3;
+}
+
+.portal-author-strip {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11px;
+    color: #94a3b8;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding-bottom: 8px;
+}
+
+.portal-score-badge {
+    background: #0284c7;
+    color: #fff;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.portal-lead {
+    font-size: 13px;
+    color: #cbd5e1;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.portal-quote-box {
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid #38bdf8;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-style: italic;
+    color: #93c5fd;
+    border-radius: 0 6px 6px 0;
+}
+
+.portal-tags-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+
+.portal-tag-pill {
+    background: rgba(255, 255, 255, 0.05);
+    color: #94a3b8;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+/* --- SUBAGENTE 2 & 3: SYNERGY PILL BADGE & RESEARCH TABS --- */
+.synergy-pill {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 13px;
+    transition: all 0.25s ease;
+    border: 1px solid transparent;
+}
+
+.synergy-pill.pill-optimal {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.08));
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 15px rgba(16, 185, 129, 0.12);
+}
+
+.synergy-pill.pill-optimal strong {
+    color: #34d399;
+}
+
+.synergy-pill.pill-normal {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(14, 165, 233, 0.06));
+    border-color: rgba(56, 189, 248, 0.35);
+}
+
+.synergy-pill.pill-normal strong {
+    color: #38bdf8;
+}
+
+.synergy-pill.pill-bad {
+    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.08));
+    border-color: rgba(239, 68, 68, 0.4);
+    box-shadow: 0 0 15px rgba(239, 68, 68, 0.12);
+}
+
+.synergy-pill.pill-bad strong {
+    color: #f87171;
+}
+
+.synergy-pill-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.synergy-pill-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.synergy-pill-content small {
+    color: var(--text-secondary);
+    font-size: 11px;
+}
+
+.wizard-tech-warning {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+/* Research Tabs Navigation */
+.research-nav-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 12px;
+}
+
+.research-tab-btn {
+    flex: 1;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 10px 16px;
+    color: #94a3b8;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.research-tab-btn:hover {
+    background: rgba(30, 41, 59, 0.8);
+    color: #fff;
+    border-color: rgba(56, 189, 248, 0.4);
+}
+
+.research-tab-btn.active {
+    background: linear-gradient(135deg, rgba(56, 189, 248, 0.2), rgba(14, 165, 233, 0.1));
+    border-color: var(--accent-cyan);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.2);
+}
+
+

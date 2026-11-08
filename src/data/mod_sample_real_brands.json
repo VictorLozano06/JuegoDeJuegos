@@ -1,0 +1,168 @@
+{
+  "metadata": {
+    "id": "real_brands_community_pack",
+    "name": "Paquete de Comunidad: Marcas Reales & Creadores Famosos",
+    "author": "Comunidad de Modders Global",
+    "version": "1.2.0",
+    "description": "Expande el simulador con consolas reales históricas y modernas, creadores de contenido célebres y eventos mundiales de la industria."
+  },
+  "platforms": [
+    {
+      "id": "megadrive",
+      "name": "Sega Mega Drive / Genesis",
+      "devCost": 20000,
+      "marketShare": 0.62,
+      "eraUnlocked": 2,
+      "audience": "Mature",
+      "icon": "🕹️",
+      "audienceFit": { "Everyone": 1.1, "Young": 1.05, "Mature": 1.25 }
+    },
+    {
+      "id": "gbc",
+      "name": "Game Boy Color",
+      "devCost": 15000,
+      "marketShare": 0.70,
+      "eraUnlocked": 2,
+      "audience": "Young",
+      "icon": "👾",
+      "audienceFit": { "Everyone": 1.2, "Young": 1.35, "Mature": 0.8 }
+    },
+    {
+      "id": "ps5pro",
+      "name": "PlayStation 5 Pro",
+      "devCost": 55000,
+      "marketShare": 0.88,
+      "eraUnlocked": 3,
+      "audience": "Mature",
+      "icon": "🎮",
+      "audienceFit": { "Everyone": 1.15, "Young": 0.9, "Mature": 1.35 }
+    },
+    {
+      "id": "switch2",
+      "name": "Nintendo Switch 2",
+      "devCost": 48000,
+      "marketShare": 0.90,
+      "eraUnlocked": 3,
+      "audience": "Everyone",
+      "icon": "⚡",
+      "audienceFit": { "Everyone": 1.35, "Young": 1.3, "Mature": 0.95 }
+    },
+    {
+      "id": "steamdeck",
+      "name": "Steam Deck Pro",
+      "devCost": 40000,
+      "marketShare": 0.78,
+      "eraUnlocked": 3,
+      "audience": "Mature",
+      "icon": "💻",
+      "audienceFit": { "Everyone": 1.1, "Young": 0.95, "Mature": 1.3 }
+    }
+  ],
+  "streamers": [
+    {
+      "id": "ibai",
+      "name": "Ibai Llanos",
+      "platform": "StreamBox Live",
+      "audience": "top",
+      "followers": 15500000,
+      "genres": ["Action", "Simulation", "Casual"],
+      "fee": 16000
+    },
+    {
+      "id": "auronplay",
+      "name": "Auronplay",
+      "platform": "StreamBox Live",
+      "audience": "top",
+      "followers": 16000000,
+      "genres": ["Adventure", "Casual", "Simulation"],
+      "fee": 16500
+    },
+    {
+      "id": "elrubius",
+      "name": "ElRubiusOMG",
+      "platform": "GameCast Red",
+      "audience": "top",
+      "followers": 14500000,
+      "genres": ["Action", "RPG", "Adventure"],
+      "fee": 15000
+    },
+    {
+      "id": "asmongold",
+      "name": "Asmongold",
+      "platform": "GameCast Red",
+      "audience": "top",
+      "followers": 3900000,
+      "genres": ["RPG", "Strategy"],
+      "fee": 7500
+    },
+    {
+      "id": "xqc",
+      "name": "xQc",
+      "platform": "StreamBox Live",
+      "audience": "top",
+      "followers": 12000000,
+      "genres": ["Action", "Casual", "Strategy"],
+      "fee": 14000
+    }
+  ],
+  "events": [
+    {
+      "id": "crypto_mining_shortage",
+      "type": "platform_supply_shock",
+      "title": "Boom de la Criptominería: Escasez de GPUs",
+      "retroHeadline": "BOOM ESPECULATIVO: EL HARDWARE DE COMPUTACIÓN SE AGOTA EN TIENDAS",
+      "modernHeadline": "CRYPTO SPECULATION DIVERTS GRAPHICS HARDWARE FROM CONSUMERS",
+      "category": "market_crisis",
+      "minYear": 2017,
+      "maxYear": 9999,
+      "weight": 1.3,
+      "trigger": { "kind": "random_industry_event" },
+      "description": "Una oleada de minería de criptoactivos agota el inventario de tarjetas gráficas y componentes de PC. Los jugadores no pueden renovar su equipo.",
+      "choices": [
+        {
+          "id": "wait_supply",
+          "label": "Esperar al desplome de la burbuja cripto",
+          "description": "Aceptar la caída del 35% en ventas para PC durante los próximos 4 meses.",
+          "cost": 0,
+          "risks": ["Ventas de PC reducidas"]
+        },
+        {
+          "id": "reserve_stock",
+          "label": "Alianza con ensambladores de hardware",
+          "description": "Garantizar bundles de tarjetas gráficas precargadas con tu juego por $25,000.",
+          "costFraction": 0.08,
+          "minCost": 25000,
+          "risks": ["Alto coste económico"]
+        }
+      ]
+    },
+    {
+      "id": "lockdown_sales_boom",
+      "type": "platform_supply_shock",
+      "title": "Auge del Ocio Digital en Casa",
+      "retroHeadline": "INVIERNO HISTÓRICO: MILLONES DE PERSONAS SE QUEDAN EN CASA JUGANDO",
+      "modernHeadline": "HOME ENTERTAINMENT BOOM: RECORD-BREAKING CONCURRENT PLAYERS GLOBALLY",
+      "category": "market_crisis",
+      "minYear": 2020,
+      "maxYear": 9999,
+      "weight": 1.0,
+      "trigger": { "kind": "random_industry_event" },
+      "description": "Un cambio masivo de hábitos domésticos impulsa el tiempo de ocio digital en todo el mundo. Las ventas se disparan un 35% durante 16 semanas.",
+      "choices": [
+        {
+          "id": "ride_wave",
+          "label": "Aprovechar la ola de demanda sin alterar precios",
+          "description": "Mantener la distribución estándar disfrutando del impulso de ventas global.",
+          "cost": 0
+        },
+        {
+          "id": "server_expansion",
+          "label": "Invertir en servidores y campañas globales",
+          "description": "Garantizar estabilidad multijugador y ampliar capacidad pagando $15,000.",
+          "cost": 15000
+        }
+      ]
+    }
+  ]
+}
+

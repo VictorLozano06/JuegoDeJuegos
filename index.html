@@ -70,6 +70,88 @@
             </div>
         </header>
 
+        <!-- HUD: LIVE SALES WIDGET (ON-SCREEN REAL-TIME EVOLVING SALES REPORT) -->
+        <aside id="hud-live-sales-widget" class="hud-sales-widget" style="display: none;">
+            <div class="hud-sales-header">
+                <div class="hud-sales-score-ring" id="hud-sales-score-badge">
+                    <span id="hud-sales-score-val">8.3</span>
+                </div>
+                <div class="hud-sales-meta">
+                    <strong id="hud-sales-title" class="hud-sales-title">Nombre del Juego</strong>
+                    <div id="hud-sales-genre-topic" class="hud-sales-sub">Género • Tema (Plataforma)</div>
+                </div>
+                <div class="hud-sales-controls">
+                    <div class="hud-sales-nav" id="hud-sales-nav-controls" style="display: none;">
+                        <button type="button" id="hud-sales-prev-btn" onclick="cycleLiveSalesGame(-1)" title="Juego anterior">◀</button>
+                        <span id="hud-sales-page-indicator">1/1</span>
+                        <button type="button" id="hud-sales-next-btn" onclick="cycleLiveSalesGame(1)" title="Siguiente juego">▶</button>
+                    </div>
+                    <button type="button" id="hud-sales-min-btn" onclick="toggleLiveSalesWidgetMin()" title="Minimizar / Expandir widget" class="hud-sales-btn-icon">—</button>
+                </div>
+            </div>
+
+            <!-- Collapsible Body -->
+            <div id="hud-sales-body" class="hud-sales-body">
+                <!-- Top Row: Units & Rank -->
+                <div class="hud-sales-stats-row">
+                    <div class="hud-sales-stat-box">
+                        <span class="hud-sales-stat-label">Unidades Vendidas</span>
+                        <span id="hud-sales-units" class="hud-sales-stat-val val-cyan">0 copias</span>
+                    </div>
+                    <div class="hud-sales-stat-box" style="text-align: right;">
+                        <span class="hud-sales-stat-label">Ranking Global</span>
+                        <span id="hud-sales-rank" class="hud-sales-stat-val val-gold">#1</span>
+                    </div>
+                </div>
+
+                <!-- Live Weekly Bar Chart Canvas -->
+                <div class="hud-sales-chart-wrap">
+                    <canvas id="hud-sales-canvas" width="260" height="92"></canvas>
+                    <div class="hud-sales-chart-legend">
+                        <span id="hud-sales-week-label">Semana 1 en el mercado</span>
+                        <span id="hud-sales-last-week-sales">+0 / sem</span>
+                    </div>
+                </div>
+
+                <!-- Financial Breakdown Table -->
+                <div class="hud-sales-finance-grid">
+                    <div class="hud-finance-row">
+                        <span>Beneficio (Lucro):</span>
+                        <strong id="hud-sales-profit" class="val-green">+$0</strong>
+                    </div>
+                    <div class="hud-finance-row">
+                        <span>Ingresos Netos:</span>
+                        <strong id="hud-sales-revenue">$0</strong>
+                    </div>
+                    <div class="hud-finance-row">
+                        <span>Coste Producción:</span>
+                        <span id="hud-sales-cost" class="val-red">$0</span>
+                    </div>
+                    <div class="hud-finance-row">
+                        <span>Fans Ganados:</span>
+                        <span id="hud-sales-fans" class="val-gold">+0 ⭐</span>
+                    </div>
+                    <div class="hud-finance-row">
+                        <span>Hype Residual:</span>
+                        <span id="hud-sales-hype">0</span>
+                    </div>
+                </div>
+
+                <!-- Quick Action Buttons -->
+                <div class="hud-sales-actions">
+                    <button type="button" class="hud-sales-btn" id="hud-sales-pm-btn" onclick="triggerPostMortemFromWidget()">
+                        📝 Informe (+RP)
+                    </button>
+                    <button type="button" class="hud-sales-btn btn-view-full" onclick="openFullChartFromWidget()" title="Abrir análisis y gráfica detallada">
+                        📈 Gráfica
+                    </button>
+                    <button type="button" class="hud-sales-btn btn-retire" id="hud-sales-retire-btn" onclick="retireGameFromWidget()" title="Retirar permanentemente del mercado">
+                        📦 Retirar
+                    </button>
+                </div>
+            </div>
+        </aside>
+
         <!-- Post-Launch Emergency Patch Crisis Banner (Punto 5) -->
         <div id="emergency-patch-banner" class="emergency-patch-banner" style="display: none;">
             <div class="emergency-patch-content">
@@ -186,6 +268,13 @@
                         <small>Nodos de Render, IA y Red</small>
                     </div>
                 </button>
+                <button type="button" class="gdt-menu-btn" id="gdt-btn-topic-research">
+                    <span class="gdt-btn-icon">💡</span>
+                    <div class="gdt-btn-text">
+                        <strong>Investigar Temática</strong>
+                        <small>Desbloquear tema nuevo (20 RP)</small>
+                    </div>
+                </button>
                 <button type="button" class="gdt-menu-btn" id="gdt-btn-engine">
                     <span class="gdt-btn-icon">🛠️</span>
                     <div class="gdt-btn-text">
@@ -234,6 +323,9 @@
             </button>
             <button id="btn-marketing" class="dock-btn" title="Campañas, creadores y comunidad">
                 <span>📣</span> Marketing
+            </button>
+            <button id="btn-community-workshop" class="dock-btn" title="Mods, conversiones y vida útil de tus juegos">
+                <span>🧩</span> Workshop
             </button>
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
                 <span>🎨</span> Tu Estudio
@@ -426,14 +518,16 @@
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
-                        <label class="form-label">Temática (24 Disponibles)</label>
+                        <label class="form-label">Temática (36 por eras)</label>
                         <select id="select-topic" class="form-select"></select>
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Género</label>
+                        <label class="form-label">Género (19 por eras)</label>
                         <select id="select-genre" class="form-select"></select>
                     </div>
                 </div>
+
+                <div id="wizard-synergy-indicator" style="margin: -4px 0 14px 0;"></div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div class="form-group">
@@ -450,36 +544,51 @@
                     </div>
                 </div>
 
-                <section class="creator-section" style="margin-top:16px">
-                    <h3 class="creator-subtitle">💼 Modelo de negocio</h3>
-                    <p id="business-model-year-note" style="font-size:12px;color:var(--text-secondary)"></p>
-                    <div id="business-model-options" class="business-model-grid"></div>
-                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
-                        <div class="form-group">
-                            <label class="form-label" for="select-post-launch-content">Contenido posterior al lanzamiento</label>
-                            <select id="select-post-launch-content" class="form-select"></select>
-                        </div>
-                        <div id="f2p-monetization-options" class="form-group" style="display:none">
-                            <label class="form-label" for="select-monetization-style">Agresividad de monetización</label>
-                            <select id="select-monetization-style" class="form-select">
-                                <option value="cosmetic">Solo cosméticos · satisfacción alta</option>
-                                <option value="aggressive">Mecánicas P2W · ingresos x3, fuga y reputación</option>
-                            </select>
-                        </div>
-                    </div>
-                    <label style="font-size:12px;color:var(--text-secondary)"><input id="toggle-postlaunch-patches" type="checkbox" checked> Mantener soporte post-lanzamiento con parches</label>
-                </section>
-
-                <!-- PIPELINE SELECTION: MOTOR COMERCIAL VS PROPIO -->
-                <div class="creator-section" style="margin-top: 18px;">
+                <!-- PASO 2: PIPELINE TECNOLÓGICO: MOTOR COMERCIAL VS PROPIO -->
+                <section class="creator-section" style="margin-top: 18px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <h3 class="creator-subtitle" style="margin-bottom: 0;"><span>⚙️</span> Pipeline Tecnológico: Motor Comercial vs In-House</h3>
+                        <h3 class="creator-subtitle" style="margin-bottom: 0;"><span>⚙️</span> Paso 2: Pipeline Tecnológico (Motor Propio vs Comercial)</h3>
                         <button type="button" id="btn-open-pipeline-modal" class="dock-btn" style="padding: 4px 12px; font-size: 11px;">
                             🔍 Comparar a Fondo
                         </button>
                     </div>
                     <div id="pipeline-selector-container" class="pipeline-selector"></div>
-                </div>
+                </section>
+
+                <!-- PASO 3 (NUEVO ORDEN): MODELO DE FINANCIACIÓN, CONTRATO & NEGOCIO -->
+                <section class="creator-section" style="margin-top: 18px;">
+                    <h3 class="creator-subtitle"><span>🤝</span> Paso 3: Modelo de Financiación & Contrato de Publicación</h3>
+                    <p style="font-size: 12px; color: var(--text-secondary); margin-bottom: 10px;">
+                        Pacta las condiciones financieras antes de comenzar. Elige cómo financiarás el proyecto y cómo se distribuirá desde el día 1.
+                    </p>
+                    
+                    <div id="publishing-contract-options" class="publishing-contract-grid"></div>
+
+                    <!-- Formato Comercial del Título -->
+                    <div style="margin-top: 14px;">
+                        <h4 style="font-size: 12px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 6px;">
+                            💼 Formato Comercial & Modelo de Monetización
+                        </h4>
+                        <p id="business-model-year-note" style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;"></p>
+                        <div id="business-model-options" class="business-model-grid"></div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px;">
+                            <div class="form-group">
+                                <label class="form-label" for="select-post-launch-content">Contenido posterior al lanzamiento</label>
+                                <select id="select-post-launch-content" class="form-select"></select>
+                            </div>
+                            <div id="f2p-monetization-options" class="form-group" style="display: none;">
+                                <label class="form-label" for="select-monetization-style">Agresividad de monetización</label>
+                                <select id="select-monetization-style" class="form-select">
+                                    <option value="cosmetic">Solo cosméticos · satisfacción alta</option>
+                                    <option value="aggressive">Mecánicas P2W · ingresos x3, fuga y reputación</option>
+                                </select>
+                            </div>
+                        </div>
+                        <label style="font-size: 12px; color: var(--text-secondary); display: block; margin-top: 8px;">
+                            <input id="toggle-postlaunch-patches" type="checkbox" checked> Mantener soporte post-lanzamiento con parches
+                        </label>
+                    </div>
+                </section>
 
                 <!-- SCOPE NODE TREE (DAG) & REAL-TIME METRICS -->
                 <div class="creator-section">
@@ -909,9 +1018,12 @@
 
             <div id="reviews-container" class="reviews-grid"></div>
 
-            <div style="text-align: center; margin-top: 20px;">
-                <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 12px 32px; margin: 0 auto;">
-                    ¡A las Tiendas! Ver Rankings de Ventas
+            <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+                <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 12px 28px;">
+                    ¡A las Tiendas!
+                </button>
+                <button class="dock-btn btn-secondary-action" onclick="openCurrentReleasedGameChart()" style="padding: 12px 28px; background: rgba(0, 210, 255, 0.15); border: 1px solid #00d2ff; color: #bae6fd;">
+                    📈 Ver Gráfica de Ventas
                 </button>
             </div>
         </div>
@@ -935,6 +1047,37 @@
                 <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
             </div>
             <div id="marketing-hub-content"></div>
+        </div>
+    </div>
+
+    <div id="modal-industry-news" class="modal-backdrop">
+        <div id="industry-news-window" class="modal-window industry-news-window">
+            <div class="modal-header">
+                <h2 class="modal-title" id="industry-news-modal-title"><span>📰</span> Noticia Urgente de la Industria</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+            <div id="industry-news-content"></div>
+        </div>
+    </div>
+
+    <div id="modal-community-workshop" class="modal-backdrop">
+        <div class="modal-window workshop-window">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>🧩</span> Workshop de la Comunidad & Ecosistema de Mods</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+            <div class="workshop-nav-tabs">
+                <button type="button" id="tab-workshop-games" class="workshop-tab-btn active" onclick="switchWorkshopTab('games')">🎮 Mods de tus Juegos</button>
+                <button type="button" id="tab-workshop-simulator" class="workshop-tab-btn" onclick="switchWorkshopTab('simulator')">🌐 Mods del Simulador (Editor & Datos)</button>
+            </div>
+            <div id="workshop-games-view">
+                <p class="workshop-intro">Activa APIs de modding en juegos compatibles para desatar mods populares (+150% ventas residuales), conversiones totales virales y engagement de la comunidad.</p>
+                <div id="community-workshop-games"></div>
+            </div>
+            <div id="workshop-simulator-view" style="display: none;">
+                <p class="workshop-intro">El simulador está desacoplado mediante arquitectura orientada a datos (JSON). Puedes inyectar consolas reales, creadores célebres y eventos contextuales.</p>
+                <div id="community-simulator-mods"></div>
+            </div>
         </div>
     </div>
 
@@ -1032,6 +1175,22 @@
             <div id="active-research-container" style="margin-bottom: 20px;"></div>
             <div id="engine-management-container" style="margin-bottom:20px"></div>
 
+            <!-- Topic Research Quick Launcher (Subagente 2) -->
+            <div class="topic-research-launcher-bar" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span style="font-size: 24px;">💡</span>
+                    <div>
+                        <strong style="color: #fff; font-size: 14px;">Laboratorio de Temáticas (Progresión por RP)</strong>
+                        <p style="color: var(--text-secondary); font-size: 11px; margin: 2px 0 0 0;">
+                            Investiga y desbloquea temáticas avanzadas (Cyberpunk, Terror, Zombis, Hackers...) para tu catálogo.
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="dock-btn btn-primary-action" onclick="openTopicResearchModal()" style="font-weight: 700;">
+                    💡 Investigar Nueva Temática
+                </button>
+            </div>
+
             <!-- Competitor Hardware Reverse Engineering Section -->
             <div class="reverse-engineering-section" style="margin-bottom: 24px;">
                 <div class="section-collapsible-header" id="btn-toggle-rev-hardware" style="display: flex; justify-content: space-between; align-items: center; cursor: pointer;">
@@ -1111,30 +1270,219 @@
         </div>
     </div>
 
+    <!-- MODAL: GRÁFICA DE VENTAS SEMANAL & GESTIÓN DE RETIRO (END OF LIFE) -->
+    <div id="modal-sales-chart" class="modal-backdrop">
+        <div class="modal-window" style="max-width: 900px; width: 95%;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>📈</span> Gráfica de Ventas Semanal & Ciclo de Vida</h2>
+                <button class="modal-close">&times;</button>
+            </div>
+            
+            <div style="display: flex; gap: 16px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 250px;">
+                    <label for="select-chart-game" style="font-size: 12px; color: var(--text-secondary); display: block; margin-bottom: 6px;">Seleccionar Título del Catálogo:</label>
+                    <select id="select-chart-game" class="form-control" onchange="renderSelectedGameSalesChart()" style="width: 100%; padding: 8px 12px; background: rgba(15,23,42,0.9); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff;">
+                    </select>
+                </div>
+                <div id="chart-game-status-pill" style="padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 700; background: rgba(56, 189, 248, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.4);">
+                    🔥 En Pico de Ventas
+                </div>
+            </div>
+
+            <!-- KPI Summary Cards -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 18px;">
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
+                    <div style="font-size: 12px; color: var(--text-secondary);">Ventas Totales</div>
+                    <div id="kpi-total-units" style="font-size: 20px; font-weight: 800; color: #fff; margin-top: 4px;">0 copias</div>
+                    <div id="kpi-current-velocity" style="font-size: 12px; color: var(--accent-cyan); margin-top: 2px;">0 / semana</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
+                    <div style="font-size: 12px; color: var(--text-secondary);">Ingresos Netos Acumulados</div>
+                    <div id="kpi-total-net" style="font-size: 20px; font-weight: 800; color: #10b981; margin-top: 4px;">$0</div>
+                    <div id="kpi-gross-revenue" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Bruto: $0</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
+                    <div style="font-size: 12px; color: var(--text-secondary);">Puesto en Ranking</div>
+                    <div id="kpi-top-rank" style="font-size: 20px; font-weight: 800; color: #38bdf8; margin-top: 4px;">#1</div>
+                    <div id="kpi-peak-rank" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Pico histórico: #1</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
+                    <div style="font-size: 12px; color: var(--text-secondary);">Fase de Mercado</div>
+                    <div id="kpi-lifecycle-state" style="font-size: 20px; font-weight: 800; color: #fbbf24; margin-top: 4px;">Lanzamiento</div>
+                    <div id="kpi-weeks-count" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Semana 1</div>
+                </div>
+            </div>
+
+            <!-- Canvas 2D Chart Container -->
+            <div style="position: relative; width: 100%; height: 300px; background: rgba(10, 15, 29, 0.85); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 12px; padding: 10px; margin-bottom: 12px;">
+                <canvas id="sales-chart-canvas" width="860" height="280" style="width: 100%; height: 100%; display: block;"></canvas>
+                <div id="chart-tooltip" style="display: none; position: absolute; pointer-events: none; background: rgba(15,23,42,0.96); border: 1px solid #38bdf8; border-radius: 8px; padding: 8px 12px; font-size: 12px; color: #fff; z-index: 50; box-shadow: 0 8px 24px rgba(0,0,0,0.6);"></div>
+            </div>
+
+            <!-- Legend -->
+            <div style="display: flex; gap: 18px; align-items: center; justify-content: center; font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap;">
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #00d2ff; border-radius: 2px; margin-right: 5px;"></span> Copias Vendidas / Sem</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px; margin-right: 5px;"></span> Ingresos Netos ($)</span>
+                <span>⭐ Streamer / Impulso Viral</span>
+                <span>⚠️ Fricción / Crisis</span>
+                <span>🧩 Mod Comunitario</span>
+            </div>
+
+            <!-- Action footer -->
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); flex-wrap: wrap; gap: 10px;">
+                <div id="chart-retirement-info" style="font-size: 13px; color: var(--text-secondary);">
+                    El juego genera ventas residuales en fase de Cola Larga.
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="btn-chart-postmortem" class="staff-action-btn" onclick="openGamePostMortemFromChart()">
+                        📝 Crear Informe del Juego
+                    </button>
+                    <button id="btn-chart-retire" class="dock-btn btn-danger-action" onclick="confirmRetireSelectedGame()" style="background: linear-gradient(135deg, #ef4444, #b91c1c); color: #fff;">
+                        📦 Retirar Juego del Mercado
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- MODAL: INFORME DE JUEGO (POST-MORTEM) -->
     <div id="modal-postmortem" class="modal-backdrop">
-        <div class="modal-window">
+        <div class="modal-window" style="max-width: 680px; width: 95%;">
             <div class="modal-header">
                 <h2 id="pm-title" class="modal-title"><span>📊</span> Informe de Desarrollo Post-Lanzamiento</h2>
                 <button class="modal-close">&times;</button>
             </div>
-            <div id="pm-content" style="padding: 10px 0;">
-                <div style="background: rgba(168, 85, 247, 0.15); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 12px; padding: 16px; margin-bottom: 16px;">
-                    <div style="font-size: 16px; font-weight: 800; color: #d8b4fe;" id="pm-rp-gain">+35 Puntos de Investigación Obtenidos</div>
-                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">El equipo ha reflexionado sobre los aciertos y fallos del proyecto.</p>
+            <div id="pm-content" style="padding: 10px 0; display: flex; flex-direction: column; gap: 12px;">
+                <!-- RP Reward Card -->
+                <div style="background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(56, 189, 248, 0.15)); border: 1px solid rgba(168, 85, 247, 0.5); border-radius: 12px; padding: 16px;">
+                    <div style="font-size: 17px; font-weight: 800; color: #d8b4fe;" id="pm-rp-gain">+35 Puntos de Investigación Obtenidos</div>
+                    <p style="font-size: 13px; color: var(--text-secondary); margin-top: 4px;">El equipo ha analizado la recepción del público y la arquitectura técnica del proyecto.</p>
                 </div>
-                <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px; margin-bottom: 14px;">
-                    <h4 style="font-size: 14px; color: var(--accent-cyan); margin-bottom: 6px;">Evaluación de Sinergia</h4>
-                    <p id="pm-synergy-text" style="font-size: 14px; line-height: 1.5; color: #fff;"></p>
+
+                <!-- Sinergia Tema + Género -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px;">
+                    <h4 style="font-size: 14px; color: var(--accent-cyan); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <span>✨</span> Sinergia de Tema y Género
+                    </h4>
+                    <p id="pm-synergy-text" style="font-size: 13px; line-height: 1.5; color: #fff;"></p>
                 </div>
-                <div style="background: rgba(255,255,255,0.03); border-radius: 12px; padding: 16px;">
-                    <h4 style="font-size: 14px; color: var(--accent-gold); margin-bottom: 6px;">Afinidad de Audiencia</h4>
-                    <p id="pm-audience-text" style="font-size: 14px; line-height: 1.5; color: #fff;"></p>
+
+                <!-- Afinidad de Audiencia -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px;">
+                    <h4 style="font-size: 14px; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <span>🎯</span> Target de Audiencia
+                    </h4>
+                    <p id="pm-audience-text" style="font-size: 13px; line-height: 1.5; color: #fff;"></p>
+                </div>
+
+                <!-- Arquitectura de Código & Fricción DAG -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px;">
+                    <h4 style="font-size: 14px; color: #34d399; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <span>⚙️</span> Balance de Arquitectura & Deuda Técnica
+                    </h4>
+                    <p id="pm-architecture-text" style="font-size: 13px; line-height: 1.5; color: #fff;"></p>
+                </div>
+
+                <!-- Calibración Aprendida de Sliders -->
+                <div style="background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px;">
+                    <h4 style="font-size: 14px; color: #f472b6; margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+                        <span>📐</span> Calibración de Diseño Aprendida para Futuros Juegos
+                    </h4>
+                    <p id="pm-sliders-text" style="font-size: 13px; line-height: 1.5; color: #cbd5e1;"></p>
                 </div>
             </div>
-            <div style="text-align: center; margin-top: 20px;">
+            <div style="text-align: center; margin-top: 14px;">
                 <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 10px 30px; margin: 0 auto;">
-                    Entendido
+                    ✓ Guardar en Conocimiento del Estudio
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: ESCENA VISUAL INTERACTIVA DE LA MEGA GAMES EXPO (E3 / G-STAR) -->
+    <div id="modal-expo-scene" class="modal-backdrop">
+        <div class="modal-window expo-scene-window" style="max-width: 860px; width: 95%;">
+            <div class="expo-scene-header" style="text-align: center; margin-bottom: 12px;">
+                <div id="expo-scene-badge" class="expo-scene-badge">🎮 CONVENCIÓN INTERNACIONAL DE VIDEOJUEGOS</div>
+                <h2 id="expo-scene-title" class="modal-title" style="margin-top: 4px;">Electronic Entertainment Expo (E3)</h2>
+                <div id="expo-booth-subtitle" style="font-size: 13px; color: var(--text-secondary);">Pabellón de Exposiciones · Stand Oficial del Estudio</div>
+            </div>
+
+            <!-- Viewport: Booth Stage Illustration & Hallway Walkway -->
+            <div class="expo-scene-viewport">
+                <!-- Booth Graphic -->
+                <div id="expo-booth-stage" class="expo-booth-stage tier-1">
+                    <div class="expo-booth-banner" id="expo-booth-banner">
+                        <span class="expo-booth-logo" id="expo-booth-logo">🕹️</span>
+                        <strong id="expo-booth-name">PixelForge Games</strong>
+                        <div id="expo-showcased-game" class="expo-showcased-game">Presentando demos jugables</div>
+                    </div>
+                    <div class="expo-booth-screens">
+                        <div class="expo-screen screen-left"></div>
+                        <div class="expo-screen screen-center">
+                            <div class="screen-scanline"></div>
+                            <div class="screen-gameplay" id="expo-screen-content">🎮 DEMO JUGABLE EN VIVO</div>
+                        </div>
+                        <div class="expo-screen screen-right"></div>
+                    </div>
+                    <div class="expo-booth-props" id="expo-booth-props"></div>
+                </div>
+
+                <!-- Animated Hallway Crowd Floor -->
+                <div class="expo-floor" id="expo-floor">
+                    <!-- Pedestrians spawn and cross here -->
+                </div>
+            </div>
+
+            <!-- Mid-Event Interactive Actions -->
+            <div style="display: flex; gap: 12px; justify-content: center; margin: 14px 0;">
+                <button id="btn-expo-merch" class="dock-btn" onclick="expoDistributeMerch()" style="font-size: 13px; padding: 8px 16px;">
+                    🎁 Repartir Merchandising ($600)
+                </button>
+                <button id="btn-expo-interview" class="dock-btn" onclick="expoGivePressInterview()" style="font-size: 13px; padding: 8px 16px;">
+                    🎙️ Conceder Entrevista Relámpago
+                </button>
+            </div>
+
+            <!-- Live Metrics Counters -->
+            <div class="expo-metrics-grid">
+                <div class="expo-metric-card">
+                    <span style="font-size: 24px;">👥</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Visitantes en Stand</div>
+                        <div id="expo-stat-visitors" style="font-size: 18px; font-weight: 800; color: #fff;">0</div>
+                    </div>
+                </div>
+                <div class="expo-metric-card">
+                    <span style="font-size: 24px;">🌟</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Nuevos Fans</div>
+                        <div id="expo-stat-fans" style="font-size: 18px; font-weight: 800; color: #10b981;">+0</div>
+                    </div>
+                </div>
+                <div class="expo-metric-card">
+                    <span style="font-size: 24px;">📰</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Prensa / Medios</div>
+                        <div id="expo-stat-press" style="font-size: 18px; font-weight: 800; color: #38bdf8;">0</div>
+                    </div>
+                </div>
+                <div class="expo-metric-card">
+                    <span style="font-size: 24px;">🚀</span>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary);">Hype Global</div>
+                        <div id="expo-stat-hype" style="font-size: 18px; font-weight: 800; color: #fbbf24;">+0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary Finish Footer -->
+            <div id="expo-summary-footer" style="display: none; margin-top: 16px; padding: 14px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.4); border-radius: 10px; text-align: center;">
+                <div id="expo-summary-text" style="font-size: 14px; color: #fff; margin-bottom: 10px; line-height: 1.4;">
+                    ¡La feria ha concluido con un éxito arrollador! Tu stand atrajo la atención de la prensa internacional y de miles de entusiastas.
+                </div>
+                <button class="dock-btn btn-primary-action" onclick="finishExpoScene()" style="padding: 10px 30px; margin: 0 auto;">
+                    🎉 Concluir Feria y Aplicar Resultados
                 </button>
             </div>
         </div>
@@ -1186,6 +1534,72 @@
             </div>
             <div style="text-align: right;">
                 <button class="staff-action-btn" onclick="closeAllModals()">Omitir este año</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL: INVESTIGAR NUEVA TEMÁTICA Y GÉNERO (SUBAGENTE 2 & 3) -->
+    <div id="modal-topic-research" class="modal-backdrop">
+        <div class="modal-window topic-research-window" style="max-width: 840px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header">
+                <h2 class="modal-title"><span>💡</span> Laboratorio de I+D: Temáticas y Géneros</h2>
+                <button class="modal-close" type="button" onclick="closeAllModals()">&times;</button>
+            </div>
+
+            <!-- Tab Navigation (Temáticas vs Géneros) -->
+            <div class="research-nav-tabs">
+                <button type="button" class="research-tab-btn active" id="tab-research-topics" onclick="window.switchResearchTab('topics')">💡 Investigar Temáticas</button>
+                <button type="button" class="research-tab-btn" id="tab-research-genres" onclick="window.switchResearchTab('genres')">🎮 Investigar Géneros</button>
+            </div>
+
+            <div class="tech-tree-header-banner" style="margin-bottom: 16px;">
+                <div class="tech-metric-card rp-card">
+                    <span class="tech-metric-icon">🔬</span>
+                    <div>
+                        <div class="tech-metric-label">Puntos de I+D Disponibles</div>
+                        <div class="tech-metric-value" id="topic-research-available-rp">0 RP</div>
+                    </div>
+                </div>
+                <div class="tech-metric-card passive-card">
+                    <span class="tech-metric-icon">⏱️</span>
+                    <div>
+                        <div class="tech-metric-label">Tiempo Requerido</div>
+                        <div class="tech-metric-value" id="research-time-requirement-val">2 semanas / estudio</div>
+                    </div>
+                </div>
+                <div class="tech-metric-card unlocked-card">
+                    <span class="tech-metric-icon">💎</span>
+                    <div>
+                        <div class="tech-metric-label">Desbloqueo Permanente</div>
+                        <div class="tech-metric-value">Para futuros proyectos</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Active Topic / Genre Research Countdown -->
+            <div id="active-topic-research-status" style="display: none; margin-bottom: 16px;"></div>
+
+            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 14px; line-height: 1.45;">
+                Invierte <strong>Puntos de Investigación (RP)</strong> para que tu equipo domine nuevas temáticas y géneros de la industria acordes a la era histórica actual, desbloqueando sinergias óptimas y multiplicadores de ventas para tus próximos proyectos.
+            </p>
+
+            <div id="topic-research-grid" class="topic-research-grid"></div>
+        </div>
+    </div>
+
+    <!-- MODAL: PORTADA DE PRENSA Y REVISTA RETRO / PORTAL DIGITAL (SUBAGENTE 4) -->
+    <div id="modal-marketing-press-cover" class="modal-backdrop">
+        <div class="modal-window press-cover-modal-window" style="max-width: 680px; background: transparent; border: none; box-shadow: none; padding: 0;">
+            <div style="display: flex; justify-content: flex-end; margin-bottom: 8px;">
+                <button type="button" class="dock-btn btn-danger-action" onclick="if (typeof window.closePressCoverModal === 'function') window.closePressCoverModal(true); else closeAllModals();" style="padding: 6px 14px; font-weight: 700;">
+                    ✕ Cerrar Portada
+                </button>
+            </div>
+            <div id="press-cover-display-container"></div>
+            <div style="margin-top: 14px; text-align: center;">
+                <button type="button" class="dock-btn btn-primary-action" onclick="if (typeof window.closePressCoverModal === 'function') window.closePressCoverModal(true); else { closeAllModals(); if (typeof window.showToast === 'function') window.showToast('💾 Portada guardada en tu Archivo de Prensa Histórico.', 'success'); }" style="padding: 8px 24px; font-weight: 700; font-size: 14px;">
+                    ✓ Guardar en Archivo de Prensa y Continuar
+                </button>
             </div>
         </div>
     </div>

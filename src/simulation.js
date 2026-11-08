@@ -1,94 +1,24 @@
 import { soundEngine } from './audio.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
+import INDUSTRY_EVENT_CATALOG from './data/events.json';
+import PLATFORMS from './data/platforms.json';
+import CREATOR_PROFILES from './data/streamers.json';
+import { GENRES_DATABASE, findGenre } from './data/genres_database.js';
+import { THEMES_DATABASE, findTheme, calculateSynergy } from './data/themes_database.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
  * Deep, balanced mathematical systems inspired by Game Dev Tycoon & Software Inc.
- * 24 Topics x 6 Genres synergy matrix, 4 specialized press critics,
+ * 36 Themes x 19 Genres synergy matrix, 4 specialized press critics,
  * true Top 10 rival leaderboard, 3-stage slider balance, procedural recruitment,
  * stamina/fatigue model, research tree with prerequisites, and emergent market events.
  */
 
-// --- 1. TOPICS (24 Rich Themes with Genre Fits & Target Audiences) ---
-const TOPICS = [
-    { id: 'scifi', name: 'Ciencia Ficción', idealAudience: 'Everyone', genreFit: { Action: 1.25, RPG: 1.30, Strategy: 1.35, Simulation: 1.10, Adventure: 1.15, Casual: 0.65 } },
-    { id: 'cyberpunk', name: 'Cyberpunk', idealAudience: 'Mature', genreFit: { Action: 1.35, RPG: 1.35, Strategy: 1.00, Simulation: 0.85, Adventure: 1.20, Casual: 0.60 } },
-    { id: 'fantasy', name: 'Fantasía Medieval', idealAudience: 'Everyone', genreFit: { Action: 1.15, RPG: 1.35, Strategy: 1.30, Simulation: 0.75, Adventure: 1.25, Casual: 0.70 } },
-    { id: 'space', name: 'Exploración Espacial', idealAudience: 'Everyone', genreFit: { Action: 0.95, RPG: 1.15, Strategy: 1.30, Simulation: 1.35, Adventure: 1.20, Casual: 0.70 } },
-    { id: 'zombie', name: 'Supervivencia Zombie', idealAudience: 'Mature', genreFit: { Action: 1.35, RPG: 1.20, Strategy: 1.15, Simulation: 1.00, Adventure: 1.15, Casual: 0.65 } },
-    { id: 'dungeon', name: 'Dungeon Crawler', idealAudience: 'Everyone', genreFit: { Action: 1.25, RPG: 1.35, Strategy: 1.15, Simulation: 0.70, Adventure: 1.10, Casual: 0.80 } },
-    { id: 'citybuilder', name: 'Constructor de Ciudades', idealAudience: 'Everyone', genreFit: { Action: 0.50, RPG: 0.70, Strategy: 1.35, Simulation: 1.35, Adventure: 0.60, Casual: 0.95 } },
-    { id: 'hospital', name: 'Gestor de Hospital', idealAudience: 'Everyone', genreFit: { Action: 0.50, RPG: 0.75, Strategy: 1.25, Simulation: 1.35, Adventure: 0.70, Casual: 1.15 } },
-    { id: 'racing', name: 'Carreras Callejeras', idealAudience: 'Everyone', genreFit: { Action: 1.30, RPG: 0.70, Strategy: 0.75, Simulation: 1.35, Adventure: 0.70, Casual: 1.20 } },
-    { id: 'virtualpet', name: 'Mascota Virtual', idealAudience: 'Young', genreFit: { Action: 0.55, RPG: 0.80, Strategy: 0.80, Simulation: 1.30, Adventure: 0.85, Casual: 1.35 } },
-    { id: 'hacking', name: 'Simulador Hacker', idealAudience: 'Mature', genreFit: { Action: 0.90, RPG: 1.10, Strategy: 1.30, Simulation: 1.35, Adventure: 1.20, Casual: 0.65 } },
-    { id: 'military', name: 'Guerra Táctica', idealAudience: 'Mature', genreFit: { Action: 1.30, RPG: 0.90, Strategy: 1.35, Simulation: 1.20, Adventure: 0.75, Casual: 0.60 } },
-    { id: 'postapoc', name: 'Post-Apocalipsis', idealAudience: 'Mature', genreFit: { Action: 1.30, RPG: 1.35, Strategy: 1.15, Simulation: 1.00, Adventure: 1.20, Casual: 0.60 } },
-    { id: 'comedy', name: 'Comedia Absurda', idealAudience: 'Everyone', genreFit: { Action: 0.85, RPG: 0.95, Strategy: 0.75, Simulation: 0.95, Adventure: 1.35, Casual: 1.30 } },
-    { id: 'mystery', name: 'Misterio Detective', idealAudience: 'Mature', genreFit: { Action: 0.80, RPG: 1.15, Strategy: 0.90, Simulation: 0.85, Adventure: 1.35, Casual: 0.85 } },
-    { id: 'superhero', name: 'Superhéroes', idealAudience: 'Young', genreFit: { Action: 1.35, RPG: 1.25, Strategy: 0.90, Simulation: 0.70, Adventure: 1.20, Casual: 0.85 } },
-    { id: 'horror', name: 'Terror Psicológico', idealAudience: 'Mature', genreFit: { Action: 1.20, RPG: 1.15, Strategy: 0.60, Simulation: 0.80, Adventure: 1.35, Casual: 0.60 } },
-    { id: 'sports', name: 'Deportes & Fútbol', idealAudience: 'Everyone', genreFit: { Action: 1.25, RPG: 0.75, Strategy: 1.20, Simulation: 1.35, Adventure: 0.60, Casual: 1.25 } },
-    { id: 'ninja', name: 'Artes Marciales & Ninja', idealAudience: 'Young', genreFit: { Action: 1.35, RPG: 1.20, Strategy: 0.90, Simulation: 0.70, Adventure: 1.10, Casual: 0.85 } },
-    { id: 'western', name: 'Viejo Oeste & Forajidos', idealAudience: 'Mature', genreFit: { Action: 1.35, RPG: 1.30, Strategy: 1.10, Simulation: 0.85, Adventure: 1.25, Casual: 0.70 } },
-    { id: 'pirate', name: 'Piratas & Corsarios', idealAudience: 'Everyone', genreFit: { Action: 1.25, RPG: 1.25, Strategy: 1.25, Simulation: 0.90, Adventure: 1.30, Casual: 0.80 } },
-    { id: 'farming', name: 'Vida Rural & Granja', idealAudience: 'Everyone', genreFit: { Action: 0.50, RPG: 1.15, Strategy: 1.10, Simulation: 1.35, Adventure: 0.95, Casual: 1.35 } },
-    { id: 'anime', name: 'Anime & Novela Visual', idealAudience: 'Young', genreFit: { Action: 1.05, RPG: 1.35, Strategy: 0.80, Simulation: 0.85, Adventure: 1.35, Casual: 1.05 } },
-    { id: 'espionage', name: 'Espionaje & Infiltración', idealAudience: 'Mature', genreFit: { Action: 1.30, RPG: 1.15, Strategy: 1.25, Simulation: 1.05, Adventure: 1.30, Casual: 0.65 } }
-];
+// Backward-compatible references
+const GENRES = GENRES_DATABASE;
+const TOPICS = THEMES_DATABASE;
 
 // --- 2. GENRES & IDEAL ARCHITECTURE / 3-STAGE SLIDER DISTRIBUTIONS ---
-const GENRES = [
-    {
-        id: 'Action',
-        name: 'Acción',
-        idealStage1: { engine: 0.90, gameplay: 0.85, story: 0.30 },
-        idealStage2: { dialogues: 0.30, levelDesign: 0.85, ai: 0.85 },
-        idealStage3: { worldDesign: 0.55, graphics: 0.95, sound: 0.85 },
-        architectureProfile: { engine: 0.25, gameplay: 0.35, net: 0.10, art: 0.20, qa: 0.10 }
-    },
-    {
-        id: 'RPG',
-        name: 'RPG (Rol)',
-        idealStage1: { engine: 0.60, gameplay: 0.85, story: 0.95 },
-        idealStage2: { dialogues: 0.95, levelDesign: 0.75, ai: 0.65 },
-        idealStage3: { worldDesign: 0.95, graphics: 0.80, sound: 0.80 },
-        architectureProfile: { engine: 0.15, gameplay: 0.30, net: 0.05, art: 0.35, qa: 0.15 }
-    },
-    {
-        id: 'Strategy',
-        name: 'Estrategia',
-        idealStage1: { engine: 0.80, gameplay: 0.95, story: 0.40 },
-        idealStage2: { dialogues: 0.40, levelDesign: 0.95, ai: 0.95 },
-        idealStage3: { worldDesign: 0.70, graphics: 0.60, sound: 0.65 },
-        architectureProfile: { engine: 0.20, gameplay: 0.35, net: 0.15, art: 0.10, qa: 0.20 }
-    },
-    {
-        id: 'Simulation',
-        name: 'Simulación',
-        idealStage1: { engine: 0.95, gameplay: 0.90, story: 0.20 },
-        idealStage2: { dialogues: 0.25, levelDesign: 0.85, ai: 0.90 },
-        idealStage3: { worldDesign: 0.85, graphics: 0.80, sound: 0.70 },
-        architectureProfile: { engine: 0.35, gameplay: 0.25, net: 0.05, art: 0.15, qa: 0.20 }
-    },
-    {
-        id: 'Adventure',
-        name: 'Aventura Gráfica',
-        idealStage1: { engine: 0.45, gameplay: 0.70, story: 0.95 },
-        idealStage2: { dialogues: 0.95, levelDesign: 0.80, ai: 0.40 },
-        idealStage3: { worldDesign: 0.90, graphics: 0.85, sound: 0.85 },
-        architectureProfile: { engine: 0.10, gameplay: 0.25, net: 0.05, art: 0.40, qa: 0.20 }
-    },
-    {
-        id: 'Casual',
-        name: 'Casual / Arcade',
-        idealStage1: { engine: 0.40, gameplay: 0.95, story: 0.20 },
-        idealStage2: { dialogues: 0.20, levelDesign: 0.85, ai: 0.40 },
-        idealStage3: { worldDesign: 0.60, graphics: 0.80, sound: 0.85 },
-        architectureProfile: { engine: 0.15, gameplay: 0.40, net: 0.10, art: 0.20, qa: 0.15 }
-    }
-];
-
 // --- 2.1 ARCHITECTURE DAG NODES CATALOG (16 NODES, 4 TIERS, 5 DISCIPLINES) ---
 const ARCHITECTURE_NODES = [
     // TIER 1: FUNDACIONES
@@ -399,18 +329,6 @@ function calculateArchitectureMetrics(selectedNodeIds, pipelineId = 'inhouse', g
     };
 }
 
-// --- 3. PLATFORMS & AUDIENCE AFFINITIES ---
-const PLATFORMS = [
-    { id: 'pc', name: 'PC (Ordenador)', devCost: 8000, marketShare: 0.45, eraUnlocked: 1, audience: 'Everyone', icon: '💻', audienceFit: { Everyone: 1.10, Young: 0.95, Mature: 1.15 } },
-    { id: 'g64', name: 'Commodore 64', devCost: 5000, marketShare: 0.35, eraUnlocked: 1, audience: 'Everyone', icon: '📼', audienceFit: { Everyone: 1.05, Young: 1.05, Mature: 0.90 } },
-    { id: 'nes', name: 'Master System 8-Bit', devCost: 12000, marketShare: 0.50, eraUnlocked: 1, audience: 'Young', icon: '🕹️', audienceFit: { Everyone: 1.10, Young: 1.25, Mature: 0.75 } },
-    { id: 'snes', name: 'Super 16-Bit', devCost: 22000, marketShare: 0.65, eraUnlocked: 2, audience: 'Everyone', icon: '🎮', audienceFit: { Everyone: 1.20, Young: 1.15, Mature: 0.90 } },
-    { id: 'playbox', name: 'PlayStation 32-Bit', devCost: 35000, marketShare: 0.80, eraUnlocked: 2, audience: 'Mature', icon: '💿', audienceFit: { Everyone: 1.05, Young: 0.85, Mature: 1.25 } },
-    { id: 'mobile', name: 'SmartPhone OS', devCost: 25000, marketShare: 0.75, eraUnlocked: 2, audience: 'Everyone', icon: '📱', audienceFit: { Everyone: 1.25, Young: 1.10, Mature: 0.95 } },
-    { id: 'ninswitch', name: 'Hybrid Console', devCost: 45000, marketShare: 0.85, eraUnlocked: 3, audience: 'Everyone', icon: '⚡', audienceFit: { Everyone: 1.25, Young: 1.20, Mature: 0.90 } },
-    { id: 'vrhelmet', name: 'VR Matrix Headset', devCost: 65000, marketShare: 0.60, eraUnlocked: 3, audience: 'Mature', icon: '🥽', audienceFit: { Everyone: 0.95, Young: 0.75, Mature: 1.30 } }
-];
-
 // --- 4. EXPANDED RESEARCH TREE WITH TIERS & PREREQUISITES ---
 const ENGINE_TECH_CATALOG = [
     // Tier 1 (Garage Era)
@@ -426,6 +344,7 @@ const ENGINE_TECH_CATALOG = [
     { id: 'multiplayer', name: 'Conectividad Multijugador', tier: 2, costRP: 75, bonusTech: 46, bonusDesign: 20, bonusScore: 0.40, requires: null, researched: false, desc: 'Sockets de red, sincronización y lobby online.' },
 
     // Tier 3 (Cyber Campus Era)
+    { id: 'sys_modding', name: 'Herramientas de Modding / SDK Comunitario', tier: 3, costRP: 80, bonusTech: 45, bonusDesign: 35, bonusScore: 0.40, minYear: 2000, requires: 'branching_story', researched: false, desc: 'Entorno de ejecución aislado y SDK para mods, mapas y expansiones comunitarias.' },
     { id: 'open_world', name: 'Mundo Abierto Dinámico', tier: 3, costRP: 95, bonusTech: 50, bonusDesign: 45, bonusScore: 0.50, requires: 'graphics3d_v1', researched: false, desc: 'Streaming procedural de mapas sin pantallas de carga.' },
     { id: 'raytracing', name: 'Iluminación Ray Tracing RTX', tier: 3, costRP: 130, bonusTech: 65, bonusDesign: 35, bonusScore: 0.55, requires: 'graphics3d_v1', researched: false, desc: 'Trazado de rayos físico y reflejos fotorrealistas.' },
     { id: 'neural_npc', name: 'NPCs con IA Generativa', tier: 3, costRP: 160, bonusTech: 70, bonusDesign: 50, bonusScore: 0.60, requires: 'smart_ai', researched: false, desc: 'Diálogos no guionados y conductas emergentes.' },
@@ -461,16 +380,6 @@ const RIVAL_GAME_NAMES = [
     'Sonic Cheetah', 'Half-Counter Strike', 'Mass Galaxy Citadel', 'StarCraft Command', 'Grand Heist Auto',
     'The Legend of Zorda', 'QuakeZone Arena', 'Dragon Quest Odyssey', 'Age of Castles IV', 'Warcraft Reign',
     'Red Dead Outlaws', 'Portal Shift', 'Fallout Horizon', 'Baldur Fortress', 'Street Fighter Turbo'
-];
-
-// Fictional creators unlocked with online video platforms from 2006 onward.
-const CREATOR_PROFILES = [
-    { id: 'pixelnora', name: 'PixelNora', platform: 'StreamBox', audience: 'small', followers: 18000, genres: ['Simulation', 'Casual'], fee: 450 },
-    { id: 'tacticotv', name: 'TacticoTV', platform: 'StreamBox', audience: 'small', followers: 32000, genres: ['Strategy', 'RPG'], fee: 650 },
-    { id: 'ludenslive', name: 'LudensLive', platform: 'GameCast', audience: 'medium', followers: 185000, genres: ['RPG', 'Adventure'], fee: 2200 },
-    { id: 'speedrunmax', name: 'SpeedrunMax', platform: 'GameCast', audience: 'medium', followers: 260000, genres: ['Action', 'Simulation'], fee: 2800 },
-    { id: 'megaplay', name: 'MegaPlay', platform: 'StreamBox', audience: 'top', followers: 2400000, genres: ['Action', 'RPG', 'Adventure'], fee: 9000 },
-    { id: 'coopqueen', name: 'CoopQueen', platform: 'GameCast', audience: 'top', followers: 1750000, genres: ['Strategy', 'Simulation', 'Casual'], fee: 8000 }
 ];
 
 // --- 7. CORE TYCOON GAME ENGINE ---
@@ -533,13 +442,22 @@ class TycoonGame {
         this.currentProject = null;
         this.gamesHistory = [];
         this.activeSales = [];
-        this.creatorProfiles = CREATOR_PROFILES.map(profile => ({ ...profile, genres: [...profile.genres] }));
+        this.platforms = Array.isArray(PLATFORMS) ? JSON.parse(JSON.stringify(PLATFORMS)) : [];
+        this.genres = Array.isArray(GENRES_DATABASE) ? JSON.parse(JSON.stringify(GENRES_DATABASE)) : [];
+        this.creatorProfiles = Array.isArray(CREATOR_PROFILES) ? JSON.parse(JSON.stringify(CREATOR_PROFILES)) : [];
+        this.industryEventsCatalog = Array.isArray(INDUSTRY_EVENT_CATALOG) ? JSON.parse(JSON.stringify(INDUSTRY_EVENT_CATALOG)) : [];
+        this.installedSimulatorMods = [];
         this.researchedTechs = ['graphics2d_v1', 'sound_chiptune'];
 
-        // Research & Development (I+D) Tech Tree System
+        // Research & Development (I+D) Tech Tree System & Topic/Genre Progression
         this.techTreeManager = new TechTreeManager();
         this.activeResearch = null; // { techId, nodeName, icon, costRP, totalWeeks, weeksRemaining, progress }
         this.activeEngineRD = null;
+        this.unlockedGenreIds = ['action', 'Action', 'adventure', 'Adventure', 'rpg', 'RPG', 'strategy', 'Strategy', 'simulation', 'Simulation', 'casual', 'Casual'];
+        this.activeGenreResearch = null; // { genreId, genreName, costRP, totalWeeks, weeksRemaining, progress, employeeIndex, employeeName }
+        this.unlockedTopicIds = ['medieval', 'fantasy', 'sports', 'space', 'martial_arts', 'ninja']; // Starting topics for Era 80s
+        this.activeTopicResearch = null; // { topicId, topicName, costRP, totalWeeks, weeksRemaining, progress, employeeIndex, employeeName }
+        this.marketingPressArchive = []; // Archive of retro/digital press covers and magazine clippings
 
         this.customEngines = [
             {
@@ -575,6 +493,12 @@ class TycoonGame {
         this.marketTrend = null;
         this.activePublisherContract = null;
         this.discoveredInsights = []; // Unlocked post-mortem insights
+        // Industry crisis and community event state (catalog-driven, transient runtime state).
+        this.pendingIndustryEvents = [];
+        this.industryEventHistory = [];
+        this.platformSupplyShocks = [];
+        this.industryEventCooldowns = {};
+        this.lastIndustryEventWeek = -Infinity;
 
         // Subsistema de Deuda Técnica: Alertas de Crisis y Modo Parche de Emergencia Post-Lanzamiento
         this.isEmergencyPatchActive = false;
@@ -632,6 +556,509 @@ class TycoonGame {
 
     getHistoricalYear() {
         return 1981 + this.year;
+    }
+
+    getIndustryWeek() {
+        return (this.year - 1) * 48 + (this.month - 1) * 4 + this.week;
+    }
+
+    hasBasicSecurityForProject(project = this.currentProject) {
+        if (!project) return false;
+        const researchIds = [
+            ...(this.researchedTechs || []),
+            ...Array.from(this.techTreeManager?.unlockedTechs || [])
+        ];
+        const scopedNodeNames = project.scopeDAG?.getActiveNodes?.().map(node => `${node.id} ${node.name || ''}`) || [];
+        return [...researchIds, ...scopedNodeNames].some(value => /security|firewall|encrypt|cyber|firewall|seguridad|cifrado/i.test(String(value)));
+    }
+
+    // --- DATA-DRIVEN ARCHITECTURE & SIMULATOR EXTENSIBILITY (MODDING API) ---
+    getPlatforms(era = null) {
+        if (era === null || era === undefined) return [...(this.platforms || [])];
+        return (this.platforms || []).filter(p => (p.eraUnlocked || 1) <= era);
+    }
+
+    getPlatformById(id) {
+        return (this.platforms || []).find(p => p.id === id) || null;
+    }
+
+    registerPlatform(platformData) {
+        if (!platformData || !platformData.id || !platformData.name) {
+            return { success: false, message: 'La consola requiere identificador (id) y nombre (name).' };
+        }
+        this.platforms = this.platforms || [];
+        const existingIndex = this.platforms.findIndex(p => p.id === platformData.id);
+        const cleanPlatform = {
+            id: String(platformData.id).trim(),
+            name: String(platformData.name).trim(),
+            devCost: Number(platformData.devCost) || 20000,
+            marketShare: Number(platformData.marketShare) || 0.65,
+            eraUnlocked: Number(platformData.eraUnlocked) || 1,
+            audience: platformData.audience || 'Everyone',
+            icon: platformData.icon || '🎮',
+            audienceFit: platformData.audienceFit || { Everyone: 1.1, Young: 1.0, Mature: 1.0 },
+            isModded: true
+        };
+        if (existingIndex >= 0) {
+            this.platforms[existingIndex] = cleanPlatform;
+        } else {
+            this.platforms.push(cleanPlatform);
+        }
+        this.notify();
+        return { success: true, platform: cleanPlatform, message: `Plataforma "${cleanPlatform.name}" registrada con éxito.` };
+    }
+
+    registerStreamer(streamerData) {
+        if (!streamerData || !streamerData.id || !streamerData.name) {
+            return { success: false, message: 'El streamer requiere id y nombre.' };
+        }
+        this.creatorProfiles = this.creatorProfiles || [];
+        const existingIndex = this.creatorProfiles.findIndex(s => s.id === streamerData.id);
+        const cleanStreamer = {
+            id: String(streamerData.id).trim(),
+            name: String(streamerData.name).trim(),
+            platform: streamerData.platform || 'StreamBox Live',
+            audience: streamerData.audience || 'top',
+            followers: Number(streamerData.followers) || 500000,
+            genres: Array.isArray(streamerData.genres) ? [...streamerData.genres] : ['Action', 'RPG', 'Adventure'],
+            fee: Number(streamerData.fee) || 2500,
+            isModded: true
+        };
+        if (existingIndex >= 0) {
+            this.creatorProfiles[existingIndex] = cleanStreamer;
+        } else {
+            this.creatorProfiles.push(cleanStreamer);
+        }
+        this.notify();
+        return { success: true, streamer: cleanStreamer, message: `Creador de contenido "${cleanStreamer.name}" registrado.` };
+    }
+
+    registerIndustryEvent(eventData) {
+        if (!eventData || !eventData.id || !eventData.title || !eventData.type) {
+            return { success: false, message: 'El evento requiere id, type y title.' };
+        }
+        this.industryEventsCatalog = this.industryEventsCatalog || [];
+        const existingIndex = this.industryEventsCatalog.findIndex(e => e.id === eventData.id);
+        const cleanEvent = {
+            id: String(eventData.id).trim(),
+            type: eventData.type,
+            title: eventData.title,
+            category: eventData.category || 'market_crisis',
+            minYear: Number(eventData.minYear) || 1982,
+            maxYear: Number(eventData.maxYear) || 9999,
+            weight: Number(eventData.weight) || 1,
+            trigger: eventData.trigger || { kind: 'random_industry_event' },
+            choices: Array.isArray(eventData.choices) ? eventData.choices : [],
+            retroHeadline: eventData.retroHeadline || eventData.headline || eventData.title,
+            modernHeadline: eventData.modernHeadline || eventData.headline || eventData.title,
+            description: eventData.description || eventData.title,
+            isModded: true
+        };
+        if (existingIndex >= 0) {
+            this.industryEventsCatalog[existingIndex] = cleanEvent;
+        } else {
+            this.industryEventsCatalog.push(cleanEvent);
+        }
+        this.notify();
+        return { success: true, event: cleanEvent, message: `Evento de la industria "${cleanEvent.title}" registrado.` };
+    }
+
+    loadModPackage(pkg) {
+        try {
+            const data = typeof pkg === 'string' ? JSON.parse(pkg) : pkg;
+            if (!data || typeof data !== 'object') {
+                return { success: false, message: 'El paquete de mod debe ser un objeto JSON válido.' };
+            }
+            let platformsCount = 0;
+            let streamersCount = 0;
+            let eventsCount = 0;
+
+            if (Array.isArray(data.platforms)) {
+                data.platforms.forEach(p => {
+                    const res = this.registerPlatform(p);
+                    if (res.success) platformsCount++;
+                });
+            }
+            if (Array.isArray(data.streamers)) {
+                data.streamers.forEach(s => {
+                    const res = this.registerStreamer(s);
+                    if (res.success) streamersCount++;
+                });
+            }
+            if (Array.isArray(data.events)) {
+                data.events.forEach(e => {
+                    const res = this.registerIndustryEvent(e);
+                    if (res.success) eventsCount++;
+                });
+            }
+
+            const modRecord = {
+                id: data.metadata?.id || `mod_${Date.now()}`,
+                name: data.metadata?.name || 'Paquete de Modding Comunitario',
+                author: data.metadata?.author || 'Comunidad',
+                version: data.metadata?.version || '1.0.0',
+                description: data.metadata?.description || 'Expansión de datos de plataformas, creadores y eventos.',
+                platformsCount,
+                streamersCount,
+                eventsCount,
+                installedAt: new Date().toLocaleDateString()
+            };
+            this.installedSimulatorMods = (this.installedSimulatorMods || []).filter(m => m.id !== modRecord.id);
+            this.installedSimulatorMods.push(modRecord);
+            this.notify();
+            return {
+                success: true,
+                modRecord,
+                message: `✅ Mod "${modRecord.name}" cargado: +${platformsCount} consolas, +${streamersCount} streamers y +${eventsCount} eventos.`
+            };
+        } catch (err) {
+            return { success: false, message: `Error al procesar el paquete JSON de mod: ${err.message}` };
+        }
+    }
+
+    exportModPackageTemplate() {
+        return JSON.stringify({
+            metadata: {
+                id: "custom_expansion_pack",
+                name: "Expansión Personalizada de la Comunidad",
+                author: "Tu Nombre o Estudio",
+                version: "1.0.0",
+                description: "Nuevas consolas de época, streamers emergentes y crisis contextuales."
+            },
+            platforms: [
+                {
+                    id: "custom_handheld_1",
+                    name: "Neo Portable 16-Bit",
+                    devCost: 24000,
+                    marketShare: 0.68,
+                    eraUnlocked: 2,
+                    audience: "Young",
+                    icon: "👾",
+                    audienceFit: { Everyone: 1.15, Young: 1.30, Mature: 0.85 }
+                }
+            ],
+            streamers: [
+                {
+                    id: "custom_streamer_1",
+                    name: "GamerProLive",
+                    platform: "StreamBox Live",
+                    audience: "top",
+                    followers: 2800000,
+                    genres: ["Action", "RPG", "Strategy"],
+                    fee: 4500
+                }
+            ],
+            events: [
+                {
+                    id: "custom_market_surge",
+                    type: "platform_supply_shock",
+                    title: "Auge del Cartucho Coleccionista",
+                    retroHeadline: "PRENSA RETRO: FIEBRE DEL COLECCIONISMO DISPARA LA DEMANDA",
+                    modernHeadline: "RETRO COLLECTING BOOM INCREASES CARTRIDGE VALUATIONS",
+                    category: "market_crisis",
+                    minYear: 1985,
+                    maxYear: 2005,
+                    weight: 1.0,
+                    trigger: { kind: "random_industry_event" },
+                    choices: [
+                        { id: "wait_supply", label: "Mantener producción estándar", description: "Sin coste directo." },
+                        { id: "reserve_stock", label: "Tirada especial de lujo", costFraction: 0.08 }
+                    ]
+                }
+            ]
+        }, null, 2);
+    }
+
+    // --- PROCEDURAL CONTEXTUAL INDUSTRY CRISIS & CONTINGENCY ENGINE ---
+    getIndustryEventDefinition(eventId) {
+        return (this.industryEventsCatalog || INDUSTRY_EVENT_CATALOG).find(item => item.id === eventId) || null;
+    }
+
+    createIndustryEvent(eventId, context = {}) {
+        const definition = this.getIndustryEventDefinition(eventId);
+        if (!definition) return null;
+        const createdWeek = this.getIndustryWeek();
+        const year = this.getHistoricalYear();
+        const headline = context.headline || (year <= 2004 ? definition.retroHeadline : definition.modernHeadline) || definition.title;
+
+        const choices = (definition.choices || []).map(choice => {
+            const dynamic = {};
+            if (choice.costFraction) {
+                const budget = this.currentProject?.devCostTotal || context.referenceBudget || Math.max(30000, Math.floor(this.funds * 0.12));
+                dynamic.cost = Math.max(choice.minCost || 5000, Math.round(budget * choice.costFraction));
+            } else if (choice.cost !== undefined) {
+                dynamic.cost = choice.cost;
+            }
+            return {
+                ...choice,
+                detail: choice.description,
+                risks: choice.risks || [],
+                timeWeeks: choice.timeWeeks || choice.delayWeeks || (choice.durationMonths ? choice.durationMonths * 4 : 0),
+                ...dynamic
+            };
+        });
+
+        const event = {
+            id: `${definition.id}_${createdWeek}_${Math.floor(Math.random() * 100000)}`,
+            type: definition.type,
+            catalogId: definition.id,
+            title: definition.title,
+            headline,
+            body: context.body || definition.description || definition.choices[0]?.description || 'La industria afronta un acontecimiento imprevisto.',
+            category: definition.category,
+            createdWeek,
+            createdYear: year,
+            expiresAtWeek: createdWeek + 2,
+            choices,
+            ...context
+        };
+        this.pendingIndustryEvents.push(event);
+        this.industryEventHistory.push({ id: event.id, type: event.type, title: event.title, createdWeek, status: 'pending' });
+        this.industryEventHistory = this.industryEventHistory.slice(-50);
+        this.lastIndustryEventWeek = createdWeek;
+        this.notify();
+        return event;
+    }
+
+    checkIndustryEvents() {
+        const currentWeek = this.getIndustryWeek();
+        this.platformSupplyShocks = (this.platformSupplyShocks || []).filter(shock => shock.expiresAtWeek > currentWeek);
+        this.genreDemandShocks = (this.genreDemandShocks || []).filter(shock => shock.expiresAtWeek > currentWeek);
+
+        // Unanswered events resolve to their low-cost/default option after two weeks.
+        const expiredEvents = (this.pendingIndustryEvents || []).filter(event => currentWeek >= event.expiresAtWeek);
+        for (const event of expiredEvents) {
+            const defaultChoice = event.type === 'platform_supply_shock' ? 'wait_supply'
+                : (event.type === 'code_breach' ? 'legal_audit'
+                    : (event.type === 'patent_lawsuit' ? 'settle' : 'delay'));
+            this.resolveIndustryEvent(event.id, defaultChoice, { automatic: true });
+        }
+
+        // 1. Periodo de Gracia / Cooldown Obligatorio (16 meses = 64 semanas de protección mínima entre crisis)
+        const CRISIS_GRACE_PERIOD_WEEKS = 64;
+        if (this.pendingIndustryEvents?.length || (currentWeek - this.lastIndustryEventWeek < CRISIS_GRACE_PERIOD_WEEKS)) {
+            return null;
+        }
+
+        // 2. Tirada Excepcional Mensual: Solo se evalúa en la Semana 1 de cada mes ficticio con probabilidad reducida (1%-3%)
+        if (this.week !== 1) return null;
+        if (Math.random() > 0.025) return null; // 2.5% de probabilidad mensual de crisis de mercado
+
+        const year = this.getHistoricalYear();
+        const catalog = this.industryEventsCatalog || INDUSTRY_EVENT_CATALOG;
+        const definitions = catalog.filter(event => year >= (event.minYear || 1982) && year <= (event.maxYear || 9999));
+        const candidates = [];
+        const project = this.currentProject;
+
+        // Factores lógicos de activación:
+        // - Fuga de código: Exclusivo si Hype > 70 y sin seguridad básica
+        const accumulatedHype = Math.max(project?.marketingHype || 0, project?.hype || 0);
+        const hasLeakRisk = Boolean(project && project.overallProgress >= 50 && accumulatedHype > 70 && !this.hasBasicSecurityForProject(project));
+
+        // - Demandas: NUNCA en el garaje (Era 1). Solo con más de 4 juegos, éxito masivo (>8.8 nota o >80k copias) y fondos holgados
+        const isGarageEra = this.era === 1;
+        const releasedCount = (this.gamesHistory || []).length;
+        const hasMassiveHit = (this.gamesHistory || []).some(g => (g.score || 0) >= 8.8 || (g.unitsSoldTotal || 0) >= 80000);
+        const isLawsuitEligible = !isGarageEra && releasedCount >= 4 && hasMassiveHit && this.funds >= 150000;
+
+        // - Desplome de tendencia: Solo si el estudio ha sobreexplotado el género (3 o más lanzamientos idénticos)
+        const genreOccurrences = (this.gamesHistory || []).filter(g => (g.genreId || g.genre) === project?.genre?.id).length;
+        const hasTrendExposure = Boolean(project && genreOccurrences >= 3);
+
+        for (const definition of definitions) {
+            const type = definition.type;
+            if ((this.industryEventCooldowns[type] || 0) > currentWeek) continue;
+
+            if (type === 'platform_supply_shock') {
+                const availableTitles = [...(this.activeSales || []), ...(project ? [project] : [])];
+                const uniquePlatforms = [...new Map(availableTitles.filter(item => item.platform?.id).map(item => [item.platform.id, item.platform])).values()];
+                if (!uniquePlatforms.length) continue;
+                const affectedPlatform = uniquePlatforms[Math.floor(Math.random() * uniquePlatforms.length)];
+                if (this.platformSupplyShocks.some(shock => shock.platformId === affectedPlatform.id && shock.expiresAtWeek > currentWeek)) continue;
+                
+                // Crisis de Fabricación / Escasez de Chips: Reduce ventas 30%-50% durante 3 a 6 meses (12-24 semanas)
+                const durationWeeks = 12 + Math.floor(Math.random() * 13);
+                const baseSalesMultiplier = 0.50 + Math.random() * 0.20;
+                const reductionPercent = Math.round((1 - baseSalesMultiplier) * 100);
+
+                candidates.push({ definition, context: {
+                    platformId: affectedPlatform.id,
+                    platformName: affectedPlatform.name,
+                    headline: year <= 2004
+                        ? `CRISIS DE FABRICACIÓN: ESCASEAN LOS CHIPS PARA ${affectedPlatform.name.toUpperCase()}`
+                        : `CADENA DE SUMINISTRO GLOBAL BAJO PRESIÓN EN ${affectedPlatform.name.toUpperCase()}`,
+                    body: `La escasez de componentes electrónicos y obleas de silicio reducirá las ventas de juegos para ${affectedPlatform.name} en un ${reductionPercent}% durante los próximos ${Math.round(durationWeeks / 4)} meses (${durationWeeks} semanas).`,
+                    durationWeeks,
+                    baseSalesMultiplier
+                }});
+            } else if (type === 'code_breach' && hasLeakRisk) {
+                candidates.push({ definition, context: {
+                    headline: year <= 2004
+                        ? `ESCÁNDALO: DISQUETES CONFIDENCIALES DE "${project.name.toUpperCase()}" EN LA CALLE`
+                        : `CYBER ALERT: CÓDIGO FUENTE DE "${project.name.toUpperCase()}" FILTRADO EN LA RED`,
+                    body: `El estudio no cuenta con infraestructura de seguridad básica y el gran Hype de "${project.name}" (${accumulatedHype} pts) ha atraído filtradores. Parte del código circula en foros piratas. Puedes forzar el lanzamiento incompleto (asumiendo más Deuda Técnica) o financiar una auditoría legal y rehacer módulos (+2 meses de desarrollo).`,
+                    projectName: project.name,
+                    referenceBudget: project.devCostTotal || 35000,
+                    defaultChoiceId: 'legal_audit'
+                }});
+            } else if (type === 'patent_lawsuit' && isLawsuitEligible) {
+                const basis = this.gamesHistory.find(game => (game.score || 0) >= 8.5) || this.gamesHistory[0];
+                candidates.push({ definition, context: {
+                    headline: year <= 2004
+                        ? 'LITIGIO MERCANTIL: DEMANDA DE PATENTES CONTRA EL ESTUDIO'
+                        : 'BREAKING: TROLL DE PATENTES IMPUGNA TECNOLOGÍAS DEL ESTUDIO',
+                    body: `Un consorcio legal rival demanda a tu empresa alegando infracción de algoritmos en el éxito comercial "${basis?.name || 'tu catálogo'}". Puedes pactar un acuerdo extrajudicial inmediato o contratar un bufete para litigar en tribunales (55% de probabilidad de ganar).`,
+                    referenceBudget: basis?.devCostTotal || basis?.devCost || 60000,
+                    defaultChoiceId: 'settle'
+                }});
+            } else if (type === 'genre_trend_crash' && hasTrendExposure) {
+                candidates.push({ definition, context: {
+                    headline: year <= 2004
+                        ? `CAMBIO DE CICLO: EL PÚBLICO SE ENFRÍA ANTE EL GÉNERO ${project.genre.name.toUpperCase()}`
+                        : `MARKET FATIGUE: DESPLOME REPENTINO DEL INTERÉS POR ${project.genre.name.toUpperCase()}`,
+                    body: `La saturación de mercado tras varios lanzamientos seguidos ha enfriado temporalmente el interés del público por ${project.genre.name}. Puedes pivotar el proyecto hacia otro género o retrasar el lanzamiento 2 meses (+8 semanas) a que se disipe la sobreoferta.`,
+                    projectGenreId: project.genre.id,
+                    projectGenreName: project.genre.name,
+                    defaultChoiceId: 'delay'
+                }});
+            }
+        }
+
+        if (!candidates.length) return null;
+        const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+        const event = this.createIndustryEvent(chosen.definition.id, chosen.context);
+        this.lastIndustryEventWeek = currentWeek;
+        // Cooldown por tipo: 96 semanas (24 meses ficticios)
+        this.industryEventCooldowns[event.type] = currentWeek + 96;
+        return event;
+    }
+
+    resolveIndustryEvent(eventId, choiceId, options = {}) {
+        const index = (this.pendingIndustryEvents || []).findIndex(event => event.id === eventId);
+        if (index < 0) return { success: false, message: 'La noticia ya no está pendiente.' };
+        const event = this.pendingIndustryEvents[index];
+        const choice = event.choices.find(item => item.id === choiceId);
+        if (!choice) return { success: false, message: 'Esa opción no está disponible para esta crisis.' };
+        const currentWeek = this.getIndustryWeek();
+        const project = event.projectName && this.currentProject?.name !== event.projectName ? null : this.currentProject;
+        const cost = Math.max(0, Math.floor(choice.cost || 0));
+        if (cost > this.funds) return { success: false, message: `Fondos insuficientes ($${cost.toLocaleString()}) para ejecutar esa decisión.` };
+        let message = '';
+        let releasedGame = null;
+
+        if (event.type === 'platform_supply_shock') {
+            if (choiceId === 'reserve_stock') {
+                this.funds -= cost;
+                this.platformSupplyShocks.push({
+                    eventId: event.id,
+                    platformId: event.platformId,
+                    platformName: event.platformName,
+                    multiplier: 0.90, // Reduce impacto a solo -10%
+                    expiresAtWeek: currentWeek + 4, // Duración reducida a 4 semanas
+                    source: 'reserved_supply'
+                });
+                message = `📦 Inventario reservado por $${cost.toLocaleString()} para ${event.platformName}; el impacto se limita a un leve 10% durante solo cuatro semanas.`;
+            } else {
+                const duration = event.durationWeeks || 16;
+                const multiplier = event.baseSalesMultiplier || 0.60;
+                this.platformSupplyShocks.push({
+                    eventId: event.id,
+                    platformId: event.platformId,
+                    platformName: event.platformName,
+                    multiplier,
+                    expiresAtWeek: currentWeek + duration,
+                    source: 'chip_shortage'
+                });
+                const reduction = Math.round((1 - multiplier) * 100);
+                message = `⏳ Decidiste esperar sin desembolso. Las ventas en ${event.platformName} sufrirán una reducción del ${reduction}% durante las próximas ${duration} semanas.`;
+            }
+        } else if (event.type === 'code_breach') {
+            if (!project) return { success: false, message: 'El proyecto afectado ya no se encuentra en desarrollo activo.' };
+            if (choiceId === 'rush_release') {
+                project.bugs = (project.bugs || 0) + (choice.bugsIncrease || 5);
+                const debtAdd = choice.debtIncrease || 15;
+                if (project.techDebtModel) {
+                    project.techDebtModel.rawDebt = Math.max(project.techDebtModel.baseBloatwareDebt || 0, (project.techDebtModel.rawDebt || 0) + debtAdd);
+                    project.techDebtModel.totalDebtGenerated = (project.techDebtModel.totalDebtGenerated || 0) + debtAdd;
+                }
+                project.leakForcedRelease = true;
+                if (project.businessModel === 'early_access' && project.overallProgress >= 50 && project.overallProgress <= 80) {
+                    const launch = this.launchEarlyAccess();
+                    if (!launch.success) return launch;
+                    releasedGame = launch.game;
+                } else {
+                    releasedGame = this.finishAndReleaseGame({ forcedLaunch: true });
+                }
+                message = `⚡ Lanzamiento adelantado en estado incompleto. Se añadieron +${debtAdd} de Deuda Técnica y +5 bugs críticos al juego publicado.`;
+            } else {
+                this.funds -= cost;
+                const delay = choice.delayWeeks || 8;
+                project.developmentDelayWeeks = (project.developmentDelayWeeks || 0) + delay;
+                project.modulesReworkRequired = (project.modulesReworkRequired || 0) + 2;
+                project.marketingHype = Math.max(0, (project.marketingHype || 0) - (choice.hypePenalty || 10));
+                project.leakAudited = true;
+                message = `🛡️ Auditoría legal completada por $${cost.toLocaleString()}. Se aíslan las brechas y se reprograman los módulos afectados (+${delay} semanas de desarrollo).`;
+            }
+        } else if (event.type === 'patent_lawsuit') {
+            if (choiceId === 'settle') {
+                this.funds -= cost;
+                message = `🤝 Acuerdo extrajudicial cerrado: se abonaron $${cost.toLocaleString()} a los demandantes. El litigio queda archivado sin impacto en la reputación.`;
+            } else {
+                this.funds -= cost;
+                const winChance = choice.winChance || 0.55;
+                const won = Math.random() < winChance;
+                if (won) {
+                    this.fans += 35;
+                    message = `⚖️ ¡VICTORIA JUDICIAL! El tribunal desestimó la demanda de patentes por falta de mérito. Ganas prestigio en la industria (+35 Fans).`;
+                } else {
+                    const penalty = Math.max(cost, Math.round((event.referenceBudget || 30000) * (choice.penaltyFraction || 0.25)));
+                    this.funds = Math.max(0, this.funds - penalty);
+                    this.fans = Math.max(0, this.fans - 20);
+                    message = `❌ FALLO JUDICIAL EN CONTRA: Además de los $${cost.toLocaleString()} de procuradores, el juzgado impuso una indemnización de $${penalty.toLocaleString()} (-20 Fans).`;
+                }
+            }
+        } else if (event.type === 'genre_trend_crash') {
+            if (!project) return { success: false, message: 'El proyecto afectado ya no se encuentra en desarrollo activo.' };
+            this.genreDemandShocks = this.genreDemandShocks || [];
+            const shockWeeks = 8;
+            if (choiceId === 'pivot') {
+                const availableGenres = this.genres || GENRES;
+                const alternatives = availableGenres.filter(genre => genre.id !== project.genre.id);
+                const replacement = this.marketTrend?.genreId && this.marketTrend.genreId !== project.genre.id
+                    ? availableGenres.find(genre => genre.id === this.marketTrend.genreId)
+                    : alternatives[Math.floor(Math.random() * alternatives.length)];
+                if (replacement) {
+                    project.genre = replacement;
+                    if (project.scopeDAG) project.synergies = project.scopeDAG.calculateSynergies(replacement.id);
+                    project.industryPivoted = true;
+                }
+                this.genreDemandShocks.push({ genreId: event.projectGenreId, multiplier: 0.70, expiresAtWeek: currentWeek + shockWeeks, eventId: event.id });
+                message = `🔄 Proyecto pivotado exitosamente a "${replacement?.name || 'nuevo género'}". El antiguo género pierde un 30% de tracción temporal.`;
+            } else {
+                const delay = choice.delayWeeks || 8;
+                project.developmentDelayWeeks = (project.developmentDelayWeeks || 0) + delay;
+                project.industryDelayWeeks = (project.industryDelayWeeks || 0) + delay;
+                this.genreDemandShocks.push({ genreId: event.projectGenreId, multiplier: 0.65, expiresAtWeek: currentWeek + shockWeeks, eventId: event.id });
+                message = `⏸️ Lanzamiento retrasado ${delay} semanas (+2 meses ficticios). Esperas a que el público recupere el apetito mientras asumes la nómina.`;
+            }
+        }
+
+        this.pendingIndustryEvents.splice(index, 1);
+        const history = this.industryEventHistory.find(item => item.id === event.id);
+        if (history) Object.assign(history, { status: options.automatic ? 'auto_resolved' : 'resolved', choiceId, resolvedWeek: currentWeek, result: message });
+        this.notify();
+        return { success: true, message, event, choice, releasedGame, automatic: Boolean(options.automatic) };
+    }
+
+    getIndustrySalesMultiplier(platformId, genreId = null) {
+        const currentWeek = this.getIndustryWeek();
+        const platformMultiplier = (this.platformSupplyShocks || [])
+            .filter(shock => shock.platformId === platformId && shock.expiresAtWeek > currentWeek)
+            .reduce((multiplier, shock) => multiplier * shock.multiplier, 1);
+        const genreMultiplier = (this.genreDemandShocks || [])
+            .filter(shock => genreId && shock.genreId === genreId && shock.expiresAtWeek > currentWeek)
+            .reduce((multiplier, shock) => multiplier * shock.multiplier, 1);
+        return Math.max(0.10, platformMultiplier * genreMultiplier);
     }
 
     getBusinessModelOptions(selectedNodeIds = []) {
@@ -716,8 +1143,179 @@ class TycoonGame {
         project.marketingFeed.push(campaignPost);
         project.marketingFeed = project.marketingFeed.slice(-8);
 
+        // Generar Portada de Revista Retro / Portal Web Digital (Subagente 4)
+        let pressCover = null;
+        if (['magazine_ad', 'cd_demo', 'e3_trailer', 'digital_demo'].includes(methodId)) {
+            pressCover = this.generateMarketingPressCover(project, methodId);
+            if (pressCover) {
+                project.marketingPressCovers = project.marketingPressCovers || [];
+                project.marketingPressCovers.push(pressCover);
+                this.marketingPressArchive = this.marketingPressArchive || [];
+                this.marketingPressArchive.unshift(pressCover);
+            }
+        }
+
         this.notify();
-        return { success: true, message: `${option.label}: campaña lanzada por $${option.cost.toLocaleString()}.`, project };
+        return {
+            success: true,
+            message: `${option.label}: campaña lanzada por $${option.cost.toLocaleString()}.`,
+            project,
+            pressCover
+        };
+    }
+
+    generateMarketingPressCover(project, methodId = 'magazine_ad') {
+        const year = this.getHistoricalYear();
+        const pName = (project?.name || 'Nuevo Videojuego').toUpperCase();
+        const genreName = project?.genre?.name || project?.genre || 'Videojuego';
+        const company = this.companyName || 'PixelForge Studio';
+
+        let cover = null;
+
+        if (year < 1990) {
+            // Pool 80s: Micromaníacos (formato gigante satinado), Power Play, Sinclair & Spectrum User
+            const pool = [
+                {
+                    id: 'micromaniacos_' + Date.now(),
+                    period: '80s',
+                    styleClass: 'cover-micromaniacos',
+                    publicationName: 'MICRO-MANÍACOS',
+                    tagline: 'REVISTA MENSUAL DEL SOFTWARE Y LOS MICROS DE 8 BITS',
+                    issue: `AÑO I · Nº ${Math.max(1, (year - 1982) * 12 + this.month)}`,
+                    priceBadge: '375 PTS / 2.50$',
+                    headline: `¡EXCLUSIVA MUNDIAL! PRIMERAS IMÁGENES DE "${pName}"`,
+                    subheadline: `El estudio ${company} revoluciona los ordenadores de cinta con una ambiciosa propuesta de ${genreName}.`,
+                    badgeTop: '★ PÓSTER GIGANTE EN EL INTERIOR ★',
+                    featureBadge: '¡GRÁFICOS ALUCINANTES!',
+                    quote: '«Una producción nacional que no tiene nada que envidiar a las superproducciones de software internacional»',
+                    tags: ['8-BIT GLORY', 'ESPECTRO CASSETTE', 'JOYSTICK COMPATIBLE'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                },
+                {
+                    id: 'powerplay_' + Date.now(),
+                    period: '80s',
+                    styleClass: 'cover-powerplay',
+                    publicationName: 'POWER PLAY',
+                    tagline: 'OFFICIAL MONTHLY PLAYER’S STRATEGY GUIDE',
+                    issue: `VOL. ${year - 1981} · ISSUE #${this.month}`,
+                    priceBadge: '$3.50 US / $4.25 CAN',
+                    headline: `THE NEXT HIT: "${pName}"`,
+                    subheadline: `${company} reveals its top-secret project. Is this the definitive cartridge of the generation?`,
+                    badgeTop: '★ CLASSIFIED SNEAK PEEK ★',
+                    featureBadge: 'PRO-TIPS & SECRET CODES',
+                    quote: '«Jaw-dropping action and tight control response that will keep you glued to the CRT monitor screen»',
+                    tags: ['HIGH SCORE', 'NES TESTED', 'SEAL OF APPROVAL'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                },
+                {
+                    id: 'spectrumuser_' + Date.now(),
+                    period: '80s',
+                    styleClass: 'cover-spectrumuser',
+                    publicationName: 'SPECTRUM USER',
+                    tagline: 'THE ESSENTIAL MONTHLY FOR MICRO ENTHUSIASTS',
+                    issue: `VOL. 2 · UK £1.20`,
+                    priceBadge: '£1.20 / 350 PTS',
+                    headline: `BREAKING THE 48K BARRIER: "${pName}"`,
+                    subheadline: `How ${company} squeezed maximum scrolling speed and arcade action into limited RAM.`,
+                    badgeTop: '★ COVER TAPE CASSETTE INCLUDED ★',
+                    featureBadge: '100% MACHINE CODE',
+                    quote: '«Smooth raster routines and addictive gameplay loops. An outstanding technical accomplishment»',
+                    tags: ['48K RAM', 'NO ATTRIBUTE CLASH', 'KEMPSTON READY'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                }
+            ];
+            cover = pool[Math.floor(Math.random() * pool.length)];
+        } else if (year < 2000) {
+            // Pool 90s: PC Gamer Ultra, Super Consoles
+            const pool = [
+                {
+                    id: 'pcgamerultra_' + Date.now(),
+                    period: '90s',
+                    styleClass: 'cover-pcgamerultra',
+                    publicationName: 'PC GAMER ULTRA',
+                    tagline: 'LA GUÍA DEFINITIVA DEL HARDWARE Y JUEGOS EN CD-ROM',
+                    issue: `AÑO VII · EJEMPLAR #${(year - 1990) * 12 + this.month}`,
+                    priceBadge: '595 PTS / $3.99',
+                    headline: `EL SALTO A LAS 3D: "${pName}"`,
+                    subheadline: `Probamos en primicia la tecnología puntera que ${company} prepara para cambiar los estándares.`,
+                    badgeTop: '★ CD-ROM 650MB CON DEMO JUGABLE ★',
+                    featureBadge: 'ACELERACIÓN 3D GL / SOUND BLASTER 16',
+                    quote: '«Texturas de alta resolución, sonido envolvente y una física que redefine por completo el género»',
+                    tags: ['CD-ROM EXCLUSIVO', 'SVGA 640x480', 'MULTIPLAYER LAN'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                },
+                {
+                    id: 'superconsole_' + Date.now(),
+                    period: '90s',
+                    styleClass: 'cover-superconsole',
+                    publicationName: 'SUPER CONSOLES',
+                    tagline: 'TODAS LAS NOVEDADES DE 16 Y 32 BITS AL DETALLE',
+                    issue: `Nº ${(year - 1990) * 8 + this.month}`,
+                    priceBadge: '495 PTS / $3.50',
+                    headline: `SUPER AVANCE EXCLUSIVO: "${pName}"`,
+                    subheadline: `${company} muestra músculo técnico con un derroche de sprites, polígonos y diversión directa.`,
+                    badgeTop: '★ MEGA REPORTAJE 8 PÁGINAS ★',
+                    featureBadge: 'IMPORT ALERT / PREVIEW 95%',
+                    quote: '«Si el juego final mantiene este nivel de ritmo, será candidato indiscutible al título del año»',
+                    tags: ['ARCADE PERFECT', 'SURROUND AUDIO', 'POSTER CENTRAL'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                }
+            ];
+            cover = pool[Math.floor(Math.random() * pool.length)];
+        } else {
+            // Pool 2000+: Portales Web Digitales Modernos (IGNite, EuroPixel)
+            const pool = [
+                {
+                    id: 'ignite_' + Date.now(),
+                    period: '2000s',
+                    styleClass: 'cover-ignite',
+                    publicationName: 'IGNite.com',
+                    tagline: 'REVIEWS • PREVIEWS • NEWS • GUIDES • ESPORTS',
+                    issue: `ACTUALIZADO EN DIRECTO // PORTADA PRINCIPAL`,
+                    priceBadge: 'WEB EXCLUSIVE',
+                    headline: `FIRST LOOK: Why "${pName}" Could Define This Gaming Generation`,
+                    subheadline: `We went hands-on with ${company}'s latest build. Here is everything you need to know about its ground-breaking design.`,
+                    badgeTop: '🔥 TRENDING ARTICLE #1',
+                    featureBadge: 'HYPE INDEX: 9.6 / 10',
+                    quote: '«An ambitious showcase of mechanics that proves independent vision can rival major blockbusters»',
+                    tags: ['4K READY', 'DAY ONE PREVIEW', 'WISHLIST BOOM'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                },
+                {
+                    id: 'europixel_' + Date.now(),
+                    period: '2000s',
+                    styleClass: 'cover-europixel',
+                    publicationName: 'EuroPixel.net',
+                    tagline: 'EUROPE’S INDEPENDENT VOICE IN VIDEO GAME CULTURE',
+                    issue: `MONTHLY IN-DEPTH ESSAY & INTERVIEW`,
+                    priceBadge: 'DIGITAL EDITION',
+                    headline: `INSIDE THE WORKSHOP: How ${company} Is Crafting "${pName}"`,
+                    subheadline: `A deep dive into the architecture, systemic synergy and world-building powering this anticipated release.`,
+                    badgeTop: '★ ESSENTIAL DEV DIARY ★',
+                    featureBadge: 'EDITOR’S ANTICIPATED PICK',
+                    quote: '«Smart, elegant, and packed with personality. A masterclass in focused creative direction»',
+                    tags: ['DEEP DIVE', 'SYSTEMIC DESIGN', 'COMMUNITY DRIVEN'],
+                    gameName: project?.name,
+                    studioName: company,
+                    year: year
+                }
+            ];
+            cover = pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        return cover;
     }
 
     getCreatorProfiles(gameId = null) {
@@ -963,6 +1561,86 @@ class TycoonGame {
         this.updateRanks();
     }
 
+    // --- GÉNEROS Y REQUISITOS TÉCNICOS (SUBAGENTE 4) ---
+    validateGenreTechRequirements(genreId, config = {}) {
+        const genre = findGenre(genreId);
+        if (!genre) return { valid: true };
+
+        const reqs = genre.requiredTech || [];
+        if (!reqs.length) return { valid: true };
+
+        const dagPipeline = config.dagConfig ? config.dagConfig.pipeline : null;
+        let engine = null;
+        if (dagPipeline) {
+            engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === dagPipeline.id)) ||
+                     (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === dagPipeline.id)) ||
+                     (this.inHouseEngines && this.inHouseEngines.find(e => e.id === dagPipeline.id)) ||
+                     dagPipeline;
+        } else if (config.engineId) {
+            engine = (this.commercialEngines && this.commercialEngines.find(e => e.id === config.engineId)) ||
+                     (CommercialEngineCatalog && CommercialEngineCatalog.find(e => e.id === config.engineId)) ||
+                     (this.inHouseEngines && this.inHouseEngines.find(e => e.id === config.engineId)) ||
+                     (this.customEngines && this.customEngines.find(e => e.id === config.engineId));
+        }
+
+        const selectedNodes = config.selectedNodeIds || (config.dagConfig ? (config.dagConfig.selectedNodes || config.dagConfig.selectedNodeIds) : []) || [];
+        const engineNodes = (engine && (engine.bakedNodes || engine.unlockedNodes)) || [];
+        const activeNodeSet = new Set([...selectedNodes, ...engineNodes]);
+
+        const missing = [];
+        const missingTech = [];
+
+        for (const req of reqs) {
+            if (req === 'tech_3d') {
+                const has3D = activeNodeSet.has('render_3d') ||
+                              activeNodeSet.has('render_raytracing') ||
+                              activeNodeSet.has('pbr_lighting') ||
+                              activeNodeSet.has('deferred_raytracing') ||
+                              activeNodeSet.has('physics_2d3d') ||
+                              (engine && (engine.tier >= 2 || engine.id === 'commercial_unreal_pro' || engine.id === 'commercial_unity_apex')) ||
+                              (this.researchedTechs && this.researchedTechs.includes('graphics3d_v1')) ||
+                              (this.techTreeManager && (this.techTreeManager.isUnlocked('render_raytracing') || this.techTreeManager.isUnlocked('render_3d')));
+                if (!has3D) {
+                    missing.push('Gráficos 3D (Renderizado Poligonal / Raytracing)');
+                    missingTech.push('tech_3d');
+                }
+            } else if (req === 'network_servers') {
+                const hasNet = activeNodeSet.has('net_p2p') ||
+                               activeNodeSet.has('net_dedicated') ||
+                               activeNodeSet.has('net_socket_sync') ||
+                               activeNodeSet.has('client_prediction') ||
+                               activeNodeSet.has('rollback_netcode') ||
+                               (engine && engine.id === 'commercial_unreal_pro') ||
+                               (this.techTreeManager && (this.techTreeManager.isUnlocked('net_dedicated') || this.techTreeManager.isUnlocked('net_p2p')));
+                if (!hasNet) {
+                    missing.push('Red y Servidores (Sockets UDP / P2P / Servidores Dedicados)');
+                    missingTech.push('network_servers');
+                }
+            } else if (req === 'mass_multiplayer') {
+                const hasMass = activeNodeSet.has('net_dedicated') ||
+                                activeNodeSet.has('rollback_netcode') ||
+                                activeNodeSet.has('net_socket_sync') ||
+                                (engine && engine.id === 'commercial_unreal_pro') ||
+                                (this.techTreeManager && this.techTreeManager.isUnlocked('net_dedicated'));
+                if (!hasMass) {
+                    missing.push('Servidores Masivos Dedicados (Capacidad 100+ jugadores simultáneos)');
+                    missingTech.push('mass_multiplayer');
+                }
+            }
+        }
+
+        if (missing.length > 0) {
+            return {
+                valid: false,
+                missing,
+                missingTech,
+                message: `⚠️ El género "${genre.name}" requiere infraestructura técnica avanzada: ${missing.join(' y ')}. Selecciona un motor o arquitectura compatible antes de comenzar.`
+            };
+        }
+
+        return { valid: true, missingTech: [] };
+    }
+
     // --- PROJECT CREATION & DEV CYCLES ---
     startNewGameProject(config) {
         // Validación de Modo Parche de Emergencia Post-Lanzamiento (Punto 5)
@@ -974,9 +1652,39 @@ class TycoonGame {
         }
 
         // config: { name, topicId, genreId, platformId, targetAudience, engineId, pipelineType, selectedNodeIds, sliders }
-        const topic = TOPICS.find(t => t.id === config.topicId) || TOPICS[0];
-        const genre = GENRES.find(g => g.id === config.genreId) || GENRES[0];
-        const platform = PLATFORMS.find(p => p.id === config.platformId) || PLATFORMS[0];
+        const topic = findTheme(config.topicId) || TOPICS[0];
+        const genre = findGenre(config.genreId) || GENRES[0];
+        const platform = (this.platforms || PLATFORMS).find(p => p.id === config.platformId) || (this.platforms || PLATFORMS)[0];
+
+        const allowLocked = Boolean(config.force || config.forced || config.bypassUnlockCheck);
+
+        // 0. Validación de Desbloqueo de Temática y Género
+        if (!allowLocked) {
+            const genreUnlocked = !this.unlockedGenreIds || this.unlockedGenreIds.some(id => id.toLowerCase() === genre.id.toLowerCase() || (genre.aliases && genre.aliases.some(a => a.toLowerCase() === id.toLowerCase())));
+            if (!genreUnlocked) {
+                return {
+                    success: false,
+                    message: `🔒 El género "${genre.name}" aún no ha sido investigado en el laboratorio de I+D (${genre.costRP} RP).`
+                };
+            }
+
+            const topicUnlocked = !this.unlockedTopicIds || this.unlockedTopicIds.some(id => id.toLowerCase() === topic.id.toLowerCase() || (topic.aliases && topic.aliases.some(a => a.toLowerCase() === id.toLowerCase())));
+            if (!topicUnlocked) {
+                return {
+                    success: false,
+                    message: `🔒 La temática "${topic.name}" aún no ha sido investigada en el laboratorio de I+D (${topic.costRP || 20} RP).`
+                };
+            }
+        }
+
+        // 0b. Validación de Requisitos Técnicos de Infraestructura (Subagente 4)
+        const techValidation = this.validateGenreTechRequirements(genre.id, config);
+        if (!techValidation.valid) {
+            return {
+                success: false,
+                message: techValidation.message
+            };
+        }
 
         // 1. Resolve Technological Pipeline (Commercial vs In-House vs Legacy Custom)
         const dagPipeline = config.dagConfig ? config.dagConfig.pipeline : null;
@@ -1079,6 +1787,62 @@ class TycoonGame {
             stage3: { worldDesign: 0.70, graphics: 0.80, sound: 0.75 }
         };
 
+        // 3. Modelo de Financiación y Contrato Pactado en Preproducción (Paso 3)
+        const contractType = config.publishingContractType || config.publishingContract || 'self_publishing';
+        let contractInfo = null;
+        let upfrontCashAdvance = 0;
+
+        if (contractType === 'publisher_advance') {
+            // Anticipo de fondos inmediato otorgado por la distribuidora
+            const baseAdvance = Math.round(totalDevCost * 0.65);
+            upfrontCashAdvance = Math.max(15000, baseAdvance);
+            const deadlineWeeks = 48;
+            contractInfo = {
+                id: 'publisher_advance',
+                type: 'publisher_advance',
+                title: this.getHistoricalYear() <= 1994 ? 'Contrato de Distribución Física' : 'Contrato de Publisher Internacional',
+                company: this.getHistoricalYear() <= 1994 ? 'Distribuidora Nacional' : 'Global Interactive Publishing',
+                amount: upfrontCashAdvance,
+                revenueShare: 0.50, // 50% royalties para la distribuidora
+                deadlineWeeks: deadlineWeeks,
+                signedAtWeek: this.getIndustryWeek(),
+                detail: `Anticipo de $${upfrontCashAdvance.toLocaleString()} transferido al estudio. Retiene 50% de royalties en ventas y fija entrega en ${deadlineWeeks} semanas.`
+            };
+            this.funds += upfrontCashAdvance;
+        } else if (contractType === 'platform_exclusive') {
+            // Fondo de marketing y exclusividad de consola/tienda
+            const baseGrant = Math.round(totalDevCost * 0.40);
+            upfrontCashAdvance = Math.max(10000, baseGrant);
+            contractInfo = {
+                id: 'platform_exclusive',
+                type: 'platform_exclusive',
+                title: 'Acuerdo de Exclusividad de Plataforma',
+                company: `${platform.name} Strategic Publishing`,
+                amount: upfrontCashAdvance,
+                marketingMultiplier: 1.65,
+                platformRestriction: platform.name,
+                permittedPlatforms: [platform.name],
+                exclusivityWeeks: 24,
+                revenueShare: 0.15,
+                signedAtWeek: this.getIndustryWeek(),
+                detail: `Fondo de marketing y desarrollo de $${upfrontCashAdvance.toLocaleString()} con +65% de ventas exclusivas en ${platform.name}.`
+            };
+            this.funds += upfrontCashAdvance;
+        } else {
+            // Autopublicación
+            contractInfo = {
+                id: 'self_publishing',
+                type: 'self_publishing',
+                title: 'Autopublicación Indie',
+                company: this.companyName || 'Estudio Propio',
+                amount: 0,
+                revenueShare: 0,
+                deadlineWeeks: null,
+                signedAtWeek: this.getIndustryWeek(),
+                detail: 'El estudio asume el 100% de los costes y retiene el 100% de los ingresos netos sin plazos forzados.'
+            };
+        }
+
         this.currentProject = {
             name: config.name || 'Juego Sin Nombre',
             topic: topic,
@@ -1100,8 +1864,18 @@ class TycoonGame {
             monetizationStyle: config.monetizationStyle === 'aggressive' ? 'aggressive' : 'cosmetic',
             postLaunchContent,
             supportsPatches: this.getHistoricalYear() >= 1995 && config.supportsPatches !== false,
-            offers: [],
-            offersGenerated: false,
+            moddingApiIncluded: (defaultNodeIds || []).includes('sys_modding') || !!config.moddingApiIncluded,
+            // Contrato de Publicación y Financiación pactado desde el Día 1
+            publishingContract: contractInfo,
+            acceptedOffer: contractInfo,
+            publisherRevenueShare: contractInfo.revenueShare || 0,
+            offerRevenue: upfrontCashAdvance,
+            contractDeadlineWeek: contractInfo.deadlineWeeks ? (this.getIndustryWeek() + contractInfo.deadlineWeeks) : null,
+            contractLatePenaltyPerWeek: contractInfo.deadlineWeeks ? Math.max(500, Math.floor(totalDevCost * 0.02)) : 0,
+            contractLatePenaltyCap: contractInfo.deadlineWeeks ? Math.floor(totalDevCost * 0.40) : 0,
+            platformMarketingMultiplier: contractInfo.marketingMultiplier || 1.0,
+            offers: [], // Sin ofertas pendientes innecesarias ni modales forzados en autopublicación
+            offersGenerated: true, // Bloquea ofertas aleatorias desordenadas a mitad del desarrollo
             marketingHype: 0,
             brandAwareness: 0,
             wishlists: 0,
@@ -1126,7 +1900,7 @@ class TycoonGame {
         }
 
         this.notify();
-        return { success: true, project: this.currentProject };
+        return { success: true, project: this.currentProject, contract: contractInfo };
     }
 
     updateDevSliders(stage, sliders) {
@@ -1136,58 +1910,11 @@ class TycoonGame {
     }
 
     generateProjectOffers() {
+        // En el nuevo flujo de preproducción, las condiciones financieras y contratos
+        // se pactan en el Paso 3 antes de comenzar el desarrollo.
         const project = this.currentProject;
-        const offerThreshold = project?.businessModel === 'early_access' ? 50 : 80;
-        if (!project || project.offersGenerated || project.overallProgress < offerThreshold) return;
-        const year = this.getHistoricalYear();
-        // Offers may arrive at any point in the second half of production. Strong
-        // hype, studio reputation and a clean release history improve both odds
-        // and terms; weak projects can reach launch without attracting a deal.
-        const releasedGames = this.gamesHistory || [];
-        const averageReview = releasedGames.length
-            ? releasedGames.reduce((sum, game) => sum + (game.score || 0), 0) / releasedGames.length
-            : 5.5;
-        const cleanReleaseRate = releasedGames.length
-            ? releasedGames.filter(game => (game.bugsAtRelease || 0) === 0).length / releasedGames.length
-            : 0.5;
-        const hype = Math.max(0, Math.min(1, ((project.techPoints || 0) + (project.designPoints || 0)) / 220));
-        const reputation = Math.max(0, Math.min(1, (averageReview - 4) / 6));
-        const cleanHistory = Math.max(0, Math.min(1, cleanReleaseRate));
-        const offerChance = Math.min(0.72, 0.14 + hype * 0.24 + reputation * 0.22 + cleanHistory * 0.16);
-        if (Math.random() > offerChance) {
-            // Keep checking through production, but do not loop forever once the
-            // project reaches its final polish and is about to ship.
-            if (project.overallProgress >= 98) project.offersGenerated = true;
-            return;
-        }
-        const quality = Math.max(0.7, Math.min(1.35, 0.78 + hype * 0.22 + reputation * 0.22 + cleanHistory * 0.13));
-        const amountFor = fraction => Math.max(0, Math.round(project.devCostTotal * fraction * quality));
-        const studioLabel = releasedGames.length ? 'Estudio con historial' : 'Estudio emergente';
-        project.offerContext = { hype, reputation, cleanHistory, offerChance, quality, generatedYear: year };
-        project.offersGenerated = true;
-        if (year <= 1994) {
-            project.offers = [{
-                id: 'publisher_advance', type: 'publisher_advance',
-                title: 'Contrato de distribución física', company: 'Distribuidora Nacional',
-                amount: amountFor(0.48), revenueShare: Math.max(0.6, Math.min(0.8, 0.72 - (quality - 1) * 0.2)),
-                permittedPlatforms: ['Plataforma acordada'], platforms: ['Plataforma acordada'], deadlineWeeks: 48,
-                detail: `Oferta de ${studioLabel}: anticipo para fabricación y desarrollo; retiene el 60–80% y fija entrega con penalización por retraso.`
-            }];
-        } else if (year <= 2012) {
-            const preferredPlatform = project.genre?.id === 'Action' || project.genre?.id === 'Racing' ? 'Consola Nova' : 'Consola Atlas';
-            project.offers = [{
-                id: 'console_exclusive', type: 'console_exclusive', title: 'Exclusividad de lanzamiento en consola',
-                company: `${preferredPlatform} Publishing`, amount: amountFor(0.2), marketingMultiplier: 1.65,
-                platformRestriction: preferredPlatform, permittedPlatforms: [preferredPlatform], exclusivityWeeks: 12,
-                detail: `Fondo de marketing de $${amountFor(0.2).toLocaleString()} y +65% de ventas en ${preferredPlatform}; sin lanzamiento inicial en consolas competidoras.`
-            }];
-        } else if (year >= 2013) {
-            project.offers = [
-                { id: 'digital_exclusive', type: 'digital_exclusive', title: 'Exclusividad en tienda digital', company: 'Tienda Digital Nova', amount: Math.min(200000, amountFor(0.55)), weeks: 48, permittedPlatforms: ['Tienda Digital Nova'], platformRestriction: 'Tienda Digital Nova', revenueShare: 0.05, detail: `Pago garantizado de hasta $200.000; exclusividad en PC durante 48 semanas y comisión del 5%.` },
-                { id: 'day_one_subscription', type: 'day_one_subscription', title: 'Acuerdo de suscripción Día Uno', company: 'Club de Juego', amount: amountFor(0.8 + Math.random() * 0.4), directSalesMultiplier: 0.2, revenueShare: 0.08, permittedPlatforms: ['Club de Juego'], platforms: ['Club de Juego'], detail: 'Garantiza el 80–120% del presupuesto; limita las ventas directas y paga una comisión del 8% sobre ingresos adicionales.' }
-            ];
-        }
-        this.notify();
+        if (project) project.offersGenerated = true;
+        return;
     }
 
     acceptProjectOffer(offerId) {
@@ -1506,8 +2233,9 @@ class TycoonGame {
             return null;
         }
 
-        // 1. Topic-Genre Synergy (0.50 to 1.35)
-        const topicSynergy = (proj.topic.genreFit && proj.topic.genreFit[proj.genre.id]) || 1.0;
+        // 1. Topic-Genre Synergy (0.60 to 1.35) via calculateSynergy matrix
+        const synergyEvaluation = calculateSynergy(proj.genre.id, proj.topic.id);
+        const topicSynergy = synergyEvaluation ? synergyEvaluation.multiplier : ((proj.topic.genreFit && proj.topic.genreFit[proj.genre.id]) || 1.0);
 
         // 2. Audience Compatibility
         // Topic target audience match
@@ -1831,6 +2559,8 @@ class TycoonGame {
             designPoints: proj.designPoints,
             bugsAtRelease: proj.bugs,
             score: finalScore,
+            synergyFit: synergyEvaluation ? synergyEvaluation.fit : 'NORMAL',
+            synergyMultiplier: topicSynergy,
             reviews: reviews,
             pressScore: finalScore,
             userApproval,
@@ -1839,6 +2569,21 @@ class TycoonGame {
             reviewBombReasons,
             socialFeed: socialFeed.slice(-8),
             marketingFeed: marketingFeed.slice(-8),
+            moddingApiIncluded: Boolean(
+                proj.moddingApiIncluded ||
+                (this.getHistoricalYear() >= 2004 && !!this.techTreeManager?.isUnlocked('sys_modding') &&
+                    !!proj.scopeDAG?.getActiveNodes?.().some(node => node.id === 'sys_modding'))
+            ),
+            workshop: {
+                enabled: false,
+                popularMods: 0,
+                totalConversions: 0,
+                engagement: 0,
+                compatibilityBroken: false,
+                nextModEventWeek: 8,
+                weeksRemaining: 0,
+                mods: []
+            },
             marketingHype,
             marketingMultiplier,
             brandAwareness: proj.brandAwareness || 0,
@@ -1931,6 +2676,7 @@ class TycoonGame {
                 reviewBombReasons: releasedGame.reviewBombReasons,
                 socialFeed: [...(existingEarlyAccessGame.socialFeed || []), ...(releasedGame.socialFeed || [])].slice(-10),
                 marketingFeed: [...(existingEarlyAccessGame.marketingFeed || []), ...(releasedGame.marketingFeed || [])].slice(-10),
+                moddingApiIncluded: releasedGame.moddingApiIncluded || existingEarlyAccessGame.moddingApiIncluded,
                 marketingHype: releasedGame.marketingHype,
                 marketingActions: releasedGame.marketingActions,
                 wishlists: releasedGame.wishlists,
@@ -2038,10 +2784,181 @@ class TycoonGame {
         return finished ? { success: true, game: finished, message: `🚀 ¡"${game.name}" ya está en su versión 1.0!` } : { success: false, message: 'No se pudo publicar la versión 1.0.' };
     }
 
-    deployContentPatch(gameId) {
+    getModdingStatus(gameId) {
         const game = this.gamesHistory.find(item => item.id === gameId);
-        if (!game || game.serversClosed) return { success: false, message: 'El juego no está en mantenimiento.' };
-        if (this.getHistoricalYear() < 1995) return { success: false, message: 'Los parches rudimentarios se desbloquean a partir de 1995.' };
+        if (!game) return { success: false, available: false, eligible: false, enabled: false, requiresApiNode: true, yearRequired: 2000, status: 'Juego no encontrado', workshop: null };
+        const year = this.getHistoricalYear();
+        const nodeResearched = !!this.techTreeManager?.isUnlocked('sys_modding') || (this.researchedTechs || []).includes('sys_modding');
+        const eligible = year >= 2000 && nodeResearched;
+        const workshop = game.workshop || {
+            enabled: false, popularMods: 0, totalConversions: 0, engagement: 0,
+            compatibilityBroken: false, nextModEventWeek: (game.weeksOnMarket || 0) + 8,
+            weeksRemaining: 0, mods: []
+        };
+        let status = 'Requiere herramientas investigadas y año 2000 o posterior';
+        if (year < 2000) status = '🔒 Bloqueado: El modding formal con soporte oficial no existía en los 80/90. Disponible a partir del año 2000';
+        else if (!nodeResearched) status = '🔒 Requiere investigar "Herramientas de Modding / SDK Comunitario" en I+D';
+        else if (workshop.enabled && workshop.compatibilityBroken) status = '⚠️ Compatibilidad rota por el último parche; publica herramientas de actualización';
+        else if (workshop.enabled) status = '✓ Workshop comunitario activo (+150% ventas residuales)';
+        else if (game.serversClosed) status = 'El juego está discontinuado';
+        else if (game.moddingApiIncluded) status = 'Listo para activar Workshop oficial (Arquitectura integrada)';
+        else status = 'Listo para integrar API oficial de Workshop';
+
+        return {
+            success: true,
+            available: eligible,
+            eligible,
+            enabled: !!workshop.enabled,
+            requiresApiNode: !game.moddingApiIncluded,
+            yearRequired: 2000,
+            status,
+            workshop
+        };
+    }
+
+    enableCommunityWorkshop(gameId) {
+        const game = this.gamesHistory.find(item => item.id === gameId);
+        if (!game) return { success: false, message: 'Juego no encontrado.' };
+        const status = this.getModdingStatus(gameId);
+        if (!status.eligible) return { success: false, message: status.status };
+        if (game.serversClosed) return { success: false, message: 'No se puede activar el Workshop con los servidores cerrados.' };
+        if (game.workshop?.enabled) return { success: false, message: 'El Workshop de la comunidad ya está activo.' };
+
+        const baseIntegrationCost = game.moddingApiIncluded ? 8000 : 15000;
+        const cost = baseIntegrationCost + (this.employees.length * 1000);
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para publicar las herramientas de modding ($${cost.toLocaleString()}).` };
+        this.funds -= cost;
+
+        game.moddingApiIncluded = true;
+        game.workshop = {
+            enabled: true,
+            popularMods: 0,
+            totalConversions: 0,
+            engagement: Math.max(25, Math.min(65, Math.round((game.userApproval || (game.score || 5) * 10) * 0.45))),
+            compatibilityBroken: false,
+            nextModEventWeek: Math.max(4, (game.weeksOnMarket || 0) + 4),
+            weeksRemaining: 156, // 3 años ficticios de vida útil extendida garantizada
+            mods: [],
+            originalMaxWeeks: game.maxWeeks || 14,
+            activatedYear: this.getHistoricalYear()
+        };
+        game.maxWeeks = Math.max(game.maxWeeks || 0, game.weeksOnMarket + 156);
+        if (!this.activeSales.some(item => item.id === game.id)) this.activeSales.push(game);
+        game.lifecycleState = 'community_supported';
+        game.marketingFeed = [...(game.marketingFeed || []), {
+            author: 'Community Workshop', icon: '🛠️',
+            text: `El estudio publicó la API y herramientas oficiales de modding para ${game.name}. ¡La comunidad arranca con fuerza!`,
+            time: `${this.getHistoricalYear()} · Workshop`, kind: 'workshop_enabled'
+        }].slice(-10);
+
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        this.notify();
+        return {
+            success: true,
+            message: `🧩 ¡Workshop oficial activado para "${game.name}"! Coste: $${cost.toLocaleString()}. La comunidad prolongará la vida útil durante 3 años de juego.`,
+            game
+        };
+    }
+
+    publishModToolsUpdate(gameId) {
+        const game = this.gamesHistory.find(item => item.id === gameId);
+        if (!game?.workshop?.enabled) return { success: false, message: 'Este juego no tiene Workshop activo.' };
+        if (!game.workshop.compatibilityBroken) return { success: false, message: 'La compatibilidad de los mods con la versión actual ya está intacta.' };
+        const cost = 6000 + Math.max(0, game.workshop.popularMods || 0) * 1200;
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para actualizar el SDK de herramientas ($${cost.toLocaleString()}).` };
+        this.funds -= cost;
+
+        game.workshop.compatibilityBroken = false;
+        game.workshop.engagement = Math.min(100, (game.workshop.engagement || 0) + 20);
+        game.workshop.mods = (game.workshop.mods || []).map(mod => ({ ...mod, compatible: true, updatedAtWeek: game.weeksOnMarket }));
+        this.adjustGameReviews(game, 0.15);
+        game.socialFeed = [...(game.socialFeed || []), {
+            author: '@ModdersUnited', icon: '🔧',
+            text: `El estudio publicó el SDK y herramientas de actualización para los mods de ${game.name}. ¡Compatibilidad restaurada al 100%!`,
+            sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'mod_tools_update'
+        }].slice(-10);
+
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        this.notify();
+        return {
+            success: true,
+            message: `🛠️ Herramientas de actualización publicadas para "${game.name}" por $${cost.toLocaleString()}. Compatibilidad de mods restaurada y moral comunitaria recuperada.`,
+            game
+        };
+    }
+
+    processCommunityWorkshopWeek(game) {
+        const workshop = game?.workshop;
+        if (!workshop?.enabled || workshop.weeksRemaining <= 0) return { multiplier: 1, active: false };
+        workshop.weeksRemaining = Math.max(0, workshop.weeksRemaining - 1);
+        const ageWeeks = game.weeksOnMarket || 0;
+
+        // Crecimiento orgánico de mods cada 8-12 semanas
+        if (ageWeeks >= workshop.nextModEventWeek) {
+            workshop.nextModEventWeek = ageWeeks + 10;
+            const quality = Math.max(0, Math.min(1, ((game.userApproval || 50) / 100) * 0.65 + ((game.score || 5) / 10) * 0.35));
+            if (Math.random() < 0.45 + quality * 0.40) {
+                const modNumber = (workshop.mods || []).length + 1;
+                const isPopular = Math.random() < 0.38 + quality * 0.38;
+                const modNames = isPopular
+                    ? ['Community Overhaul Expansion', 'Enhanced Graphic Overhaul HD', 'Unofficial Balance & Bugfix Patch', 'New Realm Questline', 'Total Weapon & Skill Rebalance']
+                    : [`Minor Cosmetic Pack #${modNumber}`, `UI Tweaks v${modNumber}.0`, `Custom Sound Pack`, `Speedrun Utilities`];
+                const creatorNames = ['PixelSmith', 'NoraBuilds', 'RetroModder', 'WorkshopCollective', 'CyberForge', 'GamerCraft'];
+
+                const mod = {
+                    id: `mod_${game.id}_${modNumber}`,
+                    name: modNames[Math.floor(Math.random() * modNames.length)],
+                    creator: creatorNames[Math.floor(Math.random() * creatorNames.length)],
+                    createdAtWeek: ageWeeks,
+                    popular: isPopular,
+                    downloads: isPopular ? 15000 + Math.floor(Math.random() * 45000) : 1200 + Math.floor(Math.random() * 3000),
+                    compatible: !workshop.compatibilityBroken
+                };
+                workshop.mods = [...(workshop.mods || []), mod].slice(-30);
+
+                if (isPopular) {
+                    workshop.popularMods = (workshop.popularMods || 0) + 1;
+                    workshop.engagement = Math.min(100, (workshop.engagement || 0) + 12 + Math.floor(Math.random() * 8));
+                    game.socialFeed = [...(game.socialFeed || []), {
+                        author: `@${mod.creator}`, icon: '🧩',
+                        text: `¡El mod "${mod.name}" se ha vuelto viral! Miles de jugadores vuelven a jugar a ${game.name}.`,
+                        sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'popular_mod'
+                    }].slice(-10);
+                } else {
+                    workshop.engagement = Math.min(100, (workshop.engagement || 0) + 3);
+                }
+            }
+        }
+
+        // 'Conversión Total (Total Conversion Mod)': Evento extraordinario post-lanzamiento
+        if (!workshop.totalConversionTriggered && ageWeeks >= 48 && workshop.popularMods > 0 && Math.random() < 0.015) {
+            workshop.totalConversionTriggered = true;
+            workshop.totalConversions = (workshop.totalConversions || 0) + 1;
+            workshop.engagement = 100;
+            workshop.weeksRemaining = Math.max(workshop.weeksRemaining, 52); // +1 año garantizado
+            game.maxWeeks = Math.max(game.maxWeeks || 0, ageWeeks + 52);
+            game.salesPotential = Math.floor((game.salesPotential || 30000) * 1.60); // +60% de potencial de ventas
+            game.decayRate = 0.90; // Resetea el decaimiento acelerado
+            if (!this.activeSales.some(item => item.id === game.id)) this.activeSales.push(game);
+
+            game.socialFeed = [...(game.socialFeed || []), {
+                author: '@TotalConversionTeam', icon: '🌟',
+                text: `¡INCREÍBLE! Una Conversión Total comunitaria gratuita transforma ${game.name} en un fenómeno viral mundial. ¡El juego entra de nuevo al Top de ventas!`,
+                sentiment: 'positive', time: `${this.getHistoricalYear()} · Workshop`, kind: 'total_conversion'
+            }].slice(-10);
+
+            if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        }
+
+        // 'Mods Populares' prolongan las ventas mensuales residuales en un +150% (multiplicador 2.5x)
+        const residualMultiplier = (workshop.popularMods > 0 && !workshop.compatibilityBroken) ? 2.50 : 1.0;
+        return { multiplier: residualMultiplier, active: workshop.weeksRemaining > 0 };
+    }
+
+    deployContentPatch(gameId, options = {}) {
+        const game = this.gamesHistory.find(item => item.id === gameId);
+        if (!game || game.serversClosed) return { success: false, message: 'El juego no está en mantenimiento activo.' };
+        if (this.getHistoricalYear() < 1995) return { success: false, message: 'Los parches de software se desbloquean a partir de 1995.' };
         if (game.businessModel === 'premium' && !game.supportsPatches) return { success: false, message: 'Este juego se publicó sin contrato de soporte post-lanzamiento.' };
         const cost = 6000 + Math.max(0, this.employees.length - 1) * 1500;
         if (this.funds < cost) return { success: false, message: `Fondos insuficientes para el parche ($${cost.toLocaleString()}).` };
@@ -2051,8 +2968,26 @@ class TycoonGame {
         game.patchCount = (game.patchCount || 0) + 1;
         if (['f2p', 'live_service'].includes(game.businessModel)) game.mau = Math.floor((game.mau || 0) * 1.08);
         else this.adjustGameReviews(game, 0.1);
+
+        let modCompatibilityBroken = false;
+        // Mantenimiento de API: Un parche oficial puede romper compatibilidad si hay mods populares
+        if (game.workshop?.enabled && game.workshop.popularMods > 0) {
+            modCompatibilityBroken = options.breaksMods === undefined ? (Math.random() < 0.35) : !!options.breaksMods;
+            if (modCompatibilityBroken) {
+                game.workshop.compatibilityBroken = true;
+                game.workshop.mods = (game.workshop.mods || []).map(mod => ({ ...mod, compatible: false }));
+                this.adjustGameReviews(game, -0.25);
+                game.workshop.engagement = Math.max(0, (game.workshop.engagement || 0) - 22);
+                game.socialFeed = [...(game.socialFeed || []), {
+                    author: '@WorkshopCreators', icon: '⚠️',
+                    text: `¡ALERTA! El nuevo parche oficial de ${game.name} rompió la compatibilidad de los mods. La comunidad exige que el estudio publique herramientas de actualización.`,
+                    sentiment: 'negative', time: `${this.getHistoricalYear()} · Parche`, kind: 'mod_compatibility_broken'
+                }].slice(-10);
+            }
+        }
         this.notify();
-        return { success: true, message: `Parche de contenido desplegado en "${game.name}" por $${cost.toLocaleString()}.` };
+        const compatibilityMessage = modCompatibilityBroken ? ' ⚠️ AVISO: El parche rompió la compatibilidad de los mods. Publica herramientas de actualización en el Workshop para restaurarla.' : '';
+        return { success: true, message: `Parche oficial desplegado en "${game.name}" por $${cost.toLocaleString()}.${compatibilityMessage}` };
     }
 
     launchBattlePass(gameId, programmers = 1) {
@@ -2128,30 +3063,63 @@ class TycoonGame {
             const isEarlyAccess = game.businessModel === 'early_access';
             const saleWeek = isEarlyAccess && game.officialReleased ? game.officialWeeksOnMarket + 1 : game.weeksOnMarket;
             let peakCurve = saleWeek === 1 ? 0.75 : (saleWeek === 2 ? 1 : (saleWeek <= 4 ? [0, 0, 0, 0.84, 0.72][saleWeek] : Math.pow(game.decayRate, saleWeek - 4) * 0.72));
+            const workshopWeek = this.processCommunityWorkshopWeek(game);
+            if (saleWeek > 4) peakCurve *= workshopWeek.multiplier;
             let unitsThisWeek = 0;
             let serviceCostsThisWeek = 0;
 
             if (isEarlyAccess) {
                 if (!game.officialReleased && game.weeksOnMarket <= 8) {
+                    game.lifecycleState = 'early_access_beta';
                     unitsThisWeek = Math.floor((game.betaPotential / 4.1) * peakCurve);
                 } else if (game.officialReleased && game.officialWeeksOnMarket < 12) {
                     game.officialWeeksOnMarket++;
+                    game.lifecycleState = 'peak';
                     unitsThisWeek = Math.floor((game.officialPotential / 4.1) * peakCurve);
+                } else if (game.officialReleased) {
+                    game.lifecycleState = 'long_tail';
+                    const baseResidual = Math.max(2, Math.floor((game.officialPotential || game.salesPotential || 500) * 0.002));
+                    const scoreFactor = Math.max(0.4, (game.score || 6.0) / 7.0);
+                    const fanFactor = Math.min(2.5, 1.0 + (this.fans / 25000));
+                    unitsThisWeek = Math.floor(baseResidual * scoreFactor * fanFactor * (0.85 + Math.random() * 0.3));
                 }
-                if (!game.officialReleased && game.weeksOnMarket > 8) game.lifecycleState = 'awaiting_1_0';
+                if (!game.officialReleased && game.weeksOnMarket > 8) {
+                    game.lifecycleState = 'awaiting_1_0';
+                    unitsThisWeek = Math.max(1, Math.floor((game.betaPotential / 25) * (0.8 + Math.random() * 0.4)));
+                }
             } else if (game.weeksOnMarket <= game.maxWeeks) {
+                game.lifecycleState = 'peak';
                 unitsThisWeek = Math.floor((game.salesPotential / 4.1) * peakCurve);
+            } else {
+                // Long-Tail Phase: Continuous residual sales without auto-removal from stores
+                game.lifecycleState = 'long_tail';
+                const baseResidual = Math.max(3, Math.floor((game.salesPotential || 500) * 0.0022));
+                const scoreFactor = Math.max(0.4, (game.score || 6.0) / 7.0);
+                const fanFactor = Math.min(2.5, 1.0 + (this.fans / 25000));
+                unitsThisWeek = Math.floor(baseResidual * scoreFactor * fanFactor * (0.85 + Math.random() * 0.3));
+            }
+
+            // Popular mods create a small but durable long-tail audience (+150% boost)
+            const workshop = game.workshop;
+            if (workshopWeek.active && workshop?.popularMods > 0 && !workshop?.compatibilityBroken) {
+                if (game.weeksOnMarket > (workshop.originalMaxWeeks || 14)) {
+                    unitsThisWeek = Math.max(unitsThisWeek, Math.floor(unitsThisWeek * workshopWeek.multiplier));
+                }
             }
 
             const weeklyViralMultiplier = typeof this.applyWeeklyViralEffect === 'function'
                 ? this.applyWeeklyViralEffect(game)
                 : 1;
-            if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier);
+            const industryMultiplier = typeof this.getIndustrySalesMultiplier === 'function'
+                ? this.getIndustrySalesMultiplier(game.platform?.id, game.genre?.id || game.genreId)
+                : 1;
+            if (unitsThisWeek > 0) unitsThisWeek = Math.floor(unitsThisWeek * weeklyViralMultiplier * industryMultiplier);
 
             let grossRevenueThisWeek = 0;
             if (isService) {
                 if (game.weeksOnMarket <= game.maxWeeks) game.installationsTotal += unitsThisWeek;
-                const retention = game.monetizationStyle === 'aggressive' ? 0.79 : 0.89;
+                const baseRetention = game.monetizationStyle === 'aggressive' ? 0.79 : 0.89;
+                const retention = Math.min(0.98, baseRetention + ((game.workshop?.popularMods > 0 && !game.workshop?.compatibilityBroken) ? 0.03 : 0));
                 game.mau = Math.max(0, Math.floor((game.mau || 0) * retention + unitsThisWeek * 0.68));
                 game.unitsSoldLastWeek = 0;
                 const priorHistory = game.mauHistory || [];
@@ -2221,9 +3189,46 @@ class TycoonGame {
                 }
             }
 
-            if (!isService && (!isEarlyAccess || (game.officialReleased && game.officialWeeksOnMarket >= 12) || (!game.officialReleased && game.weeksOnMarket >= 8))) {
-                if (!isEarlyAccess || game.officialReleased) this.activeSales.splice(i, 1);
+            // Record weekly sales history for interactive data visualization
+            if (!game.weeklySalesHistory) game.weeklySalesHistory = [];
+            let chartRank = null;
+            if (this.top10Chart) {
+                const foundEntry = this.top10Chart.findIndex(item => item.isPlayer && item.gameId === game.id);
+                if (foundEntry !== -1) chartRank = foundEntry + 1;
             }
+            if (!chartRank) {
+                chartRank = unitsThisWeek > 3000 ? Math.max(1, 10 - Math.floor(unitsThisWeek / 1500)) : (unitsThisWeek > 1000 ? 12 : (unitsThisWeek > 300 ? 19 : 35));
+            }
+
+            game.weeklySalesHistory.push({
+                weekNumber: game.weeksOnMarket,
+                calendarYear: this.getHistoricalYear(),
+                calendarWeek: this.week,
+                unitsSold: unitsThisWeek,
+                grossRevenue: grossRevenueThisWeek,
+                netRevenue: netRevenueThisWeek,
+                cumulativeUnits: game.unitsSoldTotal || game.installationsTotal || 0,
+                cumulativeRevenue: game.revenueTotal || 0,
+                rank: chartRank,
+                lifecycleState: game.lifecycleState || 'long_tail',
+                viralMultiplier: weeklyViralMultiplier,
+                industryMultiplier: industryMultiplier,
+                hasPopularMods: !!(game.workshop?.popularMods > 0 && !game.workshop?.compatibilityBroken)
+            });
+
+            // Synchronize with gamesHistory record
+            const histGame = this.gamesHistory.find(g => g.id === game.id);
+            if (histGame) {
+                histGame.weeklySalesHistory = game.weeklySalesHistory;
+                histGame.lifecycleState = game.lifecycleState;
+                histGame.unitsSoldTotal = game.unitsSoldTotal;
+                histGame.installationsTotal = game.installationsTotal;
+                histGame.revenueTotal = game.revenueTotal;
+                histGame.profit = game.profit;
+            }
+
+            // NOTE: Games persist in the market (Long Tail phase) and will NOT be automatically
+            // removed. The player retains full manual control to retire them via retireGameFromMarket().
         }
 
         // Collect passive monthly royalties from in-house engines licensed to external rival studios
@@ -2437,10 +3442,71 @@ class TycoonGame {
             }
         }
 
+        // Advance active Topic R&D research project (Subagente 2)
+        if (this.activeTopicResearch) {
+            this.activeTopicResearch.weeksRemaining--;
+            const completedWeeks = this.activeTopicResearch.totalWeeks - this.activeTopicResearch.weeksRemaining;
+            this.activeTopicResearch.progress = Math.min(100, Math.floor((completedWeeks / this.activeTopicResearch.totalWeeks) * 100));
+
+            if (this.activeTopicResearch.weeksRemaining <= 0) {
+                const finishedTopicId = this.activeTopicResearch.topicId;
+                const finishedTopicName = this.activeTopicResearch.topicName;
+                if (!this.unlockedTopicIds) this.unlockedTopicIds = ['medieval', 'fantasy', 'sports', 'space', 'martial_arts', 'ninja'];
+                if (!this.unlockedTopicIds.includes(finishedTopicId)) {
+                    this.unlockedTopicIds.push(finishedTopicId);
+                }
+                const completedTopic = { ...this.activeTopicResearch };
+                this.activeTopicResearch = null;
+
+                if (soundEngine && soundEngine.playLevelUp) {
+                    soundEngine.playLevelUp();
+                }
+                if (typeof this.onTopicResearchCompleted === 'function') {
+                    this.onTopicResearchCompleted(finishedTopicName, finishedTopicId, completedTopic);
+                }
+            }
+        }
+
+        // Advance active Genre R&D research project (Subagente 1 & 2)
+        if (this.activeGenreResearch) {
+            this.activeGenreResearch.weeksRemaining--;
+            const completedWeeks = this.activeGenreResearch.totalWeeks - this.activeGenreResearch.weeksRemaining;
+            this.activeGenreResearch.progress = Math.min(100, Math.floor((completedWeeks / this.activeGenreResearch.totalWeeks) * 100));
+
+            if (this.activeGenreResearch.weeksRemaining <= 0) {
+                const finishedGenreId = this.activeGenreResearch.genreId;
+                const finishedGenreName = this.activeGenreResearch.genreName;
+                if (!this.unlockedGenreIds) {
+                    this.unlockedGenreIds = ['action', 'Action', 'adventure', 'Adventure', 'rpg', 'RPG', 'strategy', 'Strategy', 'simulation', 'Simulation', 'casual', 'Casual'];
+                }
+                if (!this.unlockedGenreIds.some(id => id.toLowerCase() === finishedGenreId.toLowerCase())) {
+                    this.unlockedGenreIds.push(finishedGenreId);
+                }
+                const completedGenre = { ...this.activeGenreResearch };
+                this.activeGenreResearch = null;
+
+                if (soundEngine && soundEngine.playLevelUp) {
+                    soundEngine.playLevelUp();
+                }
+                if (typeof this.onGenreResearchCompleted === 'function') {
+                    this.onGenreResearchCompleted(finishedGenreName, finishedGenreId, completedGenre);
+                }
+            }
+        }
+
         if (this.activeEngineRD) {
             this.activeEngineRD.weeksRemaining--;
             const completed = this.activeEngineRD.totalWeeks - this.activeEngineRD.weeksRemaining;
             this.activeEngineRD.progress = Math.min(100, Math.floor(completed / this.activeEngineRD.totalWeeks * 100));
+
+            // Technical R&D feedback: lead programmer earns +2 to +4 RP per week through architecture research
+            const leadEmp = this.employees[this.activeEngineRD.leadProgrammerIndex] || this.employees[0];
+            const rpGain = Math.max(2, Math.floor(2 + ((leadEmp?.tech || 30) / 35)));
+            this.researchPoints += rpGain;
+            if (typeof this.onEngineRPTick === 'function') {
+                this.onEngineRPTick(rpGain, this.activeEngineRD.leadProgrammerIndex, this.activeEngineRD);
+            }
+
             if (this.activeEngineRD.weeksRemaining <= 0) {
                 const cfg = this.activeEngineRD;
                 const engine = new InHouseEngine({
@@ -2460,6 +3526,21 @@ class TycoonGame {
             }
         }
 
+        // Advance active Post-Mortem Game Report analysis (2 weeks study by assigned staff)
+        if (this.activePostMortem) {
+            this.activePostMortem.weeksRemaining--;
+            const completedWeeks = this.activePostMortem.totalWeeks - this.activePostMortem.weeksRemaining;
+            this.activePostMortem.progress = Math.min(100, Math.floor((completedWeeks / this.activePostMortem.totalWeeks) * 100));
+            if (this.activePostMortem.weeksRemaining <= 0) {
+                const reportResult = this.completePostMortemAnalysis(this.activePostMortem.gameId);
+                const assignedIdx = this.activePostMortem.employeeIndex;
+                this.activePostMortem = null;
+                if (typeof this.onPostMortemCompleted === 'function') {
+                    this.onPostMortemCompleted(reportResult, assignedIdx);
+                }
+            }
+        }
+
         // Passive R&D study points generated by employees when studio is idle (no active game)
         if (this.currentProject === null) {
             const totalTech = this.employees.reduce((acc, e) => acc + (e.tech || 20), 0);
@@ -2468,6 +3549,7 @@ class TycoonGame {
         }
 
         this.processWeeklySales();
+        this.checkIndustryEvents();
     }
 
     triggerAnnualAwards() {
@@ -2826,44 +3908,362 @@ class TycoonGame {
         return { success: true, message: `📚 ¡${emp.name} ha completado la capacitación! +8 en ${skillType === 'tech' ? 'Tecnología' : 'Diseño'}.` };
     }
 
-    // --- POST-MORTEM GAME REPORT ---
-    generateGameReport(gameId) {
+    // --- POST-MORTEM GAME REPORT & DESIGN INSIGHTS ---
+    startPostMortemAnalysis(gameId, employeeIndex = 0) {
         const game = this.gamesHistory.find(g => g.id === gameId);
-        if (!game || game.reported) {
-            return { success: false, message: 'Juego ya analizado o inválido.' };
+        if (!game) return { success: false, message: 'Juego no encontrado en el historial.' };
+        if (game.postMortemReport || game.reported) {
+            return { success: false, message: 'Este juego ya cuenta con un informe post-mortem completado.' };
         }
+        if (game.postMortemInProgress) {
+            return { success: false, message: 'El análisis de este videojuego ya está en curso.' };
+        }
+        if (this.activePostMortem) {
+            return { success: false, message: `Ya hay un análisis en marcha para "${this.activePostMortem.gameName}". Espera a que concluya.` };
+        }
+
+        const staff = this.employees[employeeIndex] || this.employees[0];
+        game.postMortemInProgress = true;
+        this.activePostMortem = {
+            gameId: game.id,
+            gameName: game.name,
+            employeeIndex: employeeIndex >= 0 ? employeeIndex : 0,
+            employeeName: staff ? staff.name : 'Analista del Estudio',
+            totalWeeks: 2,
+            weeksRemaining: 2,
+            progress: 0
+        };
+
+        if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        this.notify();
+        return {
+            success: true,
+            activePostMortem: this.activePostMortem,
+            message: `📝 Análisis post-mortem iniciado para "${game.name}". ${this.activePostMortem.employeeName} analizará aciertos y errores durante 2 semanas.`
+        };
+    }
+
+    completePostMortemAnalysis(gameId) {
+        const game = this.gamesHistory.find(g => g.id === gameId);
+        if (!game) return { success: false, message: 'Juego no encontrado.' };
 
         game.reported = true;
-        const rpGained = 25 + Math.floor(game.score * 2);
+        game.postMortemInProgress = false;
+
+        const rpGained = 28 + Math.floor((game.score || 7.0) * 2.5);
         this.researchPoints += rpGained;
 
-        // Synergy assessment
-        const topicObj = TOPICS.find(t => t.id === game.topicId);
-        const fitVal = (topicObj && topicObj.genreFit[game.genreId]) || 1.0;
+        // 1. Synergy assessment (Topic + Genre) via calculateSynergy
+        const topicObj = findTheme(game.topicId) || TOPICS.find(t => t.id === game.topicId);
+        const synEval = calculateSynergy(game.genreId, game.topicId);
         let synergyFeedback = '';
-        if (fitVal >= 1.30) {
-            synergyFeedback = `✨ Conclusión: La unión de ${game.topic} con ${game.genre} es una sinergia estelar indiscutible.`;
-        } else if (fitVal >= 1.10) {
-            synergyFeedback = `👍 Conclusión: Buena afinidad entre ${game.topic} y ${game.genre}.`;
+        if (synEval.fit === 'OPTIMAL') {
+            synergyFeedback = `🌟 Sinergia Extraordinaria (1.35x): La unión de ${game.topic} con ${game.genre} es magistral. Impulsó las notas de la crítica y multiplicó las ventas iniciales.`;
+        } else if (synEval.fit === 'NORMAL') {
+            synergyFeedback = `⚖️ Afinidad Estándar (1.00x): ${game.topic} encaja de forma adecuada con el género ${game.genre}, ofreciendo una experiencia sólida y equilibrada.`;
         } else {
-            synergyFeedback = `⚠️ Advertencia: ${game.topic} no encaja de forma natural con ${game.genre}; penaliza el potencial de ventas.`;
+            synergyFeedback = `⚠️ Incompatibilidad Marcada (0.60x): ${game.topic} no resuena con los seguidores de ${game.genre}. Generó descontento en los análisis y castigó las ventas.`;
         }
 
-        const audienceHint = `🎯 Público: El target ideal para ${game.topic} es "${topicObj ? topicObj.idealAudience : 'Everyone'}".`;
+        // 2. Target audience hint
+        const audienceHint = `🎯 Audiencia Ideal: Para ${game.topic}, el target demográfico óptimo es "${topicObj ? topicObj.idealAudience : 'Everyone'}".`;
+
+        // 3. Technical architecture, DAG friction & code debt
+        let architectureFeedback = '';
+        const rawDebt = game.techDebt !== undefined ? game.techDebt : (game.bugs || 0);
+        const frictionMult = game.friction ? (game.friction / 100 + 1) : 1.0;
+        if (rawDebt > 25 || frictionMult > 1.25) {
+            architectureFeedback = `⚠️ Lastre de Deuda Técnica: La deuda técnica acumulada (${Math.round(rawDebt)} pts) generó fricción notable que desestabilizó el juego y ralentizó las ventas iniciales en la semana 1.`;
+        } else if (rawDebt <= 10) {
+            architectureFeedback = `🟢 Código Limpio & Modular: Arquitectura robusta sin deuda técnica crítica. El motor y los módulos rindieron de forma estable durante el pico inicial.`;
+        } else {
+            architectureFeedback = `👍 Balance Técnico Equilibrado: Se detectó deuda técnica moderada (${Math.round(rawDebt)} pts), pero no causó regresiones catastróficas tras el lanzamiento.`;
+        }
+
+        const engineFeedback = (game.pipelineType === 'in_house' || (game.engine && game.engine.isProprietary))
+            ? `⚙️ Motor Propio: La arquitectura in-house proporcionó independencia tecnológica y mejor adaptabilidad para ${game.genre}.`
+            : `⚙️ Motor Comercial: La solución de terceros permitió una salida al mercado rápida con costes de I+D contenidos.`;
+
+        // 4. Optimal design slider calibration learned for this genre
+        const genreRules = {
+            Action: 'Fase 1: Enfoque 50% Jugabilidad y 30% Motor; Fase 2: 45% Diseño de Niveles e IA; Fase 3: 45% Gráficos y 35% Sonido.',
+            RPG: 'Fase 1: Enfoque 50% Historia y Guion; Fase 2: 45% Diálogos y Quests; Fase 3: 45% Construcción del Mundo.',
+            Strategy: 'Fase 1: Enfoque 45% Motor y Reglas; Fase 2: 50% Inteligencia Artificial y Mapas; Fase 3: 40% World & Balance.',
+            Simulation: 'Fase 1: Enfoque 45% Física y Mecánicas; Fase 2: 45% Sistemas e IA; Fase 3: 35% Sonido y Feedback.',
+            Adventure: 'Fase 1: Enfoque 45% Guion y Enigmas; Fase 2: 45% Puzzles y Diálogos; Fase 3: 45% Gráficos Atmosféricos.',
+            Casual: 'Fase 1: Enfoque 60% Jugabilidad Inmediata; Fase 2: 50% Curva de Dificultad; Fase 3: 45% Pulido Visual y Sonido.'
+        };
+        const sliderCalibration = genreRules[game.genre] || 'Equilibra el peso entre Jugabilidad y Fidelidad Visual según el público objetivo.';
+
+        const report = {
+            gameId: game.id,
+            gameName: game.name,
+            score: game.score,
+            rpGained,
+            synergy: synergyFeedback,
+            audience: audienceHint,
+            architecture: `${architectureFeedback} ${engineFeedback}`,
+            sliderCalibration,
+            completedYear: this.getHistoricalYear(),
+            completedWeek: this.week
+        };
+
+        game.postMortemReport = report;
 
         this.discoveredInsights.push({
             title: game.name,
             synergy: synergyFeedback,
-            audience: audienceHint
+            audience: audienceHint,
+            architecture: architectureFeedback,
+            sliderCalibration
         });
 
-        if (soundEngine) soundEngine.playLevelUp();
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
         this.notify();
+
         return {
             success: true,
             rpGained,
-            synergy: synergyFeedback,
-            audience: audienceHint
+            report,
+            message: `📊 Informe post-mortem de "${game.name}" finalizado. +${rpGained} RP obtenidos para I+D.`
+        };
+    }
+
+    generateGameReport(gameId) {
+        return this.completePostMortemAnalysis(gameId);
+    }
+
+    // --- MANUAL RETIREMENT FROM MARKET (END OF LIFE) ---
+    retireGameFromMarket(gameId) {
+        const gameIndex = this.activeSales.findIndex(g => g.id === gameId);
+        const game = gameIndex >= 0 ? this.activeSales[gameIndex] : this.gamesHistory.find(g => g.id === gameId);
+        if (!game) return { success: false, message: 'Videojuego no encontrado en el catálogo.' };
+        if (game.retired) return { success: false, message: 'Este videojuego ya ha sido retirado del mercado.' };
+
+        game.retired = true;
+        game.status = 'RETIRED';
+        game.lifecycleState = 'retired';
+        game.retiredYear = this.getHistoricalYear();
+        game.retiredWeek = this.week;
+
+        // If Live-Service or Free-to-Play, stop servers and cease all ongoing maintenance costs
+        if (['f2p', 'live_service'].includes(game.businessModel)) {
+            game.serversClosed = true;
+            game.mau = 0;
+            game.dailyActiveUsers = [];
+        }
+
+        // Remove from active weekly loop
+        if (gameIndex >= 0) {
+            this.activeSales.splice(gameIndex, 1);
+        }
+
+        // Synchronize and lock totals in gamesHistory
+        const histRef = this.gamesHistory.find(g => g.id === gameId);
+        if (histRef) {
+            histRef.retired = true;
+            histRef.status = 'RETIRED';
+            histRef.lifecycleState = 'retired';
+            histRef.retiredYear = game.retiredYear;
+            histRef.retiredWeek = game.retiredWeek;
+            histRef.finalProfit = game.profit;
+            histRef.finalUnitsSold = game.unitsSoldTotal || game.installationsTotal || 0;
+            histRef.finalRevenue = game.revenueTotal;
+        }
+
+        if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        this.notify();
+        return {
+            success: true,
+            game,
+            message: `📦 "${game.name}" ha sido retirado oficialmente del mercado. Se detienen los costes de soporte y se congelan sus cifras definitivas en el catálogo.`
+        };
+    }
+
+    // --- MEGA GAME EXPO INTERACTIVE LOGIC ---
+    executeExpoAttendance(tier = 1, merchBonus = false, interviewBonus = false) {
+        let baseCost = 5000;
+        let baseFans = 65;
+        let baseHype = 18;
+        let basePress = 4;
+        let tierName = 'Stand Pequeño Indie';
+
+        if (tier === 2) {
+            baseCost = 22000;
+            baseFans = 290;
+            baseHype = 48;
+            basePress = 12;
+            tierName = 'Gran Expositor Central';
+        } else if (tier === 3) {
+            baseCost = 65000;
+            baseFans = 890;
+            baseHype = 95;
+            basePress = 28;
+            tierName = 'Keynote Principal / Mega Pabellón AAA';
+        }
+
+        let totalCost = baseCost + (merchBonus ? 600 : 0);
+        if (this.funds < totalCost) {
+            return { success: false, message: `Fondos insuficientes ($${totalCost.toLocaleString()}) para cubrir los costes de la feria.` };
+        }
+
+        this.funds -= totalCost;
+
+        // Quality scaling based on recent games catalog
+        const recentScores = this.gamesHistory.slice(-3).map(g => g.score || 6.5);
+        const avgScore = recentScores.length ? (recentScores.reduce((a, b) => a + b, 0) / recentScores.length) : 7.0;
+        const qualityMultiplier = Math.max(0.75, avgScore / 7.2);
+
+        const finalFans = Math.floor(baseFans * qualityMultiplier * (merchBonus ? 1.3 : 1.0));
+        const finalHype = Math.floor(baseHype * qualityMultiplier * (interviewBonus ? 1.35 : 1.0));
+        const finalPress = Math.floor(basePress * (interviewBonus ? 1.6 : 1.0));
+
+        this.fans += finalFans;
+
+        // Boost active sales potential
+        const eraMultiplier = this.era === 1 ? 1 : (this.era === 2 ? 3 : 8);
+        this.activeSales.forEach(g => {
+            g.salesPotential = (g.salesPotential || 1000) + Math.floor(finalHype * 40 * eraMultiplier);
+        });
+
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+        this.notify();
+
+        return {
+            success: true,
+            tier,
+            tierName,
+            cost: totalCost,
+            fansGained: finalFans,
+            hypeGained: finalHype,
+            pressMentions: finalPress,
+            message: `🎪 ¡Éxito en la convención! Tu stand (${tierName}) cosechó +${finalFans} nuevos fans, +${finalPress} menciones en prensa y +${finalHype} de Hype global.`
+        };
+    }
+
+    // --- TOPIC PROGRESSION & RESEARCH (SUBAGENTE 2) ---
+    getUnlockedTopics() {
+        if (!this.unlockedTopicIds || !this.unlockedTopicIds.length) {
+            this.unlockedTopicIds = ['medieval', 'fantasy', 'sports', 'space', 'martial_arts', 'ninja'];
+        }
+        return THEMES_DATABASE.filter(t => this.unlockedTopicIds.some(id => id.toLowerCase() === t.id.toLowerCase() || (t.aliases && t.aliases.some(a => a.toLowerCase() === id.toLowerCase()))));
+    }
+
+    getLockedTopics(historicalYear = this.getHistoricalYear()) {
+        const unlocked = this.getUnlockedTopics();
+        const unlockedIds = new Set(unlocked.map(t => t.id.toLowerCase()));
+        return THEMES_DATABASE.filter(t => !unlockedIds.has(t.id.toLowerCase()) && (t.unlockedYear <= historicalYear));
+    }
+
+    getFutureTopics(historicalYear = this.getHistoricalYear()) {
+        return THEMES_DATABASE.filter(t => t.unlockedYear > historicalYear);
+    }
+
+    startTopicResearch(topicId, employeeIndex = 0) {
+        if (this.activeTopicResearch) {
+            return {
+                success: false,
+                message: `Ya se está investigando la temática "${this.activeTopicResearch.topicName}". Espera a que finalice.`
+            };
+        }
+        const topicDef = findTheme(topicId) || TOPICS.find(t => t.id === topicId);
+        if (!topicDef) return { success: false, message: 'Temática no encontrada en el catálogo.' };
+        if (this.getUnlockedTopics().some(t => t.id.toLowerCase() === topicDef.id.toLowerCase())) {
+            return { success: false, message: `La temática "${topicDef.name}" ya está desbloqueada.` };
+        }
+        const historicalYear = this.getHistoricalYear();
+        if (topicDef.unlockedYear > historicalYear) {
+            return { success: false, message: `La temática "${topicDef.name}" pertenece a una era posterior (${topicDef.unlockedYear}).` };
+        }
+        const costRP = topicDef.costRP || 20;
+        if (this.researchPoints < costRP) {
+            return { success: false, message: `Puntos de I+D insuficientes. Requiere ${costRP} RP (disponibles: ${this.researchPoints} RP).` };
+        }
+
+        const dev = this.employees[employeeIndex] || this.employees[0];
+        this.researchPoints -= costRP;
+        const totalWeeks = 2; // 2 semanas de estudio del empleado
+
+        this.activeTopicResearch = {
+            topicId: topicDef.id,
+            topicName: topicDef.name,
+            totalWeeks,
+            weeksRemaining: totalWeeks,
+            progress: 0,
+            employeeIndex: employeeIndex >= 0 ? employeeIndex : 0,
+            employeeName: dev ? dev.name : 'Desarrollador'
+        };
+
+        if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        this.notify();
+        return {
+            success: true,
+            totalWeeks,
+            costRP,
+            message: `💡 Investigación de temática iniciada: "${topicDef.name}". ${this.activeTopicResearch.employeeName} la estudiará durante 2 semanas.`
+        };
+    }
+
+    // --- GENRE PROGRESSION & RESEARCH (SUBAGENTE 1 & 2) ---
+    getUnlockedGenres() {
+        if (!this.unlockedGenreIds || !this.unlockedGenreIds.length) {
+            this.unlockedGenreIds = ['action', 'Action', 'adventure', 'Adventure', 'rpg', 'RPG', 'strategy', 'Strategy', 'simulation', 'Simulation', 'casual', 'Casual'];
+        }
+        return GENRES_DATABASE.filter(g => this.unlockedGenreIds.some(id => id.toLowerCase() === g.id.toLowerCase() || (g.aliases && g.aliases.some(a => a.toLowerCase() === id.toLowerCase()))));
+    }
+
+    getLockedGenres(historicalYear = this.getHistoricalYear()) {
+        const unlocked = this.getUnlockedGenres();
+        const unlockedIds = new Set(unlocked.map(g => g.id.toLowerCase()));
+        return GENRES_DATABASE.filter(g => !unlockedIds.has(g.id.toLowerCase()) && (g.unlockedYear <= historicalYear));
+    }
+
+    getFutureGenres(historicalYear = this.getHistoricalYear()) {
+        return GENRES_DATABASE.filter(g => g.unlockedYear > historicalYear);
+    }
+
+    startGenreResearch(genreId, employeeIndex = 0) {
+        if (this.activeGenreResearch) {
+            return {
+                success: false,
+                message: `Ya se está investigando el género "${this.activeGenreResearch.genreName}". Espera a que finalice.`
+            };
+        }
+        const genreDef = findGenre(genreId) || GENRES.find(g => g.id === genreId);
+        if (!genreDef) return { success: false, message: 'Género no encontrado en el catálogo.' };
+        if (this.getUnlockedGenres().some(g => g.id.toLowerCase() === genreDef.id.toLowerCase())) {
+            return { success: false, message: `El género "${genreDef.name}" ya está desbloqueado.` };
+        }
+        const historicalYear = this.getHistoricalYear();
+        if (genreDef.unlockedYear > historicalYear) {
+            return { success: false, message: `El género "${genreDef.name}" pertenece a una era posterior (${genreDef.unlockedYear}).` };
+        }
+        const costRP = genreDef.costRP || 30;
+        if (this.researchPoints < costRP) {
+            return { success: false, message: `Puntos de I+D insuficientes. Requiere ${costRP} RP (disponibles: ${this.researchPoints} RP).` };
+        }
+
+        const dev = this.employees[employeeIndex] || this.employees[0];
+        this.researchPoints -= costRP;
+        const totalWeeks = 3; // 3 semanas de estudio de género
+
+        this.activeGenreResearch = {
+            genreId: genreDef.id,
+            genreName: genreDef.name,
+            totalWeeks,
+            weeksRemaining: totalWeeks,
+            progress: 0,
+            employeeIndex: employeeIndex >= 0 ? employeeIndex : 0,
+            employeeName: dev ? dev.name : 'Desarrollador'
+        };
+
+        if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+        this.notify();
+        return {
+            success: true,
+            totalWeeks,
+            costRP,
+            message: `🎮 Investigación de género iniciada: "${genreDef.name}". ${this.activeGenreResearch.employeeName} lo estudiará durante 3 semanas.`
         };
     }
 
@@ -3042,16 +4442,20 @@ class TycoonGame {
             this.researchPoints += costRP;
             return { success: false, message: 'Necesitas al menos un programador con 30+ de habilidad técnica para liderar el motor.' };
         }
+        const leadSenior = seniorProgrammers[0];
+        const leadIndex = this.employees.indexOf(leadSenior);
         this.activeEngineRD = {
             name: config.name || 'Proprietary Core v' + (this.inHouseEngines.length + 1),
             affineGenres,
             bakedNodes,
             totalWeeks: 8,
             weeksRemaining: 8,
-            progress: 0
+            progress: 0,
+            leadProgrammerIndex: leadIndex >= 0 ? leadIndex : 0,
+            leadProgrammerName: leadSenior.name
         };
         this.notify();
-        return { success: true, project: this.activeEngineRD, message: `🧪 Proyecto de I+D iniciado: "${this.activeEngineRD.name}". El equipo sénior necesita 8 semanas para compilarlo.` };
+        return { success: true, project: this.activeEngineRD, message: `🧪 Proyecto de I+D iniciado: "${this.activeEngineRD.name}". ${leadSenior.name} lidera la arquitectura durante 8 semanas.` };
     }
 
     upgradeInHouseEngine(engineId, newNodes = []) {
@@ -3174,4 +4578,14 @@ class TycoonGame {
 // Global game instance
 const game = new TycoonGame();
 
-export { game, GENRES, PLATFORMS, TOPICS };
+export {
+    game,
+    GENRES,
+    GENRES_DATABASE,
+    findGenre,
+    PLATFORMS,
+    TOPICS,
+    THEMES_DATABASE,
+    findTheme,
+    calculateSynergy
+};

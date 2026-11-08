@@ -1,0 +1,140 @@
+[
+  {
+    "id": "chip_shortage",
+    "type": "platform_supply_shock",
+    "title": "Crisis de Fabricación: Escasez de Chips",
+    "retroHeadline": "CRISIS DE SUMINISTRO: COLAPSO EN LA PRODUCCIÓN DE MICROCHIPS",
+    "modernHeadline": "BREAKING: GLOBAL SILICON SHORTAGE HITS HARDWARE MANUFACTURING",
+    "category": "market_crisis",
+    "minYear": 1982,
+    "maxYear": 9999,
+    "weight": 1.2,
+    "trigger": { "kind": "random_industry_event" },
+    "description": "Una disrupción imprevista en las fundiciones de semiconductores restringe la producción de hardware. Las ventas de juegos en la plataforma afectada caerán entre un 30% y un 50% durante los próximos 3 a 6 meses.",
+    "choices": [
+      {
+        "id": "wait_supply",
+        "label": "Esperar a que se recupere la cadena logística",
+        "description": "No asumir costes directos de almacén. Aceptar la caída de ventas durante todo el periodo de escasez (12 a 24 semanas).",
+        "cost": 0,
+        "costFraction": 0,
+        "risks": ["Ventas reducidas 30%-50%", "Pérdida de ingresos residuales"],
+        "timeWeeks": 0
+      },
+      {
+        "id": "reserve_stock",
+        "label": "Pagar reserva anticipada de inventario",
+        "description": "Invertir capital prioritario con distribuidores para asegurar componentes. Reduce el impacto a solo un -10% durante 4 semanas.",
+        "costFraction": 0.08,
+        "minCost": 12000,
+        "risks": ["Desembolso económico inmediato"],
+        "timeWeeks": 4
+      }
+    ]
+  },
+  {
+    "id": "source_leak",
+    "type": "code_breach",
+    "title": "Fuga de Código Fuente (Data Breach)",
+    "retroHeadline": "ESCÁNDALO: DISQUETES CONFIDENCIALES FILTRADOS A LA PRENSA PIRATA",
+    "modernHeadline": "CYBER ALERT: SOURCE CODE REPOSITORY LEAKED TO REVERSE-ENG DISCORD",
+    "category": "studio_crisis",
+    "minYear": 1982,
+    "maxYear": 9999,
+    "weight": 1.4,
+    "trigger": { "kind": "high_hype_without_security" },
+    "description": "El estudio carece de protocolos básicos de ciberseguridad y el alto Hype del proyecto ha atraído a piratas informáticos. Módulos esenciales del código circulan en la red.",
+    "choices": [
+      {
+        "id": "rush_release",
+        "label": "Adelantar lanzamiento en estado incompleto",
+        "description": "Forzar la salida inmediata al mercado antes de que los competidores copien las mecánicas. Asume +12 de Deuda Técnica y bugs críticos.",
+        "cost": 0,
+        "debtIncrease": 15,
+        "bugsIncrease": 5,
+        "forcedRelease": true,
+        "risks": ["+15 Deuda Técnica", "+5 Bugs críticos", "Críticas de prensa desfavorables"]
+      },
+      {
+        "id": "legal_audit",
+        "label": "Auditoría legal y rehacer módulos afectados",
+        "description": "Contratar consultores forenses, aislar la fuga y reescribir la arquitectura afectada. Añade 2 meses (+8 semanas) de desarrollo.",
+        "costFraction": 0.12,
+        "minCost": 15000,
+        "durationMonths": 2,
+        "delayWeeks": 8,
+        "hypePenalty": 10,
+        "risks": ["Desembolso de auditoría", "+8 semanas de retraso", "-10 Hype"],
+        "timeWeeks": 8
+      }
+    ]
+  },
+  {
+    "id": "patent_lawsuit",
+    "type": "patent_lawsuit",
+    "title": "Demanda por Infracción de Patentes",
+    "retroHeadline": "LITIGIO MERCANTIL: RIVAL INTERPONE DEMANDA POR DERECHOS DE AUTOR",
+    "modernHeadline": "LEGAL NOTICE: TECH GIANT FILES MULTI-MILLION PATENT LITIGATION",
+    "category": "legal_crisis",
+    "minYear": 1982,
+    "maxYear": 9999,
+    "weight": 1.0,
+    "trigger": { "kind": "successful_studio" },
+    "description": "Un estudio competidor o consorcio legal afirma que tu tecnología infringe sus patentes de software registradas. Exigen indemnización inmediata.",
+    "choices": [
+      {
+        "id": "settle",
+        "label": "Pagar acuerdo extrajudicial confidencial",
+        "description": "Abonar un acuerdo pactado con sus abogados. Zanja el litigio de inmediato y preserva la reputación del estudio.",
+        "costFraction": 0.10,
+        "minCost": 20000,
+        "winChance": 1.0,
+        "risks": ["Coste económico garantizado del 10%"],
+        "timeWeeks": 0
+      },
+      {
+        "id": "fight",
+        "label": "Contratar prestigioso bufete y litigar en tribunales",
+        "description": "Defender la propiedad intelectual en los juzgados (55% de probabilidad de ganar). Si vences ganas prestigio; si pierdes pagas costes judiciales e indemnización.",
+        "costFraction": 0.05,
+        "minCost": 10000,
+        "winChance": 0.55,
+        "penaltyFraction": 0.25,
+        "risks": ["45% riesgo de derrota", "Indemnización del 25%", "Pérdida de reputación y fans"]
+      }
+    ]
+  },
+  {
+    "id": "genre_collapse",
+    "type": "genre_trend_crash",
+    "title": "Caída de Tendencias: Sobreexposición de Mercado",
+    "retroHeadline": "SATURACIÓN COMERCIAL: EL PÚBLICO DA LA ESPALDA A OTRA OLA DE CLONES",
+    "modernHeadline": "MARKET SHIFT: AUDIENCE FATIGUE CAUSES DEMAND NOSEDIVE FOR GENRE",
+    "category": "market_shift",
+    "minYear": 1982,
+    "maxYear": 9999,
+    "weight": 1.1,
+    "trigger": { "kind": "genre_market_overexposure" },
+    "description": "El exceso de lanzamientos similares ha saturado el mercado. El interés del público por el género en desarrollo se desploma temporalmente en un -35%.",
+    "choices": [
+      {
+        "id": "pivot",
+        "label": "Pivotar el proyecto hacia un nuevo género",
+        "description": "Reajustar el diseño y la arquitectura DAG hacia un género con mejor tracción de mercado. Reinicia las sinergias y mitiga el impacto.",
+        "cost": 0,
+        "risks": ["Reajuste de sinergias de diseño", "Rediseño de mecánicas"],
+        "timeWeeks": 0
+      },
+      {
+        "id": "delay",
+        "label": "Retrasar el lanzamiento esperando recuperación",
+        "description": "Esperar 2 meses (+8 semanas) a que la sobreoferta del género se disipe en el mercado. Asumes los costes de nómina del equipo.",
+        "cost": 0,
+        "durationMonths": 2,
+        "delayWeeks": 8,
+        "risks": ["+8 semanas de salarios de nómina", "Desgaste del equipo"],
+        "timeWeeks": 8
+      }
+    ]
+  }
+]

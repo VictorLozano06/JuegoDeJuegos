@@ -1,0 +1,8 @@
+[
+  { "id": "pixelnora", "name": "PixelNora", "platform": "StreamBox", "audience": "small", "followers": 18000, "genres": ["Simulation", "Casual"], "fee": 450 },
+  { "id": "tacticotv", "name": "TacticoTV", "platform": "StreamBox", "audience": "small", "followers": 32000, "genres": ["Strategy", "RPG"], "fee": 650 },
+  { "id": "ludenslive", "name": "LudensLive", "platform": "GameCast", "audience": "medium", "followers": 185000, "genres": ["RPG", "Adventure"], "fee": 2200 },
+  { "id": "speedrunmax", "name": "SpeedrunMax", "platform": "GameCast", "audience": "medium", "followers": 260000, "genres": ["Action", "Simulation"], "fee": 2800 },
+  { "id": "megaplay", "name": "MegaPlay", "platform": "StreamBox", "audience": "top", "followers": 2400000, "genres": ["Action", "RPG", "Adventure"], "fee": 9000 },
+  { "id": "coopqueen", "name": "CoopQueen", "platform": "GameCast", "audience": "top", "followers": 1750000, "genres": ["Strategy", "Simulation", "Casual"], "fee": 8000 }
+]
