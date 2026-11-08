@@ -37,3 +37,13 @@ Pruebas del sistema (Node.js 22 o posterior):
 ```sh
 node --no-warnings --experimental-loader ./tests/json-loader.mjs --test tests/*.test.js
 ```
+
+## Finanzas e insolvencia
+
+El panel Empresa / Finanzas muestra el saldo real, los compromisos de préstamos y los indicadores calculados semanalmente. La liquidez considera costes recurrentes, cuotas, ingresos recientes y una fracción de los activos para los que existen compradores con capacidad económica. El riesgo también incorpora saldo negativo, endeudamiento, pérdidas e impagos. Los umbrales, plazos y coeficientes son parámetros de juego en `FINANCE_DEFAULTS` de `src/financeSystem.js`; los intereses por época son aproximaciones configurables, no datos históricos de tipos bancarios.
+
+Los préstamos tienen límites, cuotas, intereses, impagos y refinanciaciones acotadas. En dificultades se restringen inversiones; en insolvencia se bloquean más inversiones, pero se conservan las opciones de recuperación. Las fases exigen varias semanas de deterioro o recuperación. Tras una insolvencia grave sostenida sin cobertura inmediata, la simulación se detiene para revisar medidas o confirmar la bancarrota; no se liquida automáticamente. Si una medida resuelve la situación inmediata, el panel permite reanudar.
+
+La liquidación archiva proyectos e investigación, registra deudas y pagos, preserva los juegos y el historial, y solo transfiere IP con una compraventa real. Las franquicias sin comprador y los motores y kits sin mercado permanecen en el patrimonio de liquidación; no generan dinero ficticio. La plantilla afectada pasa al mercado laboral, con indemnizaciones pagadas según fondos y obligaciones impagadas registradas. El fundador se conserva con salario cero por compatibilidad de la partida. Es posible finalizar o continuar en modo histórico; la partida no se borra.
+
+La IA rival mantiene su propio procedimiento existente de nóminas y reestructuración, pero comparte el cálculo de liquidez para sus indicadores; no se ha sustituido su comportamiento por el del jugador. No hay aún mercado de motores o equipos ni creación de una segunda empresa tras la quiebra.

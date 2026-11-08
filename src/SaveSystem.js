@@ -146,6 +146,15 @@ function persistentFields(game) {
 function replaceGame(game, savedState) {
     const defaults = persistentFields(new game.constructor());
     const state = { ...defaults, ...savedState };
+    if (defaults.financeState) {
+        if (!savedState?.financeState || typeof savedState.financeState !== 'object') {
+            state.financeState = { ...defaults.financeState, lastBalance: state.funds };
+        } else {
+            state.financeState = { ...defaults.financeState, ...savedState.financeState,
+                settings: { ...defaults.financeState.settings, ...savedState.financeState.settings } };
+            if (!Number.isFinite(savedState.financeState.lastBalance)) state.financeState.lastBalance = state.funds;
+        }
+    }
     // Old saves had an empty placeholder for future rivals. Generate the initial
     // industry only once on migration; never overwrite existing companies.
     if (defaults.rivalSystemVersion && !savedState?.rivalSystemVersion &&
