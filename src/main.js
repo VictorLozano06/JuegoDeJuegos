@@ -1,4 +1,5 @@
 import './ui-icons.js';
+import { initializeIPUI, refreshIPWizard } from './ip-ui.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG, EnginePipelineManager, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel } from './dag_engine.js';
 import { game, GENRES, GENRES_DATABASE, findGenre, PLATFORMS, TOPICS, THEMES_DATABASE, findTheme, calculateSynergy } from './simulation.js';
@@ -122,6 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. Setup UI Event Listeners & Keyboard Shortcuts
     setupUIControls();
     setupKeyboardShortcuts();
+    initializeIPUI({ game, openModal, showToast, genres: GENRES_DATABASE, topics: THEMES_DATABASE });
 
     // 3. Populate Modal Dropdowns & DAG Architecture
     populateProjectWizard();
@@ -2039,6 +2041,8 @@ function startProjectFromWizard() {
     const result = game.startNewGameProject({
         name, topicId, genreId, platformId, targetAudience, dagConfig,
         historicalTechIds: [...selectedHistoricalTechs],
+        ipId: document.getElementById("select-ip").value || null,
+        ipInstallmentType: document.getElementById("select-ip-installment").value,
         publishingContractType,
         businessModel, postLaunchContent, monetizationStyle, supportsPatches
     });
@@ -4901,6 +4905,7 @@ function openCompanyCreatorModal(newGame = false) {
 function openModal(id) {
     closeAllModals();
     if (id === 'modal-new-game') {
+        refreshIPWizard(game);
         updatePlatformOptions();
         renderPipelineSelector();
         renderPublishingContractSelector();
