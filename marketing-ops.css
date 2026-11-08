@@ -1,15 +1,15 @@
 /* Marketing's broadcast desk, layered over the shared Empire UI materials. */
-#modal-marketing .marketing-window {
-    --room-accent: var(--empire-accent);
-    --marketing-surface: var(--empire-surface);
-    --marketing-raised: var(--empire-raised);
-    --marketing-line: var(--empire-line);
-    --mkt-ink: var(--empire-text);
-    --mkt-muted: var(--empire-muted);
-    --mkt-key: var(--empire-accent-soft);
+:is(#modal-marketing, .uwuntu-window-body, body) .marketing-window, .marketing-window {
+    --room-accent: var(--empire-accent, #38bdf8);
+    --marketing-surface: var(--empire-surface, #0d1726);
+    --marketing-raised: var(--empire-raised, #132238);
+    --marketing-line: var(--empire-line, rgba(56, 189, 248, 0.2));
+    --mkt-ink: var(--empire-text, #f1f5f9);
+    --mkt-muted: var(--empire-muted, #94a3b8);
+    --mkt-key: var(--empire-accent-soft, #7dd3fc);
     --mkt-trace: color-mix(in srgb, var(--room-accent) 27%, transparent);
     --mkt-active: color-mix(in srgb, var(--room-accent) 8%, var(--marketing-raised));
-    width: min(100%, 920px);
+    width: min(100%, 1040px);
     max-height: min(870px, calc(100dvh - 36px));
     font-variant-numeric: tabular-nums;
 }
@@ -493,7 +493,7 @@
     flex-shrink: 0;
     border-top: 0;
 }
-#modal-marketing .menu-scroll { flex: 1; }
+:is(#modal-marketing, .uwuntu-window-body) .menu-scroll { flex: 1; }
 .mkt-back { white-space: nowrap; }
 @media (max-width: 540px) {
     #modal-marketing .modal-header { flex-wrap: wrap; column-gap: 8px; row-gap: 6px; }

@@ -34,13 +34,24 @@ export function initializeIPUI({ game, openModal, showToast, genres = [], topics
     modal.className = 'modal-backdrop';
     modal.innerHTML = `<div class="modal-window" style="max-width:960px"><div class="modal-header"><h2 class="modal-title">Empresa / Propiedad intelectual</h2><button type="button" class="modal-close" aria-label="Cerrar">&times;</button></div><nav class="ip-tabs" aria-label="Propiedad intelectual"><button class="dock-btn ip-tab" type="button" data-ip-tab="own">Mis IP</button><button class="dock-btn ip-tab" type="button" data-ip-tab="market">Mercado</button><button class="dock-btn ip-tab" type="button" data-ip-tab="history">Historial</button></nav><div id="ip-view"></div></div>`;
     document.body.appendChild(modal);
-    document.getElementById('btn-company-ip')?.addEventListener('click', () => { activeTab = 'own'; selectedIP = null; render(); openModal(modal.id); });
-    modal.addEventListener('click', event => {
-        if (event.target === modal || event.target.closest('.modal-close')) { modal.style.display = 'none'; modal.classList.remove('active'); return; }
+    const windowElement = modal.querySelector('.modal-window');
+    document.getElementById('btn-company-ip')?.addEventListener('click', () => {
+        activeTab = 'own';
+        selectedIP = null;
+        render();
+        if (window.studioPhoneNav?.openIP) window.studioPhoneNav.openIP();
+        else openModal(modal.id);
+    });
+    windowElement.addEventListener('click', event => {
+        if (event.target.closest('.modal-close')) {
+            if (windowElement.closest('#phone-view-ip')) window.studioPhoneNav?.returnHome();
+            else { modal.style.display = 'none'; modal.classList.remove('active'); }
+            return;
+        }
         onClick(event);
     });
-    modal.addEventListener('submit', onSubmit);
-    modal.addEventListener('change', event => {
+    windowElement.addEventListener('submit', onSubmit);
+    windowElement.addEventListener('change', event => {
         if (event.target.id !== 'ip-original') return;
         const original = (game.gamesHistory || []).find(g => g.id === event.target.value);
         if (!original) return;
@@ -52,6 +63,7 @@ export function initializeIPUI({ game, openModal, showToast, genres = [], topics
         }
     });
     document.getElementById('select-ip')?.addEventListener('change', e => { document.getElementById('select-ip-installment').disabled = !e.target.value; });
+    window.refreshIPPanel = render;
 }
 
 function registerForm() {

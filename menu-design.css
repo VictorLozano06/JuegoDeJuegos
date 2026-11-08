@@ -82,7 +82,8 @@ body:has(.modal-backdrop.active) :is(.top-bar, .action-dock) { backdrop-filter: 
 .studio-menu .creator-subtitle { color: var(--room-accent); font-size: 14px; margin: 0 0 10px; }
 .studio-menu .form-label { color: #c3cdd6; font-size: 12px; letter-spacing: 0; text-transform: none; margin-bottom: 5px; }
 .studio-menu .form-group { min-width: 0; margin-bottom: 10px; }
-.studio-menu .form-input, .studio-menu .form-select { min-height: 38px; padding: 7px 10px; font-size: 14px; border-radius: 6px; }
+.studio-menu .form-input { min-height: 38px; padding: 7px 10px; font-size: 14px; border-radius: 6px; }
+.studio-menu .form-select { min-height: 38px; padding: 7px 38px 7px 12px !important; font-size: 14px; border-radius: 6px; }
 .studio-name-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; margin-bottom: 10px; }
 #btn-random-company-name { padding: 7px 10px !important; min-height: 38px; font-size: 13px; }
 .studio-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
@@ -110,14 +111,14 @@ body:has(.modal-backdrop.active) :is(.top-bar, .action-dock) { backdrop-filter: 
     .menu-tabs button { padding-inline: 8px; }
 }
 /* Production HUD: status first, diagnostic data on demand. */
-#active-project-bar { width: min(620px, calc(100% - 20px)); margin: 12px auto; padding: 12px 15px; gap: 9px; border: 1px solid #8ea8b442; border-radius: 9px; background: #131b23; backdrop-filter: none; box-shadow: 0 8px 22px #0005; animation: none; }
-.project-overview, .project-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+#active-project-bar { width: min(560px, calc(100% - 20px)); margin: 8px auto; padding: 9px 12px; gap: 6px; border: 1px solid #8ea8b442; border-radius: 9px; background: #131b23; backdrop-filter: none; box-shadow: 0 8px 22px #0005; animation: none; }
+.project-overview, .project-controls { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .project-overview > div { min-width: 0; }
 .project-kicker { margin: 0; font: 700 10px/1.4 ui-monospace, monospace; letter-spacing: .13em; color: #abc9c6; }
-#proj-title { margin: 1px 0; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
-#stage-label { margin: 3px 0 0; font-size: 13px; color: #c3cdd7; }
-#proj-progress-value { font: 700 23px/1 ui-monospace, monospace; color: #c1e5d7; }
-#active-project-bar .proj-progress-track { height: 5px; margin: 0; background: #ffffff19; }
+#proj-title { margin: 1px 0; font-size: 17px; line-height: 1.15; overflow-wrap: anywhere; }
+#stage-label { margin: 2px 0 0; font-size: 12px; color: #c3cdd7; }
+#proj-progress-value { font: 700 21px/1 ui-monospace, monospace; color: #c1e5d7; }
+#active-project-bar .proj-progress-track { height: 4px; margin: 0; background: #ffffff19; }
 #active-project-bar .proj-progress-fill { height: 100%; background: #92d4bf; box-shadow: none; }
 .project-controls, .project-buttons, #active-project-bar .proj-tags { flex-wrap: wrap; }
 .project-buttons { display: flex; align-items: center; gap: 5px; }
