@@ -23,6 +23,7 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="/src/main-menu.css">
     <link rel="stylesheet" href="/src/office-ui.css">
+    <link rel="stylesheet" href="/src/admin-ui.css">
 </head>
 <body class="menu-active">
     <!-- WebGL Three.js Container -->
@@ -369,6 +370,9 @@
             </button>
             <button id="btn-upgrade-office" class="dock-btn" type="button" title="Comprar o cambiar la sede del estudio" aria-haspopup="dialog">
                 <span aria-hidden="true">[[DE_ICON_035]]</span> Oficinas
+            </button>
+            <button id="btn-admin-mode" class="dock-btn admin-dock-btn" type="button" title="Abrir herramientas de administración" aria-haspopup="dialog">
+                <span aria-hidden="true">ADM</span> Admin
             </button>
         </footer>
 
@@ -1139,6 +1143,29 @@
             </div>
             <div id="office-catalog" class="office-catalog"></div>
             <p id="office-feedback" class="office-feedback" role="status" aria-live="polite"></p>
+        </section>
+    </div>
+
+    <div id="modal-admin" class="modal-backdrop">
+        <section class="modal-window admin-window" role="dialog" aria-modal="true" aria-labelledby="admin-title">
+            <header class="modal-header">
+                <div>
+                    <p class="admin-eyebrow">Herramientas de partida</p>
+                    <h2 id="admin-title" class="modal-title">Modo administrador</h2>
+                </div>
+                <button class="modal-close" type="button" aria-label="Cerrar administración">&times;</button>
+            </header>
+            <p class="admin-description">Ajusta los fondos de tu estudio. Los cambios se guardan en la partida actual.</p>
+            <p class="admin-current">Saldo actual <strong id="admin-current-funds">$0</strong></p>
+            <form id="admin-funds-form" class="admin-funds-form">
+                <label for="admin-funds-amount">Cantidad en dólares</label>
+                <input id="admin-funds-amount" name="amount" type="number" min="0" step="1" inputmode="numeric" value="1000000" required>
+                <div class="admin-actions">
+                    <button class="dock-btn btn-primary-action" type="submit" data-admin-action="add">Añadir al saldo</button>
+                    <button class="dock-btn" type="button" data-admin-action="set">Fijar saldo exacto</button>
+                </div>
+            </form>
+            <p id="admin-feedback" class="admin-feedback" role="status" aria-live="polite"></p>
         </section>
     </div>
 

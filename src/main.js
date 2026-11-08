@@ -631,6 +631,51 @@ function setupUIControls() {
         document.querySelector('#modal-offices .modal-close')?.focus();
     });
 
+    const adminModal = document.getElementById('modal-admin');
+    const adminForm = document.getElementById('admin-funds-form');
+    const adminAmount = document.getElementById('admin-funds-amount');
+    const adminFunds = document.getElementById('admin-current-funds');
+    const adminFeedback = document.getElementById('admin-feedback');
+    const formatAdminFunds = value => `$${Math.floor(value).toLocaleString('es-ES')}`;
+    const openAdmin = () => {
+        adminFunds.textContent = formatAdminFunds(game.funds);
+        adminFeedback.textContent = '';
+        adminFeedback.dataset.result = '';
+        openModal('modal-admin');
+        adminAmount.focus();
+    };
+    document.getElementById('btn-admin-mode').addEventListener('click', openAdmin);
+    const applyAdminFunds = (action) => {
+        const amount = Number(adminAmount.value);
+        if (!Number.isSafeInteger(amount) || amount < 0) {
+            adminFeedback.textContent = 'Introduce una cantidad válida (número entero igual o superior a cero).';
+            adminFeedback.dataset.result = 'error';
+            adminAmount.focus();
+            return;
+        }
+        const nextFunds = action === 'set' ? amount : game.funds + amount;
+        if (!Number.isSafeInteger(nextFunds)) {
+            adminFeedback.textContent = 'La cantidad supera el límite numérico admitido.';
+            adminFeedback.dataset.result = 'error';
+            return;
+        }
+        game.funds = nextFunds;
+        renderHUD(game);
+        refreshOfficeManager();
+        autosaveCurrentGame();
+        adminFunds.textContent = formatAdminFunds(game.funds);
+        adminFeedback.textContent = action === 'set'
+            ? `Saldo actualizado a ${formatAdminFunds(game.funds)}.`
+            : `Se han añadido ${formatAdminFunds(amount)}. Nuevo saldo: ${formatAdminFunds(game.funds)}.`;
+        adminFeedback.dataset.result = 'success';
+        if (soundEngine?.playClick) soundEngine.playClick();
+    };
+    adminForm.addEventListener('submit', event => {
+        event.preventDefault();
+        applyAdminFunds('add');
+    });
+    adminModal.querySelector('[data-admin-action="set"]').addEventListener('click', () => applyAdminFunds('set'));
+
     // Modal Close Buttons
     document.querySelectorAll('.modal-close, .modal-backdrop').forEach(elem => {
         elem.addEventListener('click', (e) => {
