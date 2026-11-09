@@ -27,6 +27,7 @@ import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
+import { EngineCreationModal } from './EngineCreationModal.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -1151,11 +1152,28 @@ function setupDeveloperContextMenu() {
         btnEngine.addEventListener('click', (e) => {
             e.stopPropagation();
             contextMenu.style.display = 'none';
-            renderTechTree();
-            openModal('modal-research');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+            const modal = new EngineCreationModal({
+                game,
+                onCreated: (newEngine) => {
+                    showToast(`[[DE_ICON_024]] ¡Motor "${newEngine.name}" creado con éxito!`, 'success');
+                    renderHUD(game);
+                }
+            });
+            modal.render();
         });
     }
+
+    window.openEngineCreationModal = () => {
+        const modal = new EngineCreationModal({
+            game,
+            onCreated: (newEngine) => {
+                showToast(`[[DE_ICON_024]] ¡Motor "${newEngine.name}" creado con éxito!`, 'success');
+                renderHUD(game);
+            }
+        });
+        return modal.render();
+    };
 
     // 6b. Action: Investigar Temática Nueva (Subagente 2)
     if (btnTopicResearch) {
