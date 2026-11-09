@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { classifyVreadPost, generateVreadFeed, getVreadSalesMultiplier, publishVreadPost } from '../src/vread-engine.js';
+import { classifyVreadPost, generateVreadFeed, getVreadSalesMultiplier, publishVreadPost, getCommunitySentiment } from '../src/vread-engine.js';
 import { REPLY_ENDINGS } from '../src/vread-content.js';
 
 function fixture() {
@@ -109,4 +109,19 @@ test('las conversaciones del feed tienen varios comentarios y autores diferencia
         assert.equal(new Set(post.replies.map(reply => reply.handle)).size, post.replies.length);
         assert.equal(new Set(post.replies.map(reply => reply.text)).size, post.replies.length);
     }
+});
+
+test('sistema de haters genera publicaciones hostiles y termómetro de comunidad coherente', () => {
+    const game = fixture();
+    const feed = generateVreadFeed(game, random(42));
+    const haterPosts = feed.filter(p => p.isHater || p.type === 'hater');
+    assert.ok(haterPosts.length >= 1, 'Debe haber publicaciones de haters en el feed');
+    assert.ok(haterPosts.some(p => p.text.includes('#Haters') || p.text.includes('bodrio') || p.text.includes('estafa') || p.text.includes('timo') || p.text.includes('basura')));
+
+    const sentiment = getCommunitySentiment(game);
+    assert.ok(sentiment.fans >= 0 && sentiment.fans <= 100);
+    assert.ok(sentiment.haters >= 0 && sentiment.haters <= 100);
+    assert.ok(sentiment.neutral >= 0 && sentiment.neutral <= 100);
+    assert.equal(sentiment.fans + sentiment.neutral + sentiment.haters, 100);
+    assert.ok(typeof sentiment.label === 'string' && sentiment.label.length > 0);
 });

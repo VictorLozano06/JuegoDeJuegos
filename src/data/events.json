@@ -136,5 +136,34 @@
         "timeWeeks": 8
       }
     ]
+  },
+  {
+    "id": "os_launch_2006",
+    "type": "os_update_announcement",
+    "title": "Lanzamiento Tecnológico: Nuevo Sistema Operativo 2006",
+    "retroHeadline": "LA GACETA TECNOLÓGICA: ¡LLEGA LA REVOLUCIÓN INFORMÁTICA DE 2006!",
+    "modernHeadline": "TECH WIRE: UWUNTU RELEASES NEXT-GEN 2006 CRYSTAL AERO OS",
+    "category": "tech_milestone",
+    "minYear": 2006,
+    "maxYear": 9999,
+    "weight": 10.0,
+    "trigger": { "kind": "year_milestone", "year": 2006 },
+    "description": "Hoy, año 2006, se lanza oficialmente el nuevo sistema operativo 'Uwuntu XD 2006 Crystal Aero'. La prensa tecnológica alaba su interfaz ultranítida con efectos de cristal translúcido (Aero Glass), tipografía antialiasing de alta definición, mayor estabilidad para compilar motores 3D modernos y nuevas herramientas para desarrolladores. ¡Ya tienes una actualización disponible en la barra de tareas de tu PC!",
+    "choices": [
+      {
+        "id": "open_update_center",
+        "label": "Abrir el Centro de Actualizaciones del PC",
+        "description": "Acceder inmediatamente a tu estación de trabajo Uwuntu XD para revisar las mejoras e instalar el nuevo sistema operativo de 2006.",
+        "cost": 0,
+        "timeWeeks": 0
+      },
+      {
+        "id": "update_later",
+        "label": "Recordármelo más tarde en la barra de tareas",
+        "description": "Continuar con tu jornada actual. El icono de actualización con el punto azul permanecerá activo en la bandeja del sistema.",
+        "cost": 0,
+        "timeWeeks": 0
+      }
+    ]
   }
 ]

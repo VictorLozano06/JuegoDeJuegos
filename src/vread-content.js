@@ -126,3 +126,73 @@ export const REPLY_ENDINGS = [
     ' Me interesa seguir la conversación.', ' Me gustaría saber más.', ' Habrá que esperar y ver.',
     ' No todo el mundo lo verá igual.', ' Por mi parte, seguiré atento.', ' Ojalá haya más información.'
 ];
+
+export const HATER_PROFILES = [
+    ['Hater Supremo', 'hatersupremo'],
+    ['ToxicGamer99', 'toxicgamer99'],
+    ['AntiHypeBoy', 'antihype_boy'],
+    ['RageMaster X', 'ragemaster_x'],
+    ['DoomPoster Dev', 'doomposter_dev'],
+    ['El Crítico Feroz', 'criticoferoz'],
+    ['Bilis Arcade', 'bilisarcade'],
+    ['Noob Destroyer', 'noobdestroyer'],
+    ['Console Warrior', 'consolewarrior'],
+    ['Hater Profesional', 'haterprofesional'],
+    ['Reviewer Tóxico', 'reviewertoxico'],
+    ['Salseo Gamer', 'salseogamer'],
+    ['Furia Pixel', 'furiapixel'],
+    ['Dark Troll', 'darktroll_66'],
+    ['Rage Quit Pro', 'ragequit_pro']
+];
+
+export const HATER_OPENERS = [
+    'Alerta de bodrio absoluto:', 'Sinceramente, vaya vergüenza:', 'No me creo que la gente pague por esto:',
+    'Tenía que decirlo y me da igual que me insultéis:', 'El mayor timo de la temporada:',
+    'Vaya circo mediático montado:', 'Aviso urgente para incautos:', 'Paren las rotativas, llegó el despropósito:',
+    'Una estafa en toda regla:', 'No soporto ver cómo la gente traga con esto:'
+];
+
+export const HATER_ENDINGS = [
+    'Espero que cierren el estudio pronto.', 'Exijo reembolso inmediato y disculpas públicas.',
+    'No pienso tocar otro juego vuestro en mi vida.', 'Menuda tomadura de pelo para los jugadores.',
+    'Guardad este tweet para cuando estén en bancarrota.', 'Menos mal que existe la piratería para no tirar el dinero.',
+    'A ver qué excusa barata ponen esta vez.', 'Debería darles vergüenza cobrar por esto.',
+    'Una vergüenza para toda la industria.'
+];
+
+export const HATER_PLAYER_ATTACKS = [
+    'es una basura infumable con gráficos de hace dos décadas',
+    'tiene más bugs que líneas de código y las físicas son de risa',
+    'es el juego más sobrevalorado y aburrido de toda la historia',
+    'parece un proyecto de instituto hecho en una tarde de pereza',
+    'prometía la revolución y ha resultado ser una broma pesada',
+    'está tan roto que ni los propios desarrolladores lo habrán probado',
+    'es una estafa monumental inflada con puro humo y mentiras',
+    'se siente como tirar el dinero a una alcantarilla'
+];
+
+export const HATER_RIVAL_ATTACKS = [
+    'es otro clon genérico sin una sola pizca de personalidad',
+    'ha pagado a cuatro streamers para que disimulen lo malo que es',
+    'ha reciclado el motor de hace cinco años sin despeinarse',
+    'confirma que los grandes estudios se han quedado sin ideas'
+];
+
+export const HATER_MARKET_RANTS = [
+    'la industria de los videojuegos se está muriendo por culpa de las secuelas clónicas',
+    'los precios actuales son un atraco a mano armada para el poco contenido que ofrecen',
+    'la prensa de videojuegos está completamente comprada por los departamentos de marketing',
+    'sacar juegos a medio hacer y cobrar por parches debería estar prohibido por ley',
+    'los gráficos inflados no tapan la falta total de mecánicas y diversión real'
+];
+
+export const HATER_STUDIO_REPLIES = [
+    'Mucho texto corporativo para tapar que el juego está rotísimo. ¡A trabajar en vez de twittear!',
+    'Jajaja qué risa me dais. Promesas vacías de un estudio en decadencia absoluta.',
+    'El ratio que os vais a comer con este comunicado va a ser legendario. Nadie os cree.',
+    'Vuestra disculpa llega tarde y mal. El daño ya está hecho, incompetentes.',
+    '¿Parche? Lo que necesitáis es un milagro o contratar a programadores de verdad.',
+    'No engañáis a nadie. El juego nació muerto y en dos semanas no jugará ni vuestra familia.',
+    'Cada vez que publicáis algo da más vergüenza ajena. Borrad la cuenta y devolved el dinero.',
+    'Puro humo inflado. Espero con palomitas el informe financiero de vuestra quiebra.'
+];

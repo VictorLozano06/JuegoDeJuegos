@@ -1,6 +1,6 @@
 // Company finance UI. All amounts and decisions come from the simulation.
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money = n => Number.isFinite(Number(n)) ? '$' + Math.round(Number(n)).toLocaleString('es-ES') : '—';
+const money = n => Number.isFinite(Number(n)) ? Math.round(Number(n)).toLocaleString('es-ES') + ' €' : '—';
 const num = n => Number.isFinite(Number(n)) ? Math.round(Number(n)).toLocaleString('es-ES') : '—';
 const pct = n => Number.isFinite(Number(n)) ? `${Math.round(Number(n) * (Number(n) <= 1 ? 100 : 1))}%` : '—';
 const statusNames = { HEALTHY:'Saludable', WATCH:'Vigilancia financiera', DIFFICULTIES:'Dificultades económicas', INSOLVENT:'Insolvencia técnica', SEVERE:'Insolvencia grave', BANKRUPT:'Bancarrota' };

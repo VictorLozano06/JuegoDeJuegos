@@ -117,7 +117,7 @@ test('investigación de sprites en 1983 se paga, completa y permite selección p
  const saves=new SaveSystem(new Store());saves.save(g,{id:'researched'});const loaded=new singleton.constructor();saves.load('researched',loaded);assert(loaded.techTreeManager.isUnlocked(id));assert(loaded.currentProject.historicalTechIds.includes(id));
 });
 test('progresión histórica investiga parallax y selecciona la cadena en 1986',()=>{
- const g=new singleton.constructor();g.isPaused=false;g.funds=1e8;while(g.getHistoricalYear()<1983)g.advanceCalendar();
+ const g=new singleton.constructor();g.isPaused=false;g.funds=1e8;g.researchPoints=100;while(g.getHistoricalYear()<1983)g.advanceCalendar();
  assert(g.startTechResearch('tech_graphics_2d_sprites').success);while(g.activeResearch)g.advanceCalendar();
  const before=g.researchPoints;assert.equal(g.startTechResearch('tech_graphics_parallax_scroll').success,false);assert.equal(g.researchPoints,before);
  while(g.getHistoricalYear()<1986)g.advanceCalendar();const rp=g.researchPoints;const started=g.startTechResearch('tech_graphics_parallax_scroll');assert.equal(started.success,true,started.message);assert.equal(g.researchPoints,rp-25);while(g.activeResearch)g.advanceCalendar();
@@ -125,7 +125,7 @@ test('progresión histórica investiga parallax y selecciona la cadena en 1986',
  const saves=new SaveSystem(new Store());saves.save(g,{id:'advanced'});const loaded=new singleton.constructor();saves.load('advanced',loaded);assert(loaded.techTreeManager.isUnlocked('tech_graphics_parallax_scroll'));assert(loaded.currentProject.historicalTechIds.includes('tech_graphics_parallax_scroll'));
 });
 test('parallax en 1986 exige sprites antes de investigar y seleccionar',()=>{
- const g=new singleton.constructor();g.isPaused=false;g.funds=1e8;while(g.getHistoricalYear()<1986)g.advanceCalendar();
+ const g=new singleton.constructor();g.isPaused=false;g.funds=1e8;g.researchPoints=100;while(g.getHistoricalYear()<1986)g.advanceCalendar();
  const id='tech_graphics_parallax_scroll',rp=g.researchPoints,funds=g.funds,state=g.techTreeManager.getNodeState(id,1986);
  assert.equal(state.isPrereqLock,true);assert(state.missingPrereqs.includes('tech_graphics_2d_sprites'));
  assert.equal(g.startTechResearch(id).success,false);assert.equal(g.researchPoints,rp);assert.equal(g.techTreeManager.isUnlocked(id),false);

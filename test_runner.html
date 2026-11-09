@@ -289,7 +289,7 @@
                 });
                 assert(pubProjectRes.success === true, "startNewGameProject con publisher_advance exitoso");
                 assert(game.currentProject.publishingContract.type === 'publisher_advance', "Contrato de publisher registrado en el proyecto");
-                assert(game.currentProject.publishingContract.amount >= 15000, `Anticipo de publisher otorgado inmediatamente: +$${game.currentProject.publishingContract.amount}`);
+                assert(game.currentProject.publishingContract.amount >= 15000, `Anticipo de publisher otorgado inmediatamente: +${game.currentProject.publishingContract.amount} €`);
                 assert(game.currentProject.publisherRevenueShare === 0.50, "Reparto de royalties del 50% pactado");
                 assert(game.currentProject.contractDeadlineWeek !== null, "Fecha límite fija de entrega pactada desde Día 1");
                 assert(game.currentProject.offersGenerated === true, "Ofertas aleatorias a mitad de desarrollo bloqueadas");

@@ -129,8 +129,8 @@
                         <path d="M17 13.7v3.6"/>
                     </svg>
                 </span>
-                <span id="stat-funds" class="hud-funds-val">$75,000</span>
-                <span id="stat-funds-flow" class="stat-funds-flow">+$0/sem</span>
+                <span id="stat-funds" class="hud-funds-val">75.000 €</span>
+                <span id="stat-funds-flow" class="stat-funds-flow">+0 €/sem</span>
             </div>
 
             <!-- B. TIEMPO -->
@@ -238,16 +238,16 @@
                 <div class="hud-sales-finance-grid">
                     <div class="hud-finance-row">
                         <span>Beneficio (Lucro):</span>
-                        <strong id="hud-sales-profit" class="val-green">+$0</strong>
+                        <strong id="hud-sales-profit" class="val-green">+0 €</strong>
                     </div>
 <p id="hud-sales-profit-warning" class="profit-history-warning" hidden></p>
                     <div class="hud-finance-row">
                         <span>Ingresos Netos:</span>
-                        <strong id="hud-sales-revenue">$0</strong>
+                        <strong id="hud-sales-revenue">0 €</strong>
                     </div>
                     <div class="hud-finance-row">
                         <span>Coste Producción:</span>
-                        <span id="hud-sales-cost" class="val-red">$0</span>
+                        <span id="hud-sales-cost" class="val-red">0 €</span>
                     </div>
                     <div class="hud-finance-row">
                         <span>Fans Ganados:</span>
@@ -284,7 +284,7 @@
                 </div>
             </div>
             <button type="button" id="btn-deploy-emergency-patch" class="btn-emergency-action">
-                [[DE_ICON_015]] Desplegar Parche de Emergencia (Hotfix v1.1 - $4,500)
+                [[DE_ICON_015]] Desplegar Parche de Emergencia (Hotfix v1.1 - 4.500 €)
             </button>
         </div>
 
@@ -404,7 +404,7 @@
                     <span class="gdt-btn-icon">[[DE_ICON_029]]</span>
                     <div class="gdt-btn-text">
                         <strong>Enviar a descanso pagado</strong>
-                        <small>Vacaciones y recuperación completa · $2.000</small>
+                        <small>Vacaciones y recuperación completa · 2.000 €</small>
                     </div>
                 </button>
                 <button type="button" class="gdt-menu-btn" id="gdt-btn-stats">
@@ -550,7 +550,7 @@
                                 <option value="Mago del Código">Mago del Código (+8 Tech)</option>
                                 <option value="Diseñador Maestro">Diseñador Maestro (+8 Design)</option>
                                 <option value="Cazador de Bugs">Cazador de Bugs (+35% velocidad depurando)</option>
-                                <option value="Finanzas Ágiles">Finanzas Ágiles (+$15,000 iniciales)</option>
+                                <option value="Finanzas Ágiles">Finanzas Ágiles (+15.000 € iniciales)</option>
                             </select>
                         </div>
                     </div>
@@ -1267,9 +1267,9 @@
                 <button class="modal-close" type="button" aria-label="Cerrar administración">&times;</button>
             </header>
             <p class="admin-description">Ajusta los fondos de tu estudio. Los cambios se guardan en la partida actual.</p>
-            <p class="admin-current">Saldo actual <strong id="admin-current-funds">$0</strong></p>
+            <p class="admin-current">Saldo actual <strong id="admin-current-funds">0 €</strong></p>
             <form id="admin-funds-form" class="admin-funds-form">
-                <label for="admin-funds-amount">Cantidad en dólares</label>
+                <label for="admin-funds-amount">Cantidad en euros</label>
                 <input id="admin-funds-amount" name="amount" type="number" min="0" step="1" inputmode="numeric" value="1000000" required>
                 <div class="admin-actions">
                     <button class="dock-btn btn-primary-action" type="submit" data-admin-action="add">Añadir al saldo</button>
@@ -1309,7 +1309,7 @@
                 <section id="personnel-panel-recruitment" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-recruitment" tabindex="0" hidden>
                     <div class="staff-section-heading"><span class="heading-tag">MERCADO LABORAL</span><h3>Encuentra talento</h3><p>Conoce a los candidatos antes de incorporarlos al equipo.</p></div>
                     <div class="staff-strip staff-recruitment-controls">
-                        <div class="staff-budget-field"><label for="recruitment-budget">Presupuesto de búsqueda</label><div class="budget-input-wrap"><span class="budget-sym">$</span><input id="recruitment-budget" type="number" min="500" step="500" value="2500"></div></div>
+                        <div class="staff-budget-field"><label for="recruitment-budget">Presupuesto de búsqueda</label><div class="budget-input-wrap"><span class="budget-sym">€</span><input id="recruitment-budget" type="number" min="500" step="500" value="2500"></div></div>
                         <button class="staff-action-pill staff-action-highlight" type="button" onclick="refreshCandidates()" title="Genera candidatos según reputación y presupuesto"><span class="pill-icon">[[DE_ICON_062]]</span><span>Buscar nuevos talentos</span></button>
                     </div>
                     <div id="candidates-list" class="cards-list staff-cards-list"></div>
@@ -1323,7 +1323,7 @@
                         <div class="hr-training-grid">
                             <label>Mentor sénior <select id="mentor-select" class="form-select"></select></label>
                             <label>Aprendiz júnior <select id="mentee-select" class="form-select"></select></label>
-                            <label>Inversión <select id="mentoring-currency" class="form-select"><option value="funds">$4.000 (Fondos)</option><option value="researchPoints">18 puntos I+D</option></select></label>
+                            <label>Inversión <select id="mentoring-currency" class="form-select"><option value="funds">4.000 € (Fondos)</option><option value="researchPoints">18 puntos I+D</option></select></label>
                             <button type="button" class="staff-action-btn staff-action-highlight" onclick="startEmployeeMentoring()">Iniciar formación</button>
                         </div>
                         <div class="hr-training-info">
@@ -1346,7 +1346,7 @@
                     <section class="hr-control-panel hr-benefits-panel">
                         <div class="hr-panel-header"><strong>Beneficios del equipo</strong><small>Un descanso compartido ayuda a recuperar energía.</small></div>
                         <div class="hr-benefits-row">
-                            <button class="staff-action-pill" type="button" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante"><span class="pill-icon">[[DE_ICON_029]]</span><span>Café Express</span><span class="pill-price">($500)</span></button>
+                            <button class="staff-action-pill" type="button" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante"><span class="pill-icon">[[DE_ICON_029]]</span><span>Café Express</span><span class="pill-price">(500 €)</span></button>
                             <span id="coffee-affordability" class="hr-benefits-status"></span>
                         </div>
                         <p>Las vacaciones individuales y los cursos intensivos están disponibles desde el perfil de cada empleado en la pestaña Plantilla.</p>
@@ -1589,8 +1589,8 @@
                 </div>
                 <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
                     <div style="font-size: 12px; color: var(--text-secondary);">Ingresos Netos Acumulados</div>
-                    <div id="kpi-total-net" style="font-size: 20px; font-weight: 800; color: #10b981; margin-top: 4px;">$0</div>
-                    <div id="kpi-gross-revenue" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Bruto: $0</div>
+                    <div id="kpi-total-net" style="font-size: 20px; font-weight: 800; color: #10b981; margin-top: 4px;">0 €</div>
+                    <div id="kpi-gross-revenue" style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Bruto: 0 €</div>
                 </div>
                 <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 12px;">
                     <div style="font-size: 12px; color: var(--text-secondary);">Puesto en Ranking</div>
@@ -1613,7 +1613,7 @@
             <!-- Legend -->
             <div style="display: flex; gap: 18px; align-items: center; justify-content: center; font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; flex-wrap: wrap;">
                 <span><span style="display: inline-block; width: 12px; height: 12px; background: #00d2ff; border-radius: 2px; margin-right: 5px;"></span> Copias Vendidas / Sem</span>
-                <span><span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px; margin-right: 5px;"></span> Ingresos Netos ($)</span>
+                <span><span style="display: inline-block; width: 12px; height: 12px; background: #10b981; border-radius: 2px; margin-right: 5px;"></span> Ingresos Netos (€)</span>
                 <span>[[DE_ICON_005]] Streamer / Impulso Viral</span>
                 <span>[[DE_ICON_016]] Fricción / Crisis</span>
                 <span>[[DE_ICON_034]] Mod Comunitario</span>
@@ -1728,7 +1728,7 @@
             <!-- Mid-Event Interactive Actions -->
             <div class="expo-action-strip">
                 <button id="btn-expo-merch" class="dock-btn" onclick="expoDistributeMerch()" style="font-size: 13px; padding: 8px 16px;">
-                    [[DE_ICON_071]] Repartir Merchandising ($600)
+                    [[DE_ICON_071]] Repartir Merchandising (600 €)
                 </button>
                 <button id="btn-expo-interview" class="dock-btn" onclick="expoGivePressInterview()" style="font-size: 13px; padding: 8px 16px;">
                     [[DE_ICON_072]] Conceder Entrevista Relámpago
@@ -1797,7 +1797,7 @@
                         <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +60 Fans, +15 Hype</div>
                     </div>
                     <div>
-                        <button class="staff-action-btn">$5,000</button>
+                        <button class="staff-action-btn">5.000 €</button>
                     </div>
                 </div>
 
@@ -1808,7 +1808,7 @@
                         <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +280 Fans, +45 Hype</div>
                     </div>
                     <div>
-                        <button class="staff-action-btn">$22,000</button>
+                        <button class="staff-action-btn">22.000 €</button>
                     </div>
                 </div>
 
@@ -1819,7 +1819,7 @@
                         <div style="font-size: 12px; color: var(--accent-gold); margin-top: 4px;">Recompensa: +850 Fans, +90 Hype</div>
                     </div>
                     <div>
-                        <button class="staff-action-btn">$65,000</button>
+                        <button class="staff-action-btn">65.000 €</button>
                     </div>
                 </div>
             </div>
@@ -1925,7 +1925,7 @@
             <h2 id="license-engine-title">Licenciar motor</h2>
             <label for="license-studio-name">Estudio que recibe la licencia</label>
             <input type="text" id="license-studio-name" class="form-input" autofocus>
-            <label for="license-monthly-fee">Regalía mensual ($)</label>
+            <label for="license-monthly-fee">Regalía mensual (€)</label>
             <input type="number" id="license-monthly-fee" class="form-input" min="0" step="any" value="4500">
             <p id="license-form-error" role="alert"></p>
             <div class="dialog-actions"><button type="button" data-dialog-cancel>Cancelar</button><button type="submit" class="dialog-primary">Licenciar</button></div>

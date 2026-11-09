@@ -5,6 +5,7 @@ import { getPlatformsByYear } from './data/platformsData.js';
 import { TECH_TREE_NODES } from './data/techTreeData.js';
 import { registerIP, recordRelease, updateIPSales, getIPBenefits, getIPValue, setIPForSale, transferIP } from './ipSystem.js';
 import { assessLiquidity } from './financeSystem.js';
+import { generateGameTitle, generateSequelName, sanitizeRivalTitles } from './gameNameGenerator.js';
 
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const pick=(values,rng)=>values[Math.min(values.length-1,Math.floor(rng()*values.length))];
@@ -12,7 +13,7 @@ const nextId=prefix=>`${prefix}_${globalThis.crypto?.randomUUID?.() || `${Date.n
 const addHistory=(co,game,type,details)=>{co.history.push({year:game.getHistoricalYear(),week:game.getIndustryWeek(),type,details});};
 const operating=co=>!['BANKRUPT','CLOSED','ACQUISITION'].includes(co.status);
 const annualWages=co=>co.employees.reduce((a,e)=>a+(e.salary||0),0)*12;
-const reservedCash=co=>Math.max(3000,annualWages(co)*(co.decisionWeights?.reserve ?? .12));
+const reservedCash=co=>Math.max(2500,Math.floor(annualWages(co)*Math.min(0.20,(co.decisionWeights?.reserve ?? .12))));
 const companyGames=game=>[...game.gamesHistory,...game.ipCompanies.flatMap(c=>c.games||[])];
 const ownedIPs=(game,co)=>game.ipState.properties.filter(ip=>ip.ownerId===co.id);
 const GENRE_TECH_REQUIREMENTS = Object.freeze({
@@ -139,18 +140,28 @@ function chooseProject(co,game,year,rng) {
   return {g,score:((co.genreSpecialties||[]).includes(g.id)?2:0)+(game.marketTrend?.genreId===g.id?1.2:0)+observedDemand+pastSuccess+rng()*(1+(weights.risk||.5))};
  }).sort((a,b)=>b.score-a.score)[0].g;
  const theme=themes.map(t=>({t,score:((t.synergies||[]).includes(genre.id)?1.5:0)+(game.marketTrend?.topicId===t.id?1:0)+rng()})).sort((a,b)=>b.score-a.score)[0].t;
- const selectedPlatform=platforms.map(p=>({p,score:p.marketShare*4-(co.ownedDevKits?.includes(p.id)?0:p.devKitCost/Math.max(1,co.funds))})).sort((a,b)=>b.score-a.score)[0].p;
- const kitCost=(co.ownedDevKits||[]).includes(selectedPlatform.id)?0:selectedPlatform.devKitCost;
+ let selectedPlatform=platforms.map(p=>({p,score:p.marketShare*4-(co.ownedDevKits?.includes(p.id)?0:p.devKitCost/Math.max(1,co.funds))})).sort((a,b)=>b.score-a.score)[0].p;
+ let kitCost=(co.ownedDevKits||[]).includes(selectedPlatform.id)?0:selectedPlatform.devKitCost;
  const allocation=clamp(.10+(weights.risk||.5)*.18,.1,.32);
  const budget=Math.max(2500,Math.floor((co.funds-reservedCash(co))*allocation));
  const marketing=Math.min(Math.floor(budget*(weights.marketing||.1)),Math.floor(co.funds*.1));
+ if(co.funds-budget-marketing-kitCost<reservedCash(co)){
+  const owned=platforms.filter(p=>(co.ownedDevKits||[]).includes(p.id));
+  if(owned.length){
+   selectedPlatform=owned.sort((a,b)=>b.marketShare-a.marketShare)[0];
+   kitCost=0;
+  }
+ }
  if(co.funds-budget-marketing-kitCost<reservedCash(co))return;
  const capacity=Math.max(1,Math.floor(co.employees.length/4));
  const teamSize=Math.max(1,Math.min(availableStaff.length,Math.ceil(co.employees.length/capacity)));
  const team=availableStaff.slice(0,teamSize);
  const franchises=ownedIPs(game,co).filter(ip=>!ip.forSale);
  const sequel=franchises.length&&rng()<(weights.franchise??.4) ? franchises.sort((a,b)=>b.popularity-a.popularity)[0] : null;
- const name=sequel ? `${sequel.name} ${sequel.publishedGameIds.length+1}` : `${theme.name}: ${genre.name} ${co.games.length+co.projects.length+1} (${co.name})`;
+ const existingTitles=new Set(companyGames(game).map(g=>g.name));
+ const name=sequel
+  ? generateSequelName(sequel.name, (sequel.publishedGameIds?.length || 0) + 1)
+  : generateGameTitle(theme.id, genre.id, existingTitles, rng);
  co.funds-=budget+marketing+kitCost;co.totalExpenses+=budget+marketing+kitCost;
  co.ownedDevKits=co.ownedDevKits||[];if(!co.ownedDevKits.includes(selectedPlatform.id))co.ownedDevKits.push(selectedPlatform.id);
  const project={id:nextId('rival_project'),name,genre:genre.name,genreId:genre.id,topic:theme.name,topicId:theme.id,platformId:selectedPlatform.id,platform:selectedPlatform.name,platformRoyaltyRate:selectedPlatform.royaltyRate||0,marketShare:selectedPlatform.marketShare,teamIds:team.map(e=>e.id),budget,marketingBudget:marketing,progress:0,totalWeeks:Math.max(10,Math.round(22+budget/8000-team.length-(co.engines.length?2:0))),ipId:sequel?.id||null,ipReleaseType:sequel?'sequel':'original',engineId:co.engines[0]?.id||null,technologies:[...co.technologies],startYear:year};
@@ -175,7 +186,7 @@ function progressProjects(co,game,year,rng){
   const benefit=getIPBenefits(ip);
   const marketing=1+Math.min(.35,project.marketingBudget/Math.max(1,project.budget));
   const trend=game.marketTrend?.genreId===project.genreId&&game.marketTrend?.topicId===project.topicId?1.35:1;
-  const eraFactor=year<1990?85:year<2010?280:950;
+  const eraFactor=year<1990?160:year<2010?350:950;
   const salesPotential=Math.max(30,Math.floor(Math.pow(score/2.2,3.85)*eraFactor*(project.marketShare+.25)*marketing*trend*benefit.salesMultiplier));
   const title={id:nextId('rival_game'),name:project.name,genre:project.genre,genreId:project.genreId,topic:project.topic,topicId:project.topicId,platform:project.platform,platformId:project.platformId,platformRoyaltyRate:project.platformRoyaltyRate,engineId:project.engineId,score,releaseYear:year,ipId:ip?.id||null,ipReleaseType:project.ipReleaseType,unitsSoldTotal:0,weeklySales:0,weeksOnMarket:0,salesPotential,price:year<1990?12:year<2010?28:55,revenueTotal:0};
   co.games.unshift(title);if(ip)recordRelease(game.ipState,ip.id,title,companyGames(game),{year});
@@ -186,6 +197,7 @@ function progressProjects(co,game,year,rng){
 }
 export function tickRivals(game,rng=Math.random){
  if(!Array.isArray(game.ipCompanies)||!game.ipState)return;
+ sanitizeRivalTitles(game);
  const year=game.getHistoricalYear();
  for(const co of game.ipCompanies){
   if(co.status==='BANKRUPT'){

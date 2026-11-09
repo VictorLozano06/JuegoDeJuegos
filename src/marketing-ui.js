@@ -1,6 +1,6 @@
 const numberFormat = new Intl.NumberFormat('es-ES');
 export const marketingNumber = value => numberFormat.format(Math.round(Number(value) || 0));
-export const marketingMoney = value => '$' + marketingNumber(value);
+export const marketingMoney = value => marketingNumber(value) + ' €';
 export const marketingText = value => String(value ?? '').replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[char]));

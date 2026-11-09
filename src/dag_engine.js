@@ -1861,7 +1861,7 @@ class InHouseEngine {
         return {
             success: true,
             contract,
-            message: `[[DE_ICON_025]] ¡Contrato de Licenciamiento firmado! ${studioName} pagará $${monthlyFee.toLocaleString()}/mes por utilizar tu tecnología.`
+            message: `[[DE_ICON_025]] ¡Contrato de Licenciamiento firmado! ${studioName} pagará ${monthlyFee.toLocaleString('es-ES')} €/mes por utilizar tu tecnología.`
         };
     }
 
@@ -1895,7 +1895,7 @@ class EnginePipelineManager {
                 id: 'inhouse_custom',
                 type: 'inhouse',
                 name: 'Motor Propio de la Casa (In-House Engine)',
-                desc: '0% de regalías: el estudio conserva el 100% de la facturación. -50% de fricción en géneros afines. Permite licenciar tecnología a terceros (+$ pasivos). Sujeto a obsolescencia anual.',
+                desc: '0% de regalías: el estudio conserva el 100% de la facturación. -50% de fricción en géneros afines. Permite licenciar tecnología a terceros (+€ pasivos). Sujeto a obsolescencia anual.',
                 royaltyPercent: 0,
                 baseDebtFloor: 0,
                 frictionMultiplier: 0.50,

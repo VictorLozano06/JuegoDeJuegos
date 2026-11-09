@@ -1,8 +1,11 @@
 import {
     MORE_PROFILES, MORE_OPENERS, MORE_ENDINGS, MORE_MARKET, MORE_PLAYER_GOOD,
     MORE_PLAYER_MIXED, MORE_PLAYER_BAD, MORE_RIVAL_GAME, MORE_RIVAL_STUDIO,
-    MORE_REPLIES, MORE_FEED_REPLIES, REPLY_ENDINGS
+    MORE_REPLIES, MORE_FEED_REPLIES, REPLY_ENDINGS,
+    HATER_PROFILES, HATER_OPENERS, HATER_ENDINGS, HATER_PLAYER_ATTACKS,
+    HATER_RIVAL_ATTACKS, HATER_MARKET_RANTS, HATER_STUDIO_REPLIES
 } from './vread-content.js';
+import { cleanLegacyTitle } from './gameNameGenerator.js';
 
 /** Vread: a local, rule-based social simulation. All consequences use game weeks. */
 const PROFILES = [
@@ -142,13 +145,14 @@ function chooseParticipants(state, count, rng, exclude = []) {
     return selected;
 }
 
-function makeReplies(state, pool, count, rng, { exclude = [], target = null } = {}) {
+function makeReplies(state, pool, count, rng, { exclude = [], target = null, includeHaters = false } = {}) {
     const people = chooseParticipants(state, count, rng, exclude);
     const availableBases = [...pool];
     const usedEndings = new Set();
     const replies = [];
+    const isHaterProfile = new Set(HATER_PROFILES.map(h => h[1]));
     for (const [index, person] of people.entries()) {
-        if (!availableBases.length) availableBases.push(...pool);
+        if (!availableBases.length) availableBases.push(...(index === 0 || !includeHaters ? pool : (rng() < 0.4 ? HATER_STUDIO_REPLIES : pool)));
         const options = availableBases.flatMap(base => REPLY_ENDINGS
             .filter(ending => !ending || !usedEndings.has(ending))
             .filter(ending => !ending || !normalize(ending).split(/\W+/).some(word => word.length > 5 && normalize(base).includes(word)))
@@ -159,7 +163,11 @@ function makeReplies(state, pool, count, rng, { exclude = [], target = null } = 
         if (selected.ending) usedEndings.add(selected.ending);
         state.recentReplies.push(selected.text);
         if (state.recentReplies.length > 240) state.recentReplies.shift();
-        replies.push({ author: person[0], handle: person[1], text: target && index === 0 ? `Sobre ${target}: ${selected.text}` : selected.text });
+        const isHater = isHaterProfile.has(person[1]) || (includeHaters && HATER_STUDIO_REPLIES.includes(selected.base));
+        replies.push({ author: person[0], handle: person[1], text: target && index === 0 ? `Sobre ${target}: ${selected.text}` : selected.text, isHater: !!isHater });
+        if (index === 0 && includeHaters) {
+            availableBases.push(...HATER_STUDIO_REPLIES);
+        }
     }
     return replies;
 }
@@ -205,11 +213,14 @@ export function publishVreadPost(game, input, rng = Math.random) {
     s.effects = s.effects.filter(effect => effect.expiresWeek >= week).slice(-30);
     const possibleReplies = REPLIES[kind] || REPLIES.patch;
     const backlash = kind === 'insult' || (kind === 'boast' && troubled);
-    const replies = makeReplies(s, possibleReplies, (backlash ? 9 : 6) + Math.floor(rng() * 4), rng, { target: mentioned?.name });
+    const includeHaters = backlash || s.reputation < 35;
+    const replies = makeReplies(s, possibleReplies, (backlash ? 9 : 6) + Math.floor(rng() * 4), rng, { target: mentioned?.name, includeHaters });
+    const isRatioed = backlash || (replies.filter(r => r.isHater).length >= Math.ceil(replies.length / 2));
     const post = { id: `user-${++s.sequence}`, isStudio: true, type: 'reviews', author: game.companyName || 'Tu Estudio', handle: normalize(game.companyName || 'estudio').replace(/[^a-z0-9]/g, ''), verified: true, time: 'Ahora', week, text,
         likes: Math.floor((backlash ? 20 : 55) + rng() * 90), reposts: Math.floor((backlash ? 120 : 20) + rng() * 80),
         replies,
-        impact: { kind, sales: Math.round(sales * 1000) / 10, reputation, duration, targetName: mentioned?.name || null, backlash, repeated } };
+        isRatioed,
+        impact: { kind, sales: Math.round(sales * 1000) / 10, reputation, duration, targetName: mentioned?.name || null, backlash, repeated, isRatioed } };
     s.posts.unshift(post); s.posts = s.posts.slice(0, 100);
     if (typeof game.notify === 'function') game.notify();
     return { success: true, post, impact: post.impact };
@@ -263,15 +274,17 @@ export function generateVreadFeed(game, rng = Math.random) {
         let key, sentence, replyKind = 'market', hashtags = '';
         if (candidate === 0 && playerGames.length) {
             const title = pick(playerGames.slice(0, 10), rng);
+            const cleanTitle = cleanLegacyTitle(title.name);
             const score = Number(title.score ?? 6.5);
             const pool = rng() < 0.23 ? (score >= 8 ? PLAYER_MIXED : PLAYER_GOOD) : score >= 8 ? PLAYER_GOOD : score < 6 ? PLAYER_BAD : PLAYER_MIXED;
             const view = pickFreshView(s, 'player', title.id, pool, rng); key = `player:${title.id}:${view}`;
-            sentence = `${title.name} de ${currentName} ${view}.`;
+            sentence = `${cleanTitle} de ${currentName} ${view}.`;
             replyKind = 'player';
             hashtags = ` #${currentHandle}`;
         } else if (candidate === 1 && rivalGames.length) {
             const title = pick(rivalGames.slice(-50), rng), view = pickFreshView(s, 'rival-game', title.id, RIVAL_GAME, rng);
-            key = `rival-game:${title.id}:${view}`; sentence = `${title.name} de ${title.studio} ${view}.`;
+            const cleanTitle = cleanLegacyTitle(title.name);
+            key = `rival-game:${title.id}:${view}`; sentence = `${cleanTitle} de ${title.studio} ${view}.`;
             replyKind = 'rivalGame';
             hashtags = ` #${normalize(title.studio).replace(/[^a-z0-9]/g, '')}`;
         } else if (candidate === 2 && rivals.length) {
@@ -304,5 +317,76 @@ export function generateVreadFeed(game, rng = Math.random) {
         const renderedSentence = opener.endsWith(',') ? sentence.charAt(0).toLowerCase() + sentence.slice(1) : sentence;
         generated.push({ id: `feed-${week}-${++s.sequence}`, type: isLive ? 'live' : candidate === 0 ? 'reviews' : 'trend', isLive, author: person[0], handle: person[1], verified: rng() < .25, time: isLive ? 'AHORA' : `${1 + Math.floor(rng() * 23)} h`, text: `${isLive ? 'En directo: estamos comentando esto. ' : ''}${opener} ${renderedSentence} ${ending}${hashtags}`, likes: Math.floor(30 + rng() * 3900), reposts: Math.floor(rng() * 500), replies });
     }
+
+    // Add dynamic Hater posts into the feed
+    const haterCount = rng() < 0.4 ? 3 : 2;
+    for (let h = 0; h < haterCount; h++) {
+        const haterPerson = pick(HATER_PROFILES, rng);
+        const opener = pick(HATER_OPENERS, rng);
+        const ending = pick(HATER_ENDINGS, rng);
+        let attackSentence = '';
+        let haterTag = 'Haters';
+
+        if (h === 0 && playerGames.length) {
+            const title = pick(playerGames.slice(0, 6), rng);
+            const cleanTitle = cleanLegacyTitle(title.name);
+            const attack = pick(HATER_PLAYER_ATTACKS, rng);
+            attackSentence = `${cleanTitle} de ${currentName} ${attack}.`;
+            haterTag = currentHandle;
+        } else if (h === 1 && rivalGames.length) {
+            const title = pick(rivalGames.slice(-25), rng);
+            const cleanTitle = cleanLegacyTitle(title.name);
+            const attack = pick(HATER_RIVAL_ATTACKS, rng);
+            attackSentence = `${cleanTitle} de ${title.studio} ${attack}.`;
+            haterTag = normalize(title.studio).replace(/[^a-z0-9]/g, '');
+        } else {
+            const rant = pick(HATER_MARKET_RANTS, rng);
+            attackSentence = rant.charAt(0).toUpperCase() + rant.slice(1) + '.';
+            haterTag = 'Gaming';
+        }
+
+        const haterReplies = makeReplies(s, FEED_REPLIES.player, 3 + Math.floor(rng() * 3), rng, { exclude: [haterPerson[1]], includeHaters: true });
+
+        generated.push({
+            id: `hater-${week}-${++s.sequence}`,
+            type: 'hater',
+            isHater: true,
+            author: haterPerson[0],
+            handle: haterPerson[1],
+            verified: false,
+            time: `${1 + Math.floor(rng() * 10)} h`,
+            text: `${opener} ${attackSentence} ${ending} #${haterTag} #Haters #Gaming`,
+            likes: Math.floor(50 + rng() * 950),
+            reposts: Math.floor(25 + rng() * 450),
+            replies: haterReplies
+        });
+    }
+
     return [...published, ...generated];
+}
+
+export function getCommunitySentiment(game) {
+    const s = ensureVreadState(game);
+    const rep = s.reputation ?? 50;
+    const history = game.gamesHistory || [];
+    const avgScore = history.length ? history.reduce((sum, g) => sum + (Number(g.score) || 6), 0) / history.length : 6.5;
+    const hasBacklash = s.posts.some(p => p.impact?.backlash && (weekOf(game) - p.week <= (p.impact.duration || 3)));
+
+    let haters = Math.max(8, Math.min(65, Math.round(30 - (rep - 50) * 0.4 + (6.5 - avgScore) * 5 + (hasBacklash ? 25 : 0))));
+    let fans = Math.max(12, Math.min(80, Math.round(rep * 0.7 + (avgScore - 5) * 4 - (hasBacklash ? 20 : 0))));
+    let neutral = Math.max(8, 100 - haters - fans);
+
+    const total = haters + fans + neutral;
+    haters = Math.round((haters / total) * 100);
+    fans = Math.round((fans / total) * 100);
+    neutral = 100 - haters - fans;
+
+    let label = 'Comunidad Equilibrada';
+    if (haters >= 40) label = 'Alerta: Oleada de Haters';
+    else if (fans >= 65) label = 'Fandom Entregado';
+    else if (hasBacklash) label = 'Polémica en Llamas';
+    else if (rep >= 70) label = 'Excelente Reputación';
+    else if (rep <= 30) label = 'Ambiente Hostil';
+
+    return { fans, neutral, haters, label };
 }

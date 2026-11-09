@@ -834,7 +834,7 @@ function setupUIControls() {
     const adminAmount = document.getElementById('admin-funds-amount');
     const adminFunds = document.getElementById('admin-current-funds');
     const adminFeedback = document.getElementById('admin-feedback');
-    const formatAdminFunds = value => `$${Math.floor(value).toLocaleString('es-ES')}`;
+    const formatAdminFunds = value => `${Math.floor(value).toLocaleString('es-ES')} €`;
     const openAdmin = () => {
         adminFunds.textContent = formatAdminFunds(game.funds);
         adminFeedback.textContent = '';
@@ -1675,7 +1675,7 @@ function renderPublishingContractSelector() {
             terms: [
                 { text: '[[DE_ICON_149]] 100% de los beneficios netos para tu estudio', type: 'term-benefit' },
                 { text: '[[DE_ICON_149]] Sin fechas límite impuestas ni penalizaciones por retraso', type: 'term-benefit' },
-                { text: `Coste estimado: ~$${baseDevCost.toLocaleString()} (fondos propios)`, type: 'term-neutral' }
+                { text: `Coste estimado: ~${baseDevCost.toLocaleString('es-ES')} € (fondos propios)`, type: 'term-neutral' }
             ]
         },
         {
@@ -1684,7 +1684,7 @@ function renderPublishingContractSelector() {
             icon: '[[DE_ICON_035]]',
             desc: 'Un distribuidor adelanta fondos de desarrollo y asume la distribución física o digital masiva.',
             terms: [
-                { text: `+$${publisherAdvance.toLocaleString()} de anticipo financiero inmediato`, type: 'term-benefit' },
+                { text: `+${publisherAdvance.toLocaleString('es-ES')} € de anticipo financiero inmediato`, type: 'term-benefit' },
                 { text: '[[DE_ICON_060]] Fecha límite de entrega fijada: 48 semanas', type: 'term-caution' },
                 { text: 'El publisher retiene el 50% de royalties en ventas', type: 'term-cost' }
             ]
@@ -1695,7 +1695,7 @@ function renderPublishingContractSelector() {
             icon: '[[DE_ICON_040]]',
             desc: `Acuerdo con el fabricante para impulsar las ventas en ${platform.name} a cambio de exclusividad.`,
             terms: [
-                { text: `+$${platformGrant.toLocaleString()} de fondo de desarrollo garantizado`, type: 'term-benefit' },
+                { text: `+${platformGrant.toLocaleString('es-ES')} € de fondo de desarrollo garantizado`, type: 'term-benefit' },
                 { text: '+65% de ventas e impulso de marketing en la plataforma', type: 'term-benefit' },
                 { text: 'Exclusividad temporal de 24 semanas (15% comisión)', type: 'term-caution' }
             ]
@@ -2210,7 +2210,7 @@ function updatePlatformOptions() {
         const opt = document.createElement('option');
         opt.value = p.id;
         opt.disabled = retired;
-        opt.textContent = `${p.name} · ${retired ? 'Retirada' : `DevKit $${kitCost.toLocaleString()}`}${p.isModded ? ' [MOD]' : ''}`;
+        opt.textContent = `${p.name} · ${retired ? 'Retirada' : `DevKit ${kitCost.toLocaleString('es-ES')} €`}${p.isModded ? ' [MOD]' : ''}`;
         platformSelect.appendChild(opt);
     });
     if ([...platformSelect.options].some(option => option.value === previous && !option.disabled)) {
@@ -2232,7 +2232,7 @@ function updatePlatformDetails() {
     const cost = typeof game.getDevKitCost === 'function' ? game.getDevKitCost(platform) : (platform.devKitCost ?? platform.devCost ?? 0);
     const royalty = platform.royaltyRate ?? platform.royalty ?? 0;
     const share = Number(platform.marketShare);
-    details.textContent = `DevKit: $${cost.toLocaleString()} · Regalías: ${(royalty * 100).toLocaleString()}%${Number.isFinite(share) ? ` · Índice de mercado: ${(share * 100).toFixed(1)}%` : ''}${platform.type ? ` · ${platform.type}` : ''}`;
+    details.textContent = `DevKit: ${cost.toLocaleString('es-ES')} € · Regalías: ${(royalty * 100).toLocaleString('es-ES')}%${Number.isFinite(share) ? ` · Índice de mercado: ${(share * 100).toFixed(1)}%` : ''}${platform.type ? ` · ${platform.type}` : ''}`;
 }
 
 function updateEngineOptions() {
@@ -2302,7 +2302,7 @@ function startProjectFromWizard() {
         closeAllModals();
 
         if (result.contract && result.contract.amount > 0) {
-            showToast(`[[DE_ICON_025]] ¡Acuerdo firmado con ${result.contract.company}! Recibes un anticipo de +$${result.contract.amount.toLocaleString()}.`, 'success');
+            showToast(`[[DE_ICON_025]] ¡Acuerdo firmado con ${result.contract.company}! Recibes un anticipo de +${result.contract.amount.toLocaleString('es-ES')} €.`, 'success');
         }
         showToast(`[[DE_ICON_015]] Comenzando desarrollo con arquitectura DAG de: "${name}"`, 'success');
         preproductionWizard.reset();
@@ -2340,13 +2340,13 @@ function renderHUD(state) {
 
     // Top Bar Stats
     const fundsEl = document.getElementById('stat-funds');
-    if (fundsEl) fundsEl.innerText = `$${Math.floor(state.funds).toLocaleString()}`;
+    if (fundsEl) fundsEl.innerText = `${Math.floor(state.funds).toLocaleString('es-ES')} €`;
     const flowEl = document.getElementById('stat-funds-flow');
     if (flowEl) {
         const weeklyCosts = Math.round(((state.employees?.reduce((s, e) => s + (Number(e.salary) || 0), 0) || 0) + (state.getActiveOffice?.().monthlyCost || 0)) / 4);
         const weeklyRevenue = Math.round(state.releasedGames?.filter(g => g.weeksOnMarket <= (g.shelfLifeWeeks || 12)).reduce((s, g) => s + (g.weeklyRevenue || 0), 0) || 0);
         const netFlow = weeklyRevenue - weeklyCosts;
-        flowEl.textContent = `${netFlow >= 0 ? '+' : '-'}$${Math.abs(netFlow).toLocaleString()}/sem`;
+        flowEl.textContent = `${netFlow >= 0 ? '+' : '-'}${Math.abs(netFlow).toLocaleString('es-ES')} €/sem`;
         flowEl.classList.toggle('negative', netFlow < 0);
     }
     const fansEl = document.getElementById('stat-fans');
@@ -2657,7 +2657,7 @@ window.reviewBusinessOffer = function(offerId) {
     const delayPenalty = offer.delayPenalty || offer.latePenaltyPerWeek;
     const upfrontLabel = offer.type === 'publisher_advance' ? 'Anticipo de producción' : 'Pago garantizado';
     const royalty = Math.round((offer.revenueShare || offer.royaltyRate || 0) * 100);
-    content.innerHTML = `<div class="contract-issuer">${offer.company || offer.publisher || offer.platformName || 'Socio comercial'} · ${offer.typeLabel || offer.title}</div><p class="contract-description">${offer.detail || 'Propuesta de financiación para este proyecto.'}</p><dl class="contract-terms"><div><dt>${upfrontLabel}</dt><dd>$${money}</dd></div><div><dt>Parte de ingresos retenida</dt><dd>${royalty}%</dd></div><div><dt>Plataformas permitidas</dt><dd>${allowed.join(', ')}</dd></div><div><dt>Plazo y restricciones</dt><dd>${restrictions}</dd></div>${offer.type === 'publisher_advance' ? `<div><dt>Fecha de entrega</dt><dd>${deliveryDeadline}</dd></div><div><dt>Penalización por retraso</dt><dd>$${Number(delayPenalty || 0).toLocaleString()} por semana (con tope)</dd></div>` : ''}</dl><div class="contract-negotiation-actions"><button class="dock-btn btn-primary-action" onclick="acceptBusinessOffer('${offer.id}')">Aceptar Acuerdo</button><button class="dock-btn" onclick="negotiateBusinessOffer('${offer.id}')">Negociar Mejores Términos</button><button class="dock-btn contract-reject" onclick="rejectBusinessOffer('${offer.id}')">Rechazar y Mantener Independencia</button></div><small class="contract-risk-note">La negociación puede hacer que el ofertante retire la propuesta.</small>`;
+    content.innerHTML = `<div class="contract-issuer">${offer.company || offer.publisher || offer.platformName || 'Socio comercial'} · ${offer.typeLabel || offer.title}</div><p class="contract-description">${offer.detail || 'Propuesta de financiación para este proyecto.'}</p><dl class="contract-terms"><div><dt>${upfrontLabel}</dt><dd>${money} €</dd></div><div><dt>Parte de ingresos retenida</dt><dd>${royalty}%</dd></div><div><dt>Plataformas permitidas</dt><dd>${allowed.join(', ')}</dd></div><div><dt>Plazo y restricciones</dt><dd>${restrictions}</dd></div>${offer.type === 'publisher_advance' ? `<div><dt>Fecha de entrega</dt><dd>${deliveryDeadline}</dd></div><div><dt>Penalización por retraso</dt><dd>${Number(delayPenalty || 0).toLocaleString('es-ES')} € por semana (con tope)</dd></div>` : ''}</dl><div class="contract-negotiation-actions"><button class="dock-btn btn-primary-action" onclick="acceptBusinessOffer('${offer.id}')">Aceptar Acuerdo</button><button class="dock-btn" onclick="negotiateBusinessOffer('${offer.id}')">Negociar Mejores Términos</button><button class="dock-btn contract-reject" onclick="rejectBusinessOffer('${offer.id}')">Rechazar y Mantener Independencia</button></div><small class="contract-risk-note">La negociación puede hacer que el ofertante retire la propuesta.</small>`;
     openModal('modal-contract-negotiation');
 };
 
@@ -2728,7 +2728,7 @@ function renderLiveOps() {
         const priorAssignment = previousAssignments.get(`season-programmers-${item.id}`) || '1';
         const seasonButton = item.businessModel === 'live_service' && !item.serversClosed
             ? `<div class="liveops-actions"><label>Programadores para la temporada <select id="season-programmers-${item.id}" class="form-select" style="width:auto;display:inline-block">${Array.from({ length: Math.max(1, game.employees.length) }, (_, i) => `<option value="${i + 1}" ${Number(priorAssignment) === i + 1 ? 'selected' : ''}>${i + 1}</option>`).join('')}</select></label><button class="dock-btn" onclick="launchGameBattlePass('${item.id}')" ${item.weeksOnMarket < item.nextSeasonWeek ? 'disabled' : ''}>[[DE_ICON_118]] Pase de Batalla ${item.weeksOnMarket >= item.nextSeasonWeek ? 'disponible' : `en ${item.nextSeasonWeek - item.weeksOnMarket} sem`}</button></div>` : '';
-        return `<article class="liveops-game-card"><div class="liveops-card-header"><div><h3>${item.name}</h3><span>${modelName} · Estado: ${item.lifecycleState}</span></div><strong>${(item.mau || 0).toLocaleString()} MAU</strong></div>${graph}<div class="liveops-metrics"><span>Instalaciones: ${(item.installationsTotal || 0).toLocaleString()}</span><span>Conversión: ${Math.round((item.conversionRate || 0) * 100)}%</span><span>Ingreso mensual: $${(item.monthlyServiceRevenue || 0).toLocaleString()}</span><span>Coste mensual: $${(item.monthlyServiceCosts || 0).toLocaleString()}</span><b>Balance neto: $${(item.monthlyNetBalance || 0).toLocaleString()}</b><span>Paciencia: ${item.communityPatience ?? 100}% · Sin parche: ${item.weeksWithoutContentPatch || 0} sem</span></div><div class="liveops-actions">${officialButton}<button class="dock-btn" onclick="deployGameContentPatch('${item.id}')">[[DE_ICON_034]] Publicar parche ($6.000+)</button>${seasonButton}${['f2p', 'live_service'].includes(item.businessModel) && !item.serversClosed ? `<button class="dock-btn btn-refactor" onclick="closeGameLiveServers('${item.id}')">[[DE_ICON_119]] Cerrar Servidores / Descontinuar Juego</button>` : ''}</div></article>`;
+        return `<article class="liveops-game-card"><div class="liveops-card-header"><div><h3>${item.name}</h3><span>${modelName} · Estado: ${item.lifecycleState}</span></div><strong>${(item.mau || 0).toLocaleString()} MAU</strong></div>${graph}<div class="liveops-metrics"><span>Instalaciones: ${(item.installationsTotal || 0).toLocaleString()}</span><span>Conversión: ${Math.round((item.conversionRate || 0) * 100)}%</span><span>Ingreso mensual: ${(item.monthlyServiceRevenue || 0).toLocaleString('es-ES')} €</span><span>Coste mensual: ${(item.monthlyServiceCosts || 0).toLocaleString('es-ES')} €</span><b>Balance neto: ${(item.monthlyNetBalance || 0).toLocaleString('es-ES')} €</b><span>Paciencia: ${item.communityPatience ?? 100}% · Sin parche: ${item.weeksWithoutContentPatch || 0} sem</span></div><div class="liveops-actions">${officialButton}<button class="dock-btn" onclick="deployGameContentPatch('${item.id}')">[[DE_ICON_034]] Publicar parche (6.000 €+)</button>${seasonButton}${['f2p', 'live_service'].includes(item.businessModel) && !item.serversClosed ? `<button class="dock-btn btn-refactor" onclick="closeGameLiveServers('${item.id}')">[[DE_ICON_119]] Cerrar Servidores / Descontinuar Juego</button>` : ''}</div></article>`;
     }).join('');
 }
 
@@ -2795,7 +2795,7 @@ function renderMarketingHub() {
         const followers = Number(creator.followers || creator.audience || creator.viewers || 0);
         const genres = creator.genres || creator.preferences || creator.genrePreferences || [];
         const unavailable = creator.available === false || creator.alreadySent;
-        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: $${marketingNumber(Number(creator.fee || 0) + 25)}`);
+        const availability = creator.alreadySent ? 'Clave ya enviada a este creador' : (creator.available === false ? `[[DE_ICON_093]] Disponible en ${creator.yearUnlocked || 'una era posterior'}` : `Coste del paquete: ${marketingNumber(Number(creator.fee || 0) + 25)} €`);
         return `<article class="marketing-creator-card"><span class="mkt-creator-icon" aria-hidden="true">[[DE_ICON_115]]</span><div><b>${marketingText(creator.name || 'Creador')}</b><p>${marketingText(creator.platform || 'Plataforma de streaming')} · ${followers.toLocaleString('es-ES')} seguidores</p><small>Preferencias: ${marketingText(Array.isArray(genres) ? genres.join(', ') : genres || 'Variadas')} · ${availability}</small></div><button type="button" class="empire-button btn-send-streamer-key" data-creator-id="${marketingText(creator.id)}" ${unavailable || !targetGames.length ? 'disabled' : ''}>${creator.alreadySent ? 'Enviada' : 'Enviar clave'}</button></article>`;
     }).join('') : '<p class="marketing-empty">Los perfiles de creadores aparecerán cuando se desbloquee el streaming.</p>';
     const futureCreators = creators.length && creators.every(creator => creator.available === false);
@@ -2947,7 +2947,7 @@ function renderIndustryNews(state = game) {
 
     const choices = (event.choices || []).map(choice => {
         const cost = choice.cost !== undefined
-            ? (typeof choice.cost === 'number' ? `$${Number(choice.cost).toLocaleString()}` : choice.cost)
+            ? (typeof choice.cost === 'number' ? `${Number(choice.cost).toLocaleString()} €` : choice.cost)
             : '';
         const risks = Array.isArray(choice.risks) && choice.risks.length
             ? choice.risks.map(r => `<span class="choice-risk-tag">[[DE_ICON_016]] ${r}</span>`).join(' ')
@@ -3008,6 +3008,14 @@ window.resolveIndustryChoice = function(eventId, choiceId) {
 
     renderIndustryNews();
     if (typeof updatePlatformOptions === 'function') updatePlatformOptions();
+
+    if (result.event?.type === 'os_update_announcement' && choiceId === 'open_update_center') {
+        closeAllModals();
+        if (window.uwuntuOS) {
+            window.uwuntuOS.open();
+            window.uwuntuOS.launchApp('app-os-update');
+        }
+    }
 };
 
 function renderCommunityWorkshop() {
@@ -3589,7 +3597,7 @@ function renderRecruitment() {
             else if (game.currentProject) currentStateText = `En desarrollo: ${game.currentProject.name}`;
 
             const contractText = isFounder ? 'Socio fundador (Vitalicio)' : `${selectedEmp.contractWeeksRemaining ?? 48} semanas restantes`;
-            const severanceText = isFounder ? 'No aplicable' : `$${game.getEmployeeSeverance(selectedEmp).toLocaleString()}`;
+            const severanceText = isFounder ? 'No aplicable' : `${game.getEmployeeSeverance(selectedEmp).toLocaleString('es-ES')} €`;
 
             employeeDetail.innerHTML = `
                 <div class="hr-profile-header">
@@ -3608,7 +3616,7 @@ function renderRecruitment() {
                         <h4>Información general</h4>
                         <div class="hr-profile-row"><span>Especialidad:</span><strong>${selectedEmp.role}</strong></div>
                         <div class="hr-profile-row"><span>Nivel:</span><strong>${experience}</strong></div>
-                        <div class="hr-profile-row"><span>Salario:</span><strong style="color:var(--accent-green, #94dbc4);">$${selectedEmp.salary.toLocaleString()}/mes</strong></div>
+                        <div class="hr-profile-row"><span>Salario:</span><strong style="color:var(--accent-green, #94dbc4);">${selectedEmp.salary.toLocaleString('es-ES')} €/mes</strong></div>
                         <div class="hr-profile-row"><span>Estado actual:</span><strong>${currentStateText}</strong></div>
                         <div class="hr-profile-row"><span>Contrato:</span><strong>${contractText}</strong></div>
                         <div class="hr-profile-row"><span>Indemnización:</span><strong>${severanceText}</strong></div>
@@ -3652,15 +3660,15 @@ function renderRecruitment() {
                 </div>
                 <div class="hr-profile-actions">
                     <span class="hr-profile-actions-label">Acciones de gestión</span>
-                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 0.9)})">−10% Salario ($${Math.round(selectedEmp.salary * 0.9).toLocaleString()})</button>
-                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 1.1)})">+10% Salario ($${Math.round(selectedEmp.salary * 1.1).toLocaleString()})</button>
-                    <button type="button" class="staff-action-btn" onclick="sendOnVacation('${selectedEmp.id}')" ${game.funds < 2000 || staminaPct >= 100 ? 'disabled' : ''} title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones ($2.000)</button>
-                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'tech')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Tech permanente">[[DE_ICON_018]] Curso Tech +8 ($3.500, 20 RP)</button>
-                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'design')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Diseño permanente">[[DE_ICON_019]] Curso Des +8 ($3.500, 20 RP)</button>
+                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 0.9)})">−10% Salario (${Math.round(selectedEmp.salary * 0.9).toLocaleString('es-ES')} €)</button>
+                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 1.1)})">+10% Salario (${Math.round(selectedEmp.salary * 1.1).toLocaleString('es-ES')} €)</button>
+                    <button type="button" class="staff-action-btn" onclick="sendOnVacation('${selectedEmp.id}')" ${game.funds < 2000 || staminaPct >= 100 ? 'disabled' : ''} title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones (2.000 €)</button>
+                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'tech')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Tech permanente">[[DE_ICON_018]] Curso Tech +8 (3.500 €, 20 RP)</button>
+                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'design')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Diseño permanente">[[DE_ICON_019]] Curso Des +8 (3.500 €, 20 RP)</button>
                     ${isLead ? '<button type="button" class="staff-action-btn" disabled>[[DE_ICON_005]] Líder Asignado</button>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${selectedEmp.id}')">[[DE_ICON_005]] Asignar Líder</button>`}
                     ${!isFounder ? `
-                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.05)">Renovar +5% ($${Math.round(selectedEmp.salary * 1.05).toLocaleString()})</button>
-                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.10)">Renovar +10% ($${Math.round(selectedEmp.salary * 1.10).toLocaleString()})</button>
+                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.05)">Renovar +5% (${Math.round(selectedEmp.salary * 1.05).toLocaleString('es-ES')} €)</button>
+                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.10)">Renovar +10% (${Math.round(selectedEmp.salary * 1.10).toLocaleString('es-ES')} €)</button>
                         <button type="button" class="staff-action-btn hr-danger-btn" onclick="confirmStaffDismissal('${selectedEmp.id}')">[[DE_ICON_015]] Despedir</button>
                     ` : ''}
                 </div>
@@ -3719,7 +3727,7 @@ function renderRecruitment() {
                         </div>
                         <span class="hr-person-role">${emp.role} · ${experience}</span>
                     </div>
-                    <div class="hr-person-salary">$${emp.salary.toLocaleString()}/mes</div>
+                    <div class="hr-person-salary">${emp.salary.toLocaleString('es-ES')} €/mes</div>
                 </div>
                 <div class="hr-metrics">
                     <div class="hr-metric is-energy">
@@ -3785,7 +3793,7 @@ function renderRecruitment() {
                         <h4>Datos del candidato</h4>
                         <div class="hr-profile-row"><span>Especialidad:</span><strong>${selectedCand.role}</strong></div>
                         <div class="hr-profile-row"><span>Nivel:</span><strong>${selectedCand.experience || selectedCand.level || 'Mid'}</strong></div>
-                        <div class="hr-profile-row"><span>Salario solicitado:</span><strong style="color:var(--accent-green, #94dbc4);">$${selectedCand.salary.toLocaleString()}/mes</strong></div>
+                        <div class="hr-profile-row"><span>Salario solicitado:</span><strong style="color:var(--accent-green, #94dbc4);">${selectedCand.salary.toLocaleString('es-ES')} €/mes</strong></div>
                         <p style="font-size:12px;color:#a8bdc7;line-height:1.45;margin-top:6px;">${selectedCand.desc || 'Profesional motivado para incorporarse al equipo de desarrollo.'}</p>
                     </div>
                     <div class="hr-profile-section">
@@ -3809,7 +3817,7 @@ function renderRecruitment() {
                     </div>
                     <div class="hr-profile-section">
                         <h4>Viabilidad financiera</h4>
-                        <div class="hr-profile-row"><span>Fondos disponibles:</span><strong>$${game.funds.toLocaleString()}</strong></div>
+                        <div class="hr-profile-row"><span>Fondos disponibles:</span><strong>${game.funds.toLocaleString('es-ES')} €</strong></div>
                         <div class="hr-profile-row"><span>Espacio en oficina:</span><strong>${hasDesk ? `${game.employees.length}/${maxStaff} escritorios` : 'Oficina llena (0 escritorios)'}</strong></div>
                         <div style="margin-top:8px;">
                             ${canAfford ? '<span class="hr-candidate-affordability is-affordable">Fondos disponibles para contratar</span>' : '<span class="hr-candidate-affordability not-affordable">Fondos insuficientes para el salario</span>'}
@@ -3818,7 +3826,7 @@ function renderRecruitment() {
                 </div>
                 <div class="hr-profile-actions">
                     <button type="button" class="staff-action-btn staff-action-highlight" id="hire-from-detail-btn" ${!canAfford || !hasDesk ? 'disabled' : ''}>
-                        [[DE_ICON_073]] Contratar a ${selectedCand.name} ($${selectedCand.salary.toLocaleString()}/mes)
+                        [[DE_ICON_073]] Contratar a ${selectedCand.name} (${selectedCand.salary.toLocaleString('es-ES')} €/mes)
                     </button>
                 </div>
             `;
@@ -3860,7 +3868,7 @@ function renderRecruitment() {
                             </div>
                             <span class="hr-person-role">${c.role} · ${experience}</span>
                         </div>
-                        <div class="hr-person-salary">$${c.salary.toLocaleString()}/mes</div>
+                        <div class="hr-person-salary">${c.salary.toLocaleString('es-ES')} €/mes</div>
                     </div>
                     <div class="hr-person-skills-summary">
                         <span>[[DE_ICON_018]] Tech: <b>${c.tech}</b></span>
@@ -3995,7 +4003,7 @@ function renderRecruitment() {
     }
     const coffeeAffordability = document.getElementById('coffee-affordability');
     if (coffeeAffordability) {
-        coffeeAffordability.textContent = game.funds >= 500 ? `Fondos disponibles ($${game.funds.toLocaleString()})` : `Fondos insuficientes (requiere $500)`;
+        coffeeAffordability.textContent = game.funds >= 500 ? `Fondos disponibles (${game.funds.toLocaleString('es-ES')} €)` : `Fondos insuficientes (requiere 500 €)`;
     }
     const coffeeBtn = document.querySelector('#personnel-panel-conditions button[onclick="orderTeamCoffee()"]');
     if (coffeeBtn) coffeeBtn.disabled = game.funds < 500;
@@ -4034,7 +4042,7 @@ function renderRecruitment() {
                 </div>
                 <div class="hr-stat-card">
                     <span>Nómina mensual</span>
-                    <strong style="color:var(--accent-green, #94dbc4);">$${totalPayroll.toLocaleString()}</strong>
+                    <strong style="color:var(--accent-green, #94dbc4);">${totalPayroll.toLocaleString('es-ES')} €</strong>
                     <small>Gasto recurrente</small>
                 </div>
                 <div class="hr-stat-card">
@@ -4121,7 +4129,7 @@ window.confirmStaffDismissal = function(id) {
         <div class="dismissal-effects"><span class="dismissal-effects-title">CONSECUENCIAS</span><p>El empleado dejará el estudio y se liberará su puesto.</p><p>La moral del resto del equipo disminuirá 5 puntos.</p></div>
         <div class="dismissal-actions"><button type="button" class="dismissal-cancel">Mantener empleado</button><button type="button" class="dismissal-confirm">Pagar y despedir</button></div>`;
     dialog.querySelector('[data-employee-name]').textContent = employee.name;
-    dialog.querySelector('[data-severance]').textContent = `$${game.getEmployeeSeverance(employee).toLocaleString()}`;
+    dialog.querySelector('[data-severance]').textContent = `${game.getEmployeeSeverance(employee).toLocaleString('es-ES')} €`;
     const cancel = dialog.querySelector('.dismissal-cancel');
     const confirm = dialog.querySelector('.dismissal-confirm');
     cancel.addEventListener('click', () => dialog.close());
@@ -4628,7 +4636,7 @@ function renderTechTree() {
         const rd = game.activeEngineRD;
         const engineCards = (game.inHouseEngines || []).map(engine => {
             const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
-            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados ($20.000 + $4.000/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
+            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados (20.000 € + 4.000 €/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
         }).join('');
         enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
     }
@@ -4881,7 +4889,7 @@ function renderEngineWorkshop(mgr, year) {
                 </div>
             </div>
             <div class="engine-stage-actions">
-                <span style="font-size: 12px; color: #94a3b8;">Coste base inicial: $18.000 y 10 RP.</span>
+                <span style="font-size: 12px; color: #94a3b8;">Coste base inicial: 18.000 € y 10 RP.</span>
                 <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(2)" style="font-weight: 700; padding: 10px 20px;">
                     Siguiente: Elegir Especialización →
                 </button>
@@ -5030,10 +5038,10 @@ function renderEngineWorkshop(mgr, year) {
                     <div class="engine-telemetry-item">
                         <div class="engine-telemetry-label">Presupuesto de Fabricación</div>
                         <div class="engine-telemetry-value" style="color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
-                            $${costMoney.toLocaleString()}
+                            ${costMoney.toLocaleString('es-ES')} €
                         </div>
                         <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
-                            Estudio: $${game.funds.toLocaleString()}
+                            Estudio: ${game.funds.toLocaleString('es-ES')} €
                         </div>
                     </div>
 
@@ -5127,7 +5135,7 @@ function renderEngineWorkshop(mgr, year) {
                     <div>
                         <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Inversión Monetaria</div>
                         <div style="font-size: 18px; font-weight: 900; color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
-                            $${costMoney.toLocaleString()}
+                            ${costMoney.toLocaleString('es-ES')} €
                         </div>
                     </div>
                     <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
@@ -5399,7 +5407,7 @@ function renderHardwareWorkbench(mgr, year) {
                     const isSelected = item.id === selectedHw.id;
 
                     let badgeColor = '#fbbf24';
-                    let badgeText = `$${item.costMoney.toLocaleString()}`;
+                    let badgeText = `${item.costMoney.toLocaleString('es-ES')} €`;
                     if (itemDismantled) {
                         badgeColor = '#10b981';
                         badgeText = 'ANALIZADO';
@@ -5479,13 +5487,13 @@ function renderHardwareWorkbench(mgr, year) {
     } else if (!canAfford) {
         actionBtnHtml = `
             <button type="button" class="dock-btn" disabled style="width: 100%; justify-content: center; padding: 12px; font-weight: 700; opacity: 0.5; cursor: not-allowed;">
-                Fondos Insuficientes ($${selectedHw.costMoney.toLocaleString()} requeridos)
+                Fondos Insuficientes (${selectedHw.costMoney.toLocaleString('es-ES')} € requeridos)
             </button>
         `;
     } else {
         actionBtnHtml = `
             <button type="button" class="dock-btn btn-primary-action" style="width: 100%; justify-content: center; padding: 12px; font-size: 13px; font-weight: 800;" onclick="window.workbenchDismantleHardware('${selectedHw.id}')">
-                [[DE_ICON_106]] INICIAR ANÁLISIS & DESMONTAJE ($${selectedHw.costMoney.toLocaleString()})
+                [[DE_ICON_106]] INICIAR ANÁLISIS & DESMONTAJE (${selectedHw.costMoney.toLocaleString('es-ES')} €)
             </button>
         `;
     }
@@ -5879,7 +5887,7 @@ window.renderCommunityWorkshop = renderCommunityWorkshop;
 window.renderAdminConsole = () => {
     const adminFunds = document.getElementById('admin-current-funds');
     if (adminFunds && typeof game !== 'undefined') {
-        adminFunds.textContent = `$${Math.floor(game.funds).toLocaleString('es-ES')}`;
+        adminFunds.textContent = `${Math.floor(game.funds).toLocaleString('es-ES')} €`;
     }
 };
 window.renderHUD = renderHUD;
@@ -5913,7 +5921,7 @@ function renderHistoryAndCharts() {
             studioStats.innerHTML = `
                 <div class="studio-stat-pill">Títulos: <strong>${game.gamesHistory.length}</strong></div>
                 <div class="studio-stat-pill">Ventas: <strong>${totalCopies.toLocaleString()}</strong></div>
-                <div class="studio-stat-pill">Balance: <strong style="color: ${totalProfit >= 0 ? '#34d399' : '#f87171'}">${totalProfit >= 0 ? '+' : ''}$${Math.round(totalProfit).toLocaleString()}</strong></div>
+                <div class="studio-stat-pill">Balance: <strong style="color: ${totalProfit >= 0 ? '#34d399' : '#f87171'}">${totalProfit >= 0 ? '+' : ''}${Math.round(totalProfit).toLocaleString('es-ES')} €</strong></div>
             `;
         } else {
             studioStats.innerHTML = '';
@@ -6263,8 +6271,8 @@ window.renderSelectedGameSalesChart = function() {
 
     document.getElementById('kpi-total-units').innerText = `${totalUnits.toLocaleString()} copias`;
     document.getElementById('kpi-current-velocity').innerText = `${lastUnits.toLocaleString()} / semana`;
-    document.getElementById('kpi-total-net').innerText = `$${Math.floor(totalNet).toLocaleString()}`;
-    document.getElementById('kpi-gross-revenue').innerText = `Bruto: $${Math.floor(grossRev).toLocaleString()}`;
+    document.getElementById('kpi-total-net').innerText = `${Math.floor(totalNet).toLocaleString('es-ES')} €`;
+    document.getElementById('kpi-gross-revenue').innerText = `Bruto: ${Math.floor(grossRev).toLocaleString('es-ES')} €`;
 
     const history = g.weeklySalesHistory || [];
     let bestRank = 1;
@@ -6375,7 +6383,7 @@ window.renderSelectedGameSalesChart = function() {
         const revVal = Math.round(maxRevenue * (1 - i / 4));
         ctx.fillStyle = '#10b981';
         ctx.textAlign = 'left';
-        ctx.fillText(`$${(revVal >= 1000 ? Math.round(revVal / 1000) + 'k' : revVal)}`, width - padR + 8, y + 4);
+        ctx.fillText(`${(revVal >= 1000 ? Math.round(revVal / 1000) + 'k' : revVal)} €`, width - padR + 8, y + 4);
     }
     ctx.setLineDash([]);
 
@@ -6503,7 +6511,7 @@ window.renderSelectedGameSalesChart = function() {
             tooltip.innerHTML = `
                 <div style="font-weight: 800; color: #38bdf8; margin-bottom: 4px;">Semana ${point.weekNumber} (${point.calendarYear || ''})</div>
                 <div>Copias vendidas: <b style="color: #fff;">${(point.unitsSold || 0).toLocaleString()}</b></div>
-                <div>Ingresos netos: <b style="color: #10b981;">$${Math.floor(point.netRevenue || 0).toLocaleString()}</b></div>
+                <div>Ingresos netos: <b style="color: #10b981;">${Math.floor(point.netRevenue || 0).toLocaleString('es-ES')} €</b></div>
                 <div>Ranking Top 10: <b style="color: #fbbf24;">#${point.rank || 'N/A'}</b></div>
                 ${eventNotes}
             `;
@@ -6620,8 +6628,8 @@ function updateLiveSalesWidget() {
     warning.textContent = profitWarning(target);
     warning.hidden = !warning.textContent;
 
-    document.getElementById('hud-sales-revenue').innerText = `$${Math.floor(target.revenueTotal || 0).toLocaleString()}`;
-    document.getElementById('hud-sales-cost').innerText = `$${Math.floor(target.devCost || 0).toLocaleString()}`;
+    document.getElementById('hud-sales-revenue').innerText = `${Math.floor(target.revenueTotal || 0).toLocaleString('es-ES')} €`;
+    document.getElementById('hud-sales-cost').innerText = `${Math.floor(target.devCost || 0).toLocaleString('es-ES')} €`;
     const fansVal = target.fansGained || Math.floor((target.score || 7) * 20);
     document.getElementById('hud-sales-fans').innerText = `+${fansVal.toLocaleString()} [[DE_ICON_005]]`;
     document.getElementById('hud-sales-hype').innerText = `${Math.round(target.marketingHype || target.hype || 0)}`;
@@ -6850,7 +6858,7 @@ window.attendExpo = function(tier) {
     if (!hasExpoInvitation(game) || expoSession || ![1, 2, 3].includes(tier)) return;
     const cost = tier === 1 ? 5000 : (tier === 2 ? 22000 : 65000);
     if (game.funds < cost) {
-        showToast(`Fondos insuficientes ($${cost.toLocaleString()}) para contratar este stand.`, 'warn');
+        showToast(`Fondos insuficientes (${cost.toLocaleString('es-ES')} €) para contratar este stand.`, 'warn');
         return;
     }
 
@@ -6890,7 +6898,7 @@ window.attendExpo = function(tier) {
     // Buttons
     const btnMerch = document.getElementById('btn-expo-merch');
     const btnInterview = document.getElementById('btn-expo-interview');
-    if (btnMerch) { btnMerch.disabled = false; btnMerch.innerText = '[[DE_ICON_071]] Repartir Merchandising ($600)'; }
+    if (btnMerch) { btnMerch.disabled = false; btnMerch.innerText = '[[DE_ICON_071]] Repartir Merchandising (600 €)'; }
     if (btnInterview) { btnInterview.disabled = false; btnInterview.innerText = '[[DE_ICON_072]] Conceder Entrevista Relámpago'; }
 
     const summaryFooter = document.getElementById('expo-summary-footer');
@@ -7046,14 +7054,14 @@ window.expoDistributeMerch = function() {
     if (!expoSession || expoSession.merchUsed) return;
     const standCost = [0, 5000, 22000, 65000][expoSession.tier];
     if (game.funds < standCost + 600) {
-        showToast('Fondos insuficientes para el stand y el merchandising ($600).', 'warn');
+        showToast('Fondos insuficientes para el stand y el merchandising (600 €).', 'warn');
         return;
     }
     expoSession.merchUsed = true;
     const btn = document.getElementById('btn-expo-merch');
     if (btn) {
         btn.disabled = true;
-        btn.innerText = '[[DE_ICON_149]] Merchandising Repartido (-$600)';
+        btn.innerText = '[[DE_ICON_149]] Merchandising Repartido (-600 €)';
     }
 
     // Convert all active bubbles on floor to gifts and hearts

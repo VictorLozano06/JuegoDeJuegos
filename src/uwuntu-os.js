@@ -1,6 +1,6 @@
 import { game } from './simulation.js';
 import { syncStudioAvatars } from './company-logo.js';
-import { ensureVreadState, generateVreadFeed } from './vread-engine.js';
+import { ensureVreadState, generateVreadFeed, getCommunitySentiment, classifyVreadPost } from './vread-engine.js';
 
 /**
  * DEV EMPIRE 3D - UWUNTU XD OPERATING SYSTEM
@@ -177,6 +177,13 @@ export const APP_ICONS = {
         <circle cx="10.5" cy="22" r="1.3" fill="currentColor"/>
         <circle cx="16" cy="22" r="1.3" fill="currentColor"/>
         <circle cx="21.5" cy="22" r="1.3" fill="currentColor"/>
+    </svg>`,
+    osUpdate: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M26 12A11 11 0 0 0 7 10" stroke="#38bdf8"/>
+        <polyline points="7 4 7 10 13 10" stroke="#38bdf8"/>
+        <path d="M6 20a11 11 0 0 0 19 2" stroke="#0ea5e9"/>
+        <polyline points="25 28 25 22 19 22" stroke="#0ea5e9"/>
+        <circle cx="16" cy="16" r="3" fill="#38bdf8" fill-opacity="0.3"/>
     </svg>`
 };
 
@@ -398,8 +405,22 @@ export const UWUNTU_APPS = [
         badgeColor: '#38bdf8',
         defaultWidth: 860,
         defaultHeight: 620,
-        renderContent: (container, gameInstance) => {
+        renderContent: (container, gameInstance, osInstance) => {
             renderAdminAppContent(container, gameInstance);
+        }
+    },
+    {
+        id: 'app-os-update',
+        title: 'Centro de Actualizaciones de Sistema',
+        shortTitle: 'Actualizaciones',
+        category: 'Sistema',
+        isCustomApp: true,
+        icon: APP_ICONS.osUpdate,
+        badgeColor: '#0ea5e9',
+        defaultWidth: 880,
+        defaultHeight: 640,
+        renderContent: (container, gameInstance, osInstance) => {
+            renderOSUpdateAppContent(container, gameInstance, osInstance);
         }
     }
 ];
@@ -536,7 +557,7 @@ export class UwuntuOS {
         this.folders = JSON.parse(localStorage.getItem('uwuntu_desktop_folders') || 'null');
         if (!this.folders) {
             this.folders = [
-                { id: 'folder_docs', name: 'Documentos', x: 132, y: 336, files: [{ name: 'GDD_Proyecto_Alpha.txt', text: 'Notas preliminares de diseño del próximo lanzamiento.' }] }
+                { id: 'folder_docs', name: 'Documentos', files: [{ name: 'GDD_Proyecto_Alpha.txt', text: 'Notas preliminares de diseño del próximo lanzamiento.' }] }
             ];
         }
         this.trashItems = JSON.parse(localStorage.getItem('uwuntu_trash_items') || '[]');
@@ -547,11 +568,15 @@ export class UwuntuOS {
         const defaultInstalled = [
             'app-store', 'app-architecture', 'app-graph-3d', 'app-marketing',
             'app-liveops', 'app-rivals', 'app-studio', 'app-offices',
-            'app-ip', 'app-workshop', 'app-guide', 'app-admin'
+            'app-ip', 'app-workshop', 'app-guide', 'app-admin', 'app-os-update'
         ];
         const savedInstalled = localStorage.getItem('uwuntu_installed_apps');
         this.installedApps = new Set(savedInstalled ? JSON.parse(savedInstalled) : defaultInstalled);
+        this.installedApps.add('app-os-update');
         this.vreadNotificationDismissed = sessionStorage.getItem('uwuntu_vread_dismissed') === 'true';
+
+        // OS Update status (2006 Crystal Aero)
+        this.is2006Updated = localStorage.getItem('uwuntu_os_updated_2006') === 'true' || Boolean(this.game?.osUpdated2006);
 
         this.initDOM();
         this.setupEventListeners();
@@ -562,6 +587,11 @@ export class UwuntuOS {
         return this.game.getHistoricalYear ? this.game.getHistoricalYear() : (1981 + (this.game.year || 1));
     }
 
+    isOSUpdateAvailable() {
+        const year = this.getHistoricalYear();
+        return (year >= 2006 || this.forceUpdateAvailable) && !this.is2006Updated;
+    }
+
     initDOM() {
         // Remove old device-launcher or studio-device if present
         document.getElementById('device-launcher')?.remove();
@@ -570,7 +600,7 @@ export class UwuntuOS {
         // 1. Create desktop container
         this.container = document.createElement('div');
         this.container.id = 'uwuntu-desktop-environment';
-        this.container.className = `uwuntu-os ${this.currentEra.className}`;
+        this.container.className = `uwuntu-os ${this.currentEra.className} ${this.is2006Updated ? 'os-updated-2006' : ''}`;
         this.container.hidden = true;
         this.container.setAttribute('aria-label', 'Escritorio del sistema operativo Uwuntu XD');
 
@@ -811,6 +841,32 @@ export class UwuntuOS {
                 </div>
             </div>
 
+            <!-- Balloon Notification for OS Update -->
+            <div class="uwuntu-update-balloon" id="uwuntu-update-balloon" hidden role="alert" aria-live="polite">
+                <div class="balloon-header">
+                    <div class="balloon-title-row">
+                        <span class="balloon-icon">${APP_ICONS.osUpdate}</span>
+                        <strong class="balloon-title">Actualización de sistema</strong>
+                    </div>
+                    <button type="button" class="balloon-close-btn" id="uwuntu-balloon-close-btn" aria-label="Cerrar notificación">&times;</button>
+                </div>
+                <p class="balloon-text">¡<strong>Uwuntu XD 2006 Crystal Aero</strong> está disponible! Interfaz translúcida ultranítida, mayor velocidad y aceleración de motores.</p>
+                <div class="balloon-actions">
+                    <button type="button" class="balloon-btn-primary" id="uwuntu-balloon-open-btn">Actualizar ahora</button>
+                    <button type="button" class="balloon-btn-secondary" id="uwuntu-balloon-later-btn">Más tarde</button>
+                </div>
+            </div>
+
+            <!-- Fullscreen Reboot Overlay for Interactive Installation -->
+            <div class="uwuntu-reboot-overlay" id="uwuntu-reboot-overlay" hidden>
+                <div class="reboot-card">
+                    <div class="reboot-spinner-ring"></div>
+                    <div class="reboot-brand-logo">${UWUNTU_LOGO_SVG}</div>
+                    <h3 class="reboot-heading" id="uwuntu-reboot-title">Reiniciando Uwuntu XD...</h3>
+                    <p class="reboot-caption" id="uwuntu-reboot-desc">Aplicando nueva interfaz ultranítida Crystal Aero 2006</p>
+                </div>
+            </div>
+
             <!-- Taskbar / Desktop Panel -->
             <footer class="uwuntu-taskbar" id="uwuntu-taskbar">
                 <!-- Start Button -->
@@ -824,6 +880,15 @@ export class UwuntuOS {
 
                 <!-- System Tray -->
                 <div class="uwuntu-tray" id="uwuntu-tray">
+                    <button type="button" class="tray-icon-btn tray-update-btn ${this.isOSUpdateAvailable() ? 'has-update' : ''}" id="uwuntu-tray-update-btn" title="${this.isOSUpdateAvailable() ? 'Actualización de sistema disponible: Uwuntu XD 2006 Crystal Aero' : 'Sistema al día: Uwuntu XD 2006'}" aria-label="Actualizaciones del sistema">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 8A6.5 6.5 0 0 0 4.5 7"></path>
+                            <polyline points="4.5 3 4.5 7 8.5 7"></polyline>
+                            <path d="M4 12a6.5 6.5 0 0 0 11.5 1"></path>
+                            <polyline points="15.5 17 15.5 13 11.5 13"></polyline>
+                        </svg>
+                        <span class="tray-update-badge" id="uwuntu-tray-update-badge" ${this.isOSUpdateAvailable() ? '' : 'hidden'}></span>
+                    </button>
                     <div class="tray-led" id="uwuntu-disk-led" title="Actividad de disco"></div>
                     <div class="tray-date-info">
                         <span class="tray-time" id="uwuntu-clock-time">10:42</span>
@@ -860,8 +925,9 @@ export class UwuntuOS {
         const GRID_Y = 104;
         const PAD_X = 24;
         const PAD_Y = 24;
-        const deskHeight = window.innerHeight - 120;
-        const rowsPerCol = Math.max(4, Math.floor(deskHeight / GRID_Y));
+        const desk = this.container ? this.container.querySelector('#uwuntu-desktop') : null;
+        const deskHeight = desk ? desk.clientHeight : (window.innerHeight - 120);
+        const rowsPerCol = Math.max(4, Math.floor((deskHeight - PAD_Y) / GRID_Y));
         const col = Math.floor(index / rowsPerCol);
         const row = index % rowsPerCol;
         return {
@@ -870,21 +936,74 @@ export class UwuntuOS {
         };
     }
 
-    findNextFreeSlot() {
-        const occupied = new Set();
-        Object.values(this.iconPositions).forEach(pos => {
-            if (pos && typeof pos.x === 'number') {
-                occupied.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
-            }
-        });
-        for (let i = 0; i < 80; i++) {
+    findNextFreeSlot(occupied = null) {
+        const occupiedSet = occupied || new Set();
+        if (!occupied) {
+            Object.values(this.iconPositions).forEach(pos => {
+                if (pos && typeof pos.x === 'number') {
+                    occupiedSet.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
+                }
+            });
+        }
+        for (let i = 0; i < 120; i++) {
             const pos = this.getDefaultSlotPosition(i);
             const key = `${Math.round(pos.x)},${Math.round(pos.y)}`;
-            if (!occupied.has(key)) {
+            if (!occupiedSet.has(key)) {
                 return pos;
             }
         }
         return { x: 240, y: 128 };
+    }
+
+    findNearestFreeSlot(targetX, targetY, occupied = null) {
+        const GRID_X = 108;
+        const GRID_Y = 104;
+        const PAD_X = 24;
+        const PAD_Y = 24;
+
+        const occupiedSet = occupied || new Set();
+        if (!occupied) {
+            Object.values(this.iconPositions).forEach(pos => {
+                if (pos && typeof pos.x === 'number') {
+                    occupiedSet.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
+                }
+            });
+        }
+
+        const desk = this.container ? this.container.querySelector('#uwuntu-desktop') : null;
+        const deskRect = desk ? desk.getBoundingClientRect() : { width: window.innerWidth, height: window.innerHeight - 50 };
+        const maxCols = Math.max(1, Math.floor((deskRect.width - PAD_X) / GRID_X));
+        const maxRows = Math.max(1, Math.floor((deskRect.height - PAD_Y - 40) / GRID_Y));
+
+        const targetCol = Math.max(0, Math.min(maxCols - 1, Math.round((targetX - PAD_X) / GRID_X)));
+        const targetRow = Math.max(0, Math.min(maxRows - 1, Math.round((targetY - PAD_Y) / GRID_Y)));
+        const targetKey = `${PAD_X + targetCol * GRID_X},${PAD_Y + targetRow * GRID_Y}`;
+
+        if (!occupiedSet.has(targetKey)) {
+            return { x: PAD_X + targetCol * GRID_X, y: PAD_Y + targetRow * GRID_Y };
+        }
+
+        let bestSlot = null;
+        let bestDist = Infinity;
+        const maxDist = Math.max(maxCols, maxRows, 15);
+
+        for (let d = 1; d <= maxDist; d++) {
+            for (let c = Math.max(0, targetCol - d); c <= Math.min(maxCols - 1, targetCol + d); c++) {
+                for (let r = Math.max(0, targetRow - d); r <= Math.min(maxRows - 1, targetRow + d); r++) {
+                    const key = `${PAD_X + c * GRID_X},${PAD_Y + r * GRID_Y}`;
+                    if (!occupiedSet.has(key)) {
+                        const dist = Math.hypot(c - targetCol, r - targetRow);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestSlot = { x: PAD_X + c * GRID_X, y: PAD_Y + r * GRID_Y };
+                        }
+                    }
+                }
+            }
+            if (bestSlot) return bestSlot;
+        }
+
+        return this.findNextFreeSlot(occupiedSet);
     }
 
     renderDesktopIcons() {
@@ -935,13 +1054,24 @@ export class UwuntuOS {
             });
         });
 
-        // Render each item with absolute coordinate and snap support
+        // Render each item with collision-free coordinate and snap support
+        const occupiedSlots = new Set();
         items.forEach((item, index) => {
-            const savedPos = this.iconPositions[item.id];
-            const pos = (savedPos && typeof savedPos.x === 'number') ? savedPos : this.findNextFreeSlot();
-            if (!savedPos) {
-                this.iconPositions[item.id] = { ...pos };
+            let savedPos = this.iconPositions[item.id];
+            let pos = null;
+            if (savedPos && typeof savedPos.x === 'number') {
+                const snappedX = Math.max(24, Math.round((savedPos.x - 24) / 108) * 108 + 24);
+                const snappedY = Math.max(24, Math.round((savedPos.y - 24) / 104) * 104 + 24);
+                const key = `${snappedX},${snappedY}`;
+                if (!occupiedSlots.has(key)) {
+                    pos = { x: snappedX, y: snappedY };
+                }
             }
+            if (!pos) {
+                pos = this.findNextFreeSlot(occupiedSlots);
+            }
+            this.iconPositions[item.id] = { ...pos };
+            occupiedSlots.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
 
             const itemEl = document.createElement('div');
             itemEl.className = `uwuntu-desktop-item uwuntu-desktop-icon item-${item.type} ${this.selectedDesktopIds.has(item.id) ? 'is-selected' : ''}`;
@@ -1059,24 +1189,42 @@ export class UwuntuOS {
                     return;
                 }
 
-                // Snap to 108x104 grid
-                const snapItem = (el, id) => {
+                // Snap to nearest free slot on the 108x104 grid, preventing overlapping
+                const movingIds = new Set(dragOffsets.size > 0 ? dragOffsets.keys() : [item.id]);
+                const currentOccupied = new Set();
+                Object.entries(this.iconPositions).forEach(([id, p]) => {
+                    if (!movingIds.has(id) && p && typeof p.x === 'number') {
+                        currentOccupied.add(`${Math.round(p.x)},${Math.round(p.y)}`);
+                    }
+                });
+
+                const snapAndAssign = (el, id) => {
                     const curX = parseFloat(el.style.left) || 24;
                     const curY = parseFloat(el.style.top) || 24;
-                    const snappedX = Math.max(20, Math.round((curX - 24) / 108) * 108 + 24);
-                    const snappedY = Math.max(20, Math.round((curY - 24) / 104) * 104 + 24);
-                    el.style.left = `${snappedX}px`;
-                    el.style.top = `${snappedY}px`;
-                    this.iconPositions[id] = { x: snappedX, y: snappedY };
+                    const slot = this.findNearestFreeSlot(curX, curY, currentOccupied);
+                    currentOccupied.add(`${Math.round(slot.x)},${Math.round(slot.y)}`);
+                    el.style.left = `${slot.x}px`;
+                    el.style.top = `${slot.y}px`;
+                    this.iconPositions[id] = { x: slot.x, y: slot.y };
+
+                    if (id.startsWith('desktop_folder_')) {
+                        const folderId = id.replace('desktop_folder_', '');
+                        const folder = this.folders.find(f => f.id === folderId);
+                        if (folder) {
+                            folder.x = slot.x;
+                            folder.y = slot.y;
+                        }
+                    }
                 };
 
                 if (dragOffsets.size > 0) {
-                    dragOffsets.forEach(({ el }, id) => snapItem(el, id));
+                    dragOffsets.forEach(({ el }, id) => snapAndAssign(el, id));
                 } else {
-                    snapItem(itemEl, item.id);
+                    snapAndAssign(itemEl, item.id);
                 }
 
                 localStorage.setItem('uwuntu_icon_positions', JSON.stringify(this.iconPositions));
+                localStorage.setItem('uwuntu_desktop_folders', JSON.stringify(this.folders));
             } else {
                 // Click (not drag) -> open
                 item.onOpen?.();
@@ -1212,6 +1360,38 @@ export class UwuntuOS {
         this.container.querySelector('#start-power-btn').addEventListener('click', () => {
             this.toggleStartMenu(false);
             this.close();
+        });
+
+        // System update tray button
+        const trayUpdateBtn = this.container.querySelector('#uwuntu-tray-update-btn');
+        trayUpdateBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.launchApp('app-os-update');
+        });
+
+        // OS update balloon notification events
+        const balloon = this.container.querySelector('#uwuntu-update-balloon');
+        const balloonCloseBtn = this.container.querySelector('#uwuntu-balloon-close-btn');
+        const balloonLaterBtn = this.container.querySelector('#uwuntu-balloon-later-btn');
+        const balloonOpenBtn = this.container.querySelector('#uwuntu-balloon-open-btn');
+
+        const dismissBalloon = () => {
+            if (balloon) balloon.hidden = true;
+            sessionStorage.setItem('uwuntu_os_balloon_dismissed', 'true');
+        };
+
+        balloonCloseBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismissBalloon();
+        });
+        balloonLaterBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismissBalloon();
+        });
+        balloonOpenBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            dismissBalloon();
+            this.launchApp('app-os-update');
         });
 
         // Wallpaper Controls
@@ -1546,7 +1726,7 @@ export class UwuntuOS {
                 modalBackdrop.style.display = 'none';
             }
         } else if (app.isCustomApp && typeof app.renderContent === 'function') {
-            app.renderContent(bodyEl, this.game);
+            app.renderContent(bodyEl, this.game, this);
         }
 
         // Setup Window Events
@@ -1816,6 +1996,30 @@ export class UwuntuOS {
 
         const officeName = this.container.querySelector('#start-menu-office-name');
         if (officeName) officeName.textContent = this.game.getActiveOffice?.().name || 'Garaje';
+
+        // Sync OS Update status in tray & balloon
+        const hasOSUpdate = this.isOSUpdateAvailable();
+        const trayUpdateBtn = this.container.querySelector('#uwuntu-tray-update-btn');
+        const trayUpdateBadge = this.container.querySelector('#uwuntu-tray-update-badge');
+        if (trayUpdateBtn) {
+            trayUpdateBtn.classList.toggle('has-update', hasOSUpdate);
+            trayUpdateBtn.title = hasOSUpdate
+                ? 'Actualización de sistema disponible: Uwuntu XD 2006 Crystal Aero'
+                : 'Sistema al día: Uwuntu XD 2006 Crystal Aero';
+        }
+        if (trayUpdateBadge) {
+            trayUpdateBadge.hidden = !hasOSUpdate;
+        }
+
+        const balloon = this.container.querySelector('#uwuntu-update-balloon');
+        if (balloon) {
+            const balloonDismissed = sessionStorage.getItem('uwuntu_os_balloon_dismissed') === 'true';
+            if (hasOSUpdate && !balloonDismissed && !this.is2006Updated) {
+                balloon.hidden = false;
+            } else {
+                balloon.hidden = true;
+            }
+        }
     }
 
     checkSystemNotifications() {
@@ -1847,6 +2051,55 @@ export class UwuntuOS {
         }
         this.vreadNotificationDismissed = true;
         sessionStorage.setItem('uwuntu_vread_dismissed', 'true');
+    }
+
+    executeOSUpdate(onDone) {
+        const overlay = this.container.querySelector('#uwuntu-reboot-overlay');
+        const title = this.container.querySelector('#uwuntu-reboot-title');
+        const desc = this.container.querySelector('#uwuntu-reboot-desc');
+
+        if (overlay) {
+            overlay.hidden = false;
+            overlay.classList.add('is-visible');
+        }
+
+        if (window.soundEngine && typeof window.soundEngine.playLevelUp === 'function') {
+            window.soundEngine.playLevelUp();
+        }
+
+        setTimeout(() => {
+            if (title) title.textContent = 'Iniciando Uwuntu XD 2006...';
+            if (desc) desc.textContent = 'Cargando interfaz ultranítida Crystal Aero';
+        }, 850);
+
+        setTimeout(() => {
+            this.is2006Updated = true;
+            if (this.game) this.game.osUpdated2006 = true;
+            localStorage.setItem('uwuntu_os_updated_2006', 'true');
+            this.container.classList.add('os-updated-2006');
+
+            // Update tray
+            const updateBtn = this.container.querySelector('#uwuntu-tray-update-btn');
+            const updateBadge = this.container.querySelector('#uwuntu-tray-update-badge');
+            if (updateBtn) {
+                updateBtn.classList.remove('has-update');
+                updateBtn.title = 'Sistema al día: Uwuntu XD 2006 Crystal Aero';
+            }
+            if (updateBadge) updateBadge.hidden = true;
+
+            const balloon = this.container.querySelector('#uwuntu-update-balloon');
+            if (balloon) balloon.hidden = true;
+
+            // Fade overlay out
+            if (overlay) {
+                overlay.classList.remove('is-visible');
+                setTimeout(() => { overlay.hidden = true; }, 400);
+            }
+
+            window.showToast?.('[[DE_ICON_073]] ¡Sistema Operativo actualizado con éxito a Uwuntu XD 2006 Crystal Aero!', 'success');
+
+            if (typeof onDone === 'function') onDone();
+        }, 1700);
     }
 
     installApp(appId, onComplete) {
@@ -2657,7 +2910,16 @@ export function getVreadUserAvatar(author = '', handle = '') {
         'dani_byte': '/avatars/avatar_8.jpg',
         'gamervance': '/avatars/avatar_2.jpg',
         'arcadefan': '/avatars/avatar_3.jpg',
-        'neogamer': '/avatars/avatar_6.jpg'
+        'neogamer': '/avatars/avatar_6.jpg',
+        'hatersupremo': '/avatars/avatar_6.jpg',
+        'toxicgamer99': '/avatars/avatar_8.jpg',
+        'hatebot3000': '/avatars/avatar_2.jpg',
+        'trollmaster': '/avatars/avatar_3.jpg',
+        'antifan_real': '/avatars/avatar_5.jpg',
+        'refund_warrior': '/avatars/avatar_7.jpg',
+        'drama_queen': '/avatars/avatar_1.jpg',
+        'nerd_rabioso': '/avatars/avatar_4.jpg',
+        'critico_implacable': '/avatars/avatar_5.jpg'
     };
 
     if (knownMap[key]) return knownMap[key];
@@ -2669,22 +2931,29 @@ export function getVreadUserAvatar(author = '', handle = '') {
     }
     // Synthetic profiles get stable, distinct illustrations without external assets.
     const seed = hash >>> 0;
-    const backgrounds = ['#274958', '#5b3d59', '#665235', '#39584c', '#3a476d', '#6a3c45'];
+    const isEdgyHater = key.includes('hate') || key.includes('toxic') || key.includes('troll') || key.includes('anti');
+    const backgrounds = isEdgyHater
+        ? ['#3b0d14', '#450a0a', '#2d0f19', '#3f1022']
+        : ['#274958', '#5b3d59', '#665235', '#39584c', '#3a476d', '#6a3c45'];
     const skins = ['#f2c7a3', '#c88362', '#88553f', '#e5b389', '#623e34'];
-    const hair = ['#252328', '#633b2b', '#b96b38', '#d0ad70', '#4b335c', '#243e46'];
+    const hair = isEdgyHater
+        ? ['#1f0a0e', '#7f1d1d', '#991b1b', '#18181b']
+        : ['#252328', '#633b2b', '#b96b38', '#d0ad70', '#4b335c', '#243e46'];
     const bg = backgrounds[seed % backgrounds.length];
     const skin = skins[(seed >>> 4) % skins.length];
     const hairColor = hair[(seed >>> 8) % hair.length];
-    const shirt = backgrounds[(seed >>> 12) % backgrounds.length];
+    const shirt = isEdgyHater ? '#991b1b' : backgrounds[(seed >>> 12) % backgrounds.length];
     const fringe = (seed & 1) ? 'M12 19 Q14 5 25 7 Q37 6 39 19 L37 24 Q30 19 27 14 Q21 20 13 22Z' : 'M12 22 Q10 7 25 7 Q40 7 39 22 L35 17 Q25 11 15 19Z';
     const glasses = (seed & 2) ? '<path d="M15 25h8v5h-8z M27 25h8v5h-8z M23 27h4" fill="none" stroke="#1c2731" stroke-width="1.4"/>' : '';
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><rect width="50" height="50" fill="${bg}"/><path d="M3 50 Q5 36 18 36h14 Q45 36 47 50" fill="${shirt}"/><ellipse cx="25" cy="25" rx="12" ry="15" fill="${skin}"/><path d="${fringe}" fill="${hairColor}"/><circle cx="20" cy="27" r="1.2" fill="#20252b"/><circle cx="30" cy="27" r="1.2" fill="#20252b"/>${glasses}<path d="M22 33 Q25 35 28 33" fill="none" stroke="#743f39" stroke-linecap="round"/></svg>`;
+    const haterGlow = isEdgyHater ? '<circle cx="20" cy="27" r="2.2" fill="#ef4444"/><circle cx="30" cy="27" r="2.2" fill="#ef4444"/>' : '<circle cx="20" cy="27" r="1.2" fill="#20252b"/><circle cx="30" cy="27" r="1.2" fill="#20252b"/>';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"><rect width="50" height="50" fill="${bg}"/><path d="M3 50 Q5 36 18 36h14 Q45 36 47 50" fill="${shirt}"/><ellipse cx="25" cy="25" rx="12" ry="15" fill="${skin}"/><path d="${fringe}" fill="${hairColor}"/>${haterGlow}${glasses}<path d="M22 33 Q25 35 28 33" fill="none" stroke="#743f39" stroke-linecap="round"/></svg>`;
     return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 let currentVreadFilter = 'all';
 let currentVreadTag = null;
 let currentVreadSearch = '';
+let currentVreadMutedHandles = new Set();
 
 function formatVreadNumber(num) {
     const n = Number(num) || 0;
@@ -2696,6 +2965,21 @@ function escapeVread(value) {
     return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 }
 
+function getVreadLiveTickerItems(gameInstance) {
+    const studioName = gameInstance.companyName || 'Tu Estudio';
+    const trend = gameInstance.marketTrend;
+    const trendTopic = trend?.topicId || trend?.topicName || 'Cyberpunk';
+    const trendGenre = trend?.genreId || trend?.genreName || 'RPG';
+    return [
+        `TENDENCIA: #${trendTopic} bate récords de debates y ecos en redes`,
+        `POLÉMICA: @hatersupremo lanza duras críticas contra los lanzamientos sin pulir`,
+        `MERCADO: Los analistas pronostican gran demanda para producciones de ${trendGenre}`,
+        `SALSEO: Ola de debates caldeados entre fans y haters en la comunidad`,
+        `COMUNIDAD: ${studioName} monitoriza las reacciones de sus seguidores en directo`,
+        `INDUSTRIA: Desarrolladores independientes revolucionan las mecánicas de juego`
+    ];
+}
+
 function renderVreadAppContent(container, gameInstance) {
     const studioName = gameInstance.companyName || 'Tu Estudio';
     const studioHandle = studioName.normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'estudio';
@@ -2704,6 +2988,8 @@ function renderVreadAppContent(container, gameInstance) {
     const trend = gameInstance.marketTrend;
     const trendTopicName = trend?.topicId || trend?.topicName || 'Cyberpunk';
     const trendGenreName = trend?.genreId || trend?.genreName || 'RPG';
+    const initialSentiment = getCommunitySentiment(gameInstance);
+    const tickerItems = getVreadLiveTickerItems(gameInstance);
 
     let allPosts = generateVreadFeed(gameInstance);
     const maxFeedPosts = 500;
@@ -2720,14 +3006,27 @@ function renderVreadAppContent(container, gameInstance) {
                             <span class="vread-subtag">La conversación del videojuego</span>
                         </div>
                     </div>
-                    <button type="button" class="vread-refresh-btn" id="vread-refresh-btn" title="Actualizar publicaciones">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="23 4 23 10 17 10"></polyline>
-                            <polyline points="1 20 1 14 7 14"></polyline>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-                        </svg>
-                    </button>
+                    <div class="vread-header-right">
+                        <button type="button" class="vread-refresh-btn" id="vread-refresh-btn" title="Actualizar publicaciones">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="23 4 23 10 17 10"></polyline>
+                                <polyline points="1 20 1 14 7 14"></polyline>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </button>
+                    </div>
                 </header>
+
+                <!-- Live Ticker Bar -->
+                <div class="vread-live-ticker" aria-label="Noticias y actualidad en directo">
+                    <div class="vread-ticker-badge">
+                        <span class="ticker-live-dot"></span>
+                        <span class="ticker-live-text">EN VIVO</span>
+                    </div>
+                    <div class="vread-ticker-marquee">
+                        <span class="vread-ticker-content" id="vread-ticker-text">${escapeVread(tickerItems[0])}</span>
+                    </div>
+                </div>
 
                 <!-- Composer Box -->
                 <div class="vread-composer-box">
@@ -2735,14 +3034,27 @@ function renderVreadAppContent(container, gameInstance) {
                         <div class="vread-studio-avatar-inner" data-studio-avatar></div>
                     </div>
                     <div class="vread-composer-main">
-                        <textarea maxlength="500" id="vread-compose-input" placeholder="¿Qué está pasando en ${escapeVread(studioName)}? Comparte un anuncio o interactúa con la comunidad..." rows="2"></textarea>
+                        <textarea maxlength="500" id="vread-compose-input" placeholder="¿Qué está pasando en ${escapeVread(studioName)}? Comparte un anuncio, responde a las críticas o aviva el debate..." rows="2"></textarea>
                         <div class="vread-composer-toolbar">
                             <div class="vread-composer-tags">
                                 <button type="button" class="composer-tag-pill" data-insert="#${escapeVread(studioName.replace(/\s+/g, ''))}">#${escapeVread(studioName.replace(/\s+/g, ''))}</button>
                                 <button type="button" class="composer-tag-pill" data-insert="#Goty${year}">#Goty${year}</button>
                                 <button type="button" class="composer-tag-pill" data-insert="#DevUpdate">#DevUpdate</button>
+                                <button type="button" class="composer-tag-pill" data-insert="#PatchNotes">#PatchNotes</button>
+                                <button type="button" class="composer-tag-pill" data-insert="#Hype">#Hype</button>
+                                <button type="button" class="composer-tag-pill" data-insert="#Salseo">#Salseo</button>
                             </div>
-                            <button type="button" class="vread-publish-btn" id="vread-publish-btn">Publicar</button>
+                            <div class="vread-composer-actions">
+                                <span class="vread-tone-badge tone-neutral" id="vread-tone-badge" title="Tono detectado según el texto escrito">Tono: General</span>
+                                <div class="vread-char-counter-wrap" title="Caracteres escritos">
+                                    <svg class="vread-counter-ring" viewBox="0 0 28 28" width="20" height="20">
+                                        <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(255, 255, 255, 0.12)" stroke-width="2.2"/>
+                                        <circle id="vread-counter-circle" cx="14" cy="14" r="11" fill="none" stroke="#38bdf8" stroke-width="2.2" stroke-dasharray="69.1" stroke-dashoffset="69.1" stroke-linecap="round"/>
+                                    </svg>
+                                    <span id="vread-char-count" class="vread-char-count">0 / 500</span>
+                                </div>
+                                <button type="button" class="vread-publish-btn" id="vread-publish-btn">Publicar</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -2754,6 +3066,9 @@ function renderVreadAppContent(container, gameInstance) {
                 <div class="vread-feed-tabs" role="tablist">
                     <button type="button" class="vread-tab ${currentVreadFilter === 'all' ? 'active' : ''}" data-vread-tab="all">Para ti</button>
                     <button type="button" class="vread-tab ${currentVreadFilter === 'reviews' ? 'active' : ''}" data-vread-tab="reviews">Opiniones & Críticas</button>
+                    <button type="button" class="vread-tab ${currentVreadFilter === 'hater' ? 'active' : ''}" data-vread-tab="hater">
+                        <span class="tab-hater-indicator"></span> Haters & Salseo
+                    </button>
                     <button type="button" class="vread-tab ${currentVreadFilter === 'live' ? 'active' : ''}" data-vread-tab="live">En directo (Twich)</button>
                     <button type="button" class="vread-tab ${currentVreadFilter === 'trend' ? 'active' : ''}" data-vread-tab="trend">Tendencias</button>
                 </div>
@@ -2780,6 +3095,7 @@ function renderVreadAppContent(container, gameInstance) {
                     <input type="text" id="vread-search-input" placeholder="Buscar en Vread..." value="${escapeVread(currentVreadSearch)}">
                 </div>
 
+                <!-- Studio Profile Card -->
                 <div class="vread-side-card vread-pulse-card">
                     <div class="pulse-card-header">
                         <span class="vread-profile-avatar" data-studio-avatar aria-label="Logo del estudio"></span>
@@ -2802,6 +3118,33 @@ function renderVreadAppContent(container, gameInstance) {
                     </div>
                 </div>
 
+                <!-- Community Sentiment Card -->
+                <div class="vread-side-card vread-sentiment-card" id="vread-sentiment-card">
+                    <div class="sentiment-card-header">
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="sentiment-icon">
+                            <path d="M18 20V10M12 20V4M6 20v-6"/>
+                        </svg>
+                        <h3 class="side-card-title">Termómetro de Comunidad</h3>
+                    </div>
+                    <div class="sentiment-meter-wrap">
+                        <div class="sentiment-meter-bar" id="vread-sentiment-bar">
+                            <div class="sentiment-bar-segment segment-fans" style="width: ${initialSentiment.fans}%;"></div>
+                            <div class="sentiment-bar-segment segment-neutral" style="width: ${initialSentiment.neutral}%;"></div>
+                            <div class="sentiment-bar-segment segment-haters" style="width: ${initialSentiment.haters}%;"></div>
+                        </div>
+                        <div class="sentiment-legend" id="vread-sentiment-legend">
+                            <span class="legend-item legend-fans"><span class="dot-fans"></span> ${initialSentiment.fans}% Fans</span>
+                            <span class="legend-item legend-neutral"><span class="dot-neutral"></span> ${initialSentiment.neutral}% Neutro</span>
+                            <span class="legend-item legend-haters"><span class="dot-haters"></span> ${initialSentiment.haters}% Haters</span>
+                        </div>
+                    </div>
+                    <div class="sentiment-status-pill ${initialSentiment.haters > 35 ? 'status-hostile' : initialSentiment.fans > 50 ? 'status-hype' : 'status-balanced'}" id="vread-sentiment-status">
+                        <span class="sentiment-status-dot"></span>
+                        <span class="sentiment-status-text">${escapeVread(initialSentiment.label)}</span>
+                    </div>
+                </div>
+
+                <!-- Industry Trends Card -->
                 <div class="vread-side-card">
                     <h3 class="side-card-title">Tendencias de la industria</h3>
                     <div class="vread-side-trends">
@@ -2820,6 +3163,11 @@ function renderVreadAppContent(container, gameInstance) {
                             <strong>#${escapeVread(studioName.replace(/\s+/g, ''))}</strong>
                             <span class="side-trend-count">14.6k ecos</span>
                         </div>
+                        <div class="side-trend-item" data-tag="#HatersVsFans">
+                            <span class="side-trend-cat">Polémica comunitaria</span>
+                            <strong>#HatersVsFans</strong>
+                            <span class="side-trend-count">22.4k ecos</span>
+                        </div>
                         <div class="side-trend-item" data-tag="#TwichGaming">
                             <span class="side-trend-cat">Retransmisión en directo</span>
                             <strong>#TwichGaming</strong>
@@ -2833,6 +3181,7 @@ function renderVreadAppContent(container, gameInstance) {
                     </div>
                 </div>
 
+                <!-- Who to follow card (with Hater Supremo) -->
                 <div class="vread-side-card">
                     <h3 class="side-card-title">A quién seguir</h3>
                     <div class="vread-follow-list">
@@ -2856,6 +3205,19 @@ function renderVreadAppContent(container, gameInstance) {
                             </div>
                             <button type="button" class="vread-follow-btn">Seguir</button>
                         </div>
+                        <div class="vread-follow-item is-hater-item">
+                            <div class="vread-avatar vread-avatar--hater">
+                                <img src="/avatars/avatar_6.jpg" alt="Hater Supremo" class="vread-avatar-img" />
+                            </div>
+                            <div class="vread-follow-info">
+                                <div class="follow-name-row">
+                                    <strong>Hater Supremo</strong>
+                                    <span class="vread-mini-hater-tag">Hater</span>
+                                </div>
+                                <span>@hatersupremo</span>
+                            </div>
+                            <button type="button" class="vread-follow-btn vread-block-hater-btn" data-handle="hatersupremo">Silenciar</button>
+                        </div>
                         <div class="vread-follow-item">
                             <div class="vread-avatar vread-avatar--user">
                                 <img src="/avatars/avatar_5.jpg" alt="AnalistaVideojuegos" class="vread-avatar-img" />
@@ -2874,6 +3236,52 @@ function renderVreadAppContent(container, gameInstance) {
 
     syncStudioAvatars(container, gameInstance.companyLogo);
 
+    // Dynamic ticker cycler
+    const tickerEl = container.querySelector('#vread-ticker-text');
+    let tickerIndex = 0;
+    const tickerInterval = setInterval(() => {
+        if (!container.isConnected) {
+            clearInterval(tickerInterval);
+            return;
+        }
+        tickerIndex = (tickerIndex + 1) % tickerItems.length;
+        if (tickerEl) {
+            tickerEl.style.opacity = '0';
+            setTimeout(() => {
+                if (tickerEl) {
+                    tickerEl.textContent = tickerItems[tickerIndex];
+                    tickerEl.style.opacity = '1';
+                }
+            }, 200);
+        }
+    }, 6500);
+
+    // Update community sentiment card in sidebar
+    function updateSentimentDisplay() {
+        const sentiment = getCommunitySentiment(gameInstance);
+        const bar = container.querySelector('#vread-sentiment-bar');
+        const legend = container.querySelector('#vread-sentiment-legend');
+        const status = container.querySelector('#vread-sentiment-status');
+        if (!bar || !legend || !status) return;
+
+        bar.innerHTML = `
+            <div class="sentiment-bar-segment segment-fans" style="width: ${sentiment.fans}%;"></div>
+            <div class="sentiment-bar-segment segment-neutral" style="width: ${sentiment.neutral}%;"></div>
+            <div class="sentiment-bar-segment segment-haters" style="width: ${sentiment.haters}%;"></div>
+        `;
+        legend.innerHTML = `
+            <span class="legend-item legend-fans"><span class="dot-fans"></span> ${sentiment.fans}% Fans</span>
+            <span class="legend-item legend-neutral"><span class="dot-neutral"></span> ${sentiment.neutral}% Neutro</span>
+            <span class="legend-item legend-haters"><span class="dot-haters"></span> ${sentiment.haters}% Haters</span>
+        `;
+        const statusClass = sentiment.haters > 35 ? 'status-hostile' : sentiment.fans > 50 ? 'status-hype' : 'status-balanced';
+        status.className = `sentiment-status-pill ${statusClass}`;
+        status.innerHTML = `
+            <span class="sentiment-status-dot"></span>
+            <span class="sentiment-status-text">${escapeVread(sentiment.label)}</span>
+        `;
+    }
+
     // Render chips
     function renderChips() {
         const chipsContainer = container.querySelector('#vread-trends-chips');
@@ -2884,6 +3292,7 @@ function renderVreadAppContent(container, gameInstance) {
             `#Goty${year}`,
             `#${trendTopicName}`,
             `#${trendGenreName}`,
+            '#HatersVsFans',
             '#TwichGaming',
             '#GameDev',
             '#GOTY'
@@ -2915,10 +3324,17 @@ function renderVreadAppContent(container, gameInstance) {
         // Filter by tab
         if (currentVreadFilter === 'reviews') {
             filtered = filtered.filter(p => p.type === 'reviews');
+        } else if (currentVreadFilter === 'hater') {
+            filtered = filtered.filter(p => p.isHater || p.type === 'hater' || (p.impact && p.impact.backlash));
         } else if (currentVreadFilter === 'live') {
             filtered = filtered.filter(p => p.type === 'live');
         } else if (currentVreadFilter === 'trend') {
             filtered = filtered.filter(p => p.type === 'trend');
+        }
+
+        // Filter out muted handles
+        if (currentVreadMutedHandles.size > 0) {
+            filtered = filtered.filter(p => !currentVreadMutedHandles.has((p.handle || '').toLowerCase()));
         }
 
         // Filter by hashtag chip
@@ -2930,19 +3346,21 @@ function renderVreadAppContent(container, gameInstance) {
         // Filter by search
         if (currentVreadSearch.trim()) {
             const q = currentVreadSearch.trim().toLowerCase();
-            filtered = filtered.filter(p => p.text.toLowerCase().includes(q) || p.author.toLowerCase().includes(q) || p.handle.toLowerCase().includes(q));
+            filtered = filtered.filter(p => p.text.toLowerCase().includes(q) || p.author.toLowerCase().includes(q) || (p.handle && p.handle.toLowerCase().includes(q)));
         }
 
         if (!filtered.length) {
             if (!appendPosts) postsContainer.innerHTML = `
-                <div class="vread-empty"><p>No se encontraron publicaciones con los filtros seleccionados. Prueba a cargar más.</p></div>`;
+                <div class="vread-empty"><p>No se encontraron publicaciones con los filtros seleccionados. Prueba a cargar más o cambiar de pestaña.</p></div>`;
             return;
         }
 
         if (appendPosts) postsContainer.querySelector('.vread-empty')?.remove();
         const previousCount = appendPosts ? postsContainer.children.length : 0;
-        const markup = filtered.map((post, idx) => {
+        const markup = filtered.map((post) => {
             const isStudio = post.isStudio === true;
+            const isHater = post.isHater === true || post.type === 'hater';
+            const isRatioed = post.isRatioed === true;
             const avatarUrl = isStudio ? null : getVreadUserAvatar(post.author, post.handle);
             const highlightedText = escapeVread(post.text)
                 .replace(/#\{([^}]+)\}/g, '<span class="vread-mention">#$1</span>')
@@ -2950,8 +3368,8 @@ function renderVreadAppContent(container, gameInstance) {
                 .replace(/@([a-zA-Z0-9_]+)/g, '<span class="vread-handle-mention">@$1</span>');
 
             return `
-                <article class="vread-post" data-post-id="${escapeVread(post.id)}">
-                    <div class="vread-avatar ${isStudio ? 'vread-avatar--player' : 'vread-avatar--user'}" aria-hidden="true">
+                <article class="vread-post ${isHater ? 'is-hater' : ''} ${isRatioed ? 'is-ratioed' : ''}" data-post-id="${escapeVread(post.id)}">
+                    <div class="vread-avatar ${isStudio ? 'vread-avatar--player' : isHater ? 'vread-avatar--hater' : 'vread-avatar--user'}" aria-hidden="true">
                         ${isStudio ? `
                             <div class="vread-studio-avatar-inner" data-studio-avatar></div>
                         ` : `
@@ -2961,6 +3379,12 @@ function renderVreadAppContent(container, gameInstance) {
                     <div class="vread-post-main">
                         <header class="vread-post-head">
                             <span class="vread-author-name">${escapeVread(post.author)}</span>
+                            ${isHater ? `
+                                <span class="vread-hater-badge" title="Perfil hater de la comunidad">
+                                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 9v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                    HATER
+                                </span>
+                            ` : ''}
                             ${post.verified ? `
                                 <svg class="vread-verified-badge" viewBox="0 0 20 20" fill="#38bdf8" width="14" height="14" aria-label="Verificado">
                                     <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
@@ -2971,6 +3395,12 @@ function renderVreadAppContent(container, gameInstance) {
                             ${post.isLive ? `<span class="vread-live-pill"><span class="live-dot"></span> EN DIRECTO</span>` : ''}
                         </header>
                         <p class="vread-post-text">${highlightedText}</p>
+                        ${isRatioed ? `
+                            <div class="vread-ratio-banner">
+                                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0zM12 9v4m0 4h.01"/></svg>
+                                <span><strong>RATIOED POR LA COMUNIDAD</strong> · Las réplicas superan ampliamente el apoyo recibido</span>
+                            </div>
+                        ` : ''}
                         ${post.impact ? `<p class="vread-post-impact ${post.impact.backlash ? 'is-backlash' : ''}">${post.impact.backlash ? 'Polémica · ' : ''}${post.impact.sales > 0 ? '+' : ''}${post.impact.sales}% ventas${post.impact.targetName ? ` · ${escapeVread(post.impact.targetName)}` : ' · catálogo'} · ${post.impact.reputation > 0 ? '+' : ''}${post.impact.reputation} reputación${post.impact.repeated ? ' · mensaje repetido' : ''}</p>` : ''}
                         
                         <!-- Actions bar -->
@@ -2979,7 +3409,7 @@ function renderVreadAppContent(container, gameInstance) {
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                                 </svg>
-                                <span>${post.replies?.length || 0}</span>
+                                <span class="vread-replies-count">${post.replies?.length || 0}</span>
                             </button>
                             <button type="button" class="vread-action-btn vread-action-repost" title="Republicar" data-reposts="${post.reposts || 0}">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -3011,17 +3441,47 @@ function renderVreadAppContent(container, gameInstance) {
                             <details class="vread-replies-accordion" ${isStudio ? 'open' : ''}>
                                 <summary>Ver ${post.replies.length} respuestas</summary>
                                 <div class="vread-replies-list">
-                                    ${post.replies.map(r => `
-                                        <div class="vread-reply-item">
-                                            <div class="vread-avatar-mini">
-                                                <img src="${getVreadUserAvatar(r.author, r.handle || r.author)}" alt="${escapeVread(r.author)}" class="vread-avatar-img" loading="lazy" />
+                                    ${post.replies.map(r => {
+                                        const isHaterReply = r.isHater || (r.handle && r.handle.toLowerCase().includes('hate'));
+                                        return `
+                                            <div class="vread-reply-item ${isHaterReply ? 'is-hater-reply' : ''}">
+                                                <div class="vread-avatar-mini ${isHaterReply ? 'is-hater' : ''}">
+                                                    <img src="${getVreadUserAvatar(r.author, r.handle || r.author)}" alt="${escapeVread(r.author)}" class="vread-avatar-img" loading="lazy" />
+                                                </div>
+                                                <div class="vread-reply-body">
+                                                    <div class="vread-reply-author-line">
+                                                        <strong class="vread-reply-author">@${escapeVread(r.handle || r.author.toLowerCase().replace(/[^a-z0-9]/g, ''))}:</strong>
+                                                        ${isHaterReply ? `<span class="vread-mini-hater-tag">Hater</span>` : ''}
+                                                    </div>
+                                                    <span class="vread-reply-text">${escapeVread(r.text)}</span>
+                                                </div>
                                             </div>
-                                            <div class="vread-reply-body">
-                                                <strong class="vread-reply-author">@${escapeVread(r.handle || r.author.toLowerCase().replace(/[^a-z0-9]/g, ''))}:</strong>
-                                                <span class="vread-reply-text">${escapeVread(r.text)}</span>
-                                            </div>
+                                        `;
+                                    }).join('')}
+
+                                    <!-- Interactive Studio Response Drawer -->
+                                    <div class="vread-inline-reply-box" data-target-id="${escapeVread(post.id)}">
+                                        <div class="inline-reply-chips">
+                                            <button type="button" class="vread-smart-reply-chip" data-quick="fact" title="Responder con datos contrastados (+1 Rep)">
+                                                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                Zasca con datos (+Rep)
+                                            </button>
+                                            <button type="button" class="vread-smart-reply-chip" data-quick="salseo" title="Avivar el debate y aumentar alcance (+Ecos)">
+                                                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                                                Avivar salseo (+Ecos)
+                                            </button>
+                                            ${isHater ? `
+                                            <button type="button" class="vread-smart-reply-chip vread-chip-mute" data-mute="${escapeVread(post.handle)}" title="Silenciar a este usuario hater">
+                                                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+                                                Silenciar @${escapeVread(post.handle)}
+                                            </button>
+                                            ` : ''}
                                         </div>
-                                    `).join('')}
+                                        <div class="inline-reply-input-row">
+                                            <input type="text" class="vread-inline-input" placeholder="Responder como ${escapeVread(studioName)}..." maxlength="200" />
+                                            <button type="button" class="vread-inline-send-btn">Responder</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </details>
                         ` : ''}
@@ -3029,6 +3489,7 @@ function renderVreadAppContent(container, gameInstance) {
                 </article>
             `;
         }).join('');
+
         if (appendPosts) postsContainer.insertAdjacentHTML('beforeend', markup);
         else postsContainer.innerHTML = markup;
 
@@ -3058,6 +3519,101 @@ function renderVreadAppContent(container, gameInstance) {
                 count = isReposted ? count + 1 : Math.max(0, count - 1);
                 repostBtn.dataset.reposts = count;
                 repostBtn.querySelector('.vread-reposts-count').textContent = formatVreadNumber(count);
+            });
+        });
+
+        // Wire inline response quick chips & custom reply
+        newPosts.flatMap(post => [...post.querySelectorAll('.vread-inline-reply-box')]).forEach(replyBox => {
+            const postId = replyBox.dataset.targetId;
+            const inlineInput = replyBox.querySelector('.vread-inline-input');
+            const inlineBtn = replyBox.querySelector('.vread-inline-send-btn');
+
+            // Quick Fact chip
+            replyBox.querySelector('[data-quick="fact"]')?.addEventListener('click', () => {
+                const targetPost = allPosts.find(p => p.id === postId);
+                if (targetPost) {
+                    targetPost.replies = targetPost.replies || [];
+                    targetPost.replies.push({
+                        author: studioName,
+                        handle: studioHandle,
+                        text: 'Datos oficiales: auditamos rigurosamente cada mecánica y tomamos nota de cada sugerencia constructiva. ¡Gracias a la comunidad!',
+                        isStudio: true
+                    });
+                    const vstate = ensureVreadState(gameInstance);
+                    vstate.reputation = Math.min(100, vstate.reputation + 1);
+                    const repEl = container.querySelector('#vread-reputation');
+                    if (repEl) repEl.textContent = `${vstate.reputation}/100`;
+                    updateSentimentDisplay();
+                    renderTimeline();
+                    const fb = container.querySelector('#vread-impact-message');
+                    fb.textContent = 'Respuesta corporativa enviada con éxito: +1 Reputación en Vread.';
+                    fb.dataset.kind = 'positive';
+                    if (window.soundEngine?.playClick) window.soundEngine.playClick();
+                }
+            });
+
+            // Quick Salseo chip
+            replyBox.querySelector('[data-quick="salseo"]')?.addEventListener('click', () => {
+                const targetPost = allPosts.find(p => p.id === postId);
+                if (targetPost) {
+                    targetPost.replies = targetPost.replies || [];
+                    targetPost.replies.push({
+                        author: studioName,
+                        handle: studioHandle,
+                        text: 'Agradecemos el debate... pero esperad a ver la próxima build. Os vais a quedar sin palabras ;) #GameDev',
+                        isStudio: true
+                    });
+                    targetPost.reposts = (targetPost.reposts || 0) + 16;
+                    targetPost.likes = (targetPost.likes || 0) + 48;
+                    updateSentimentDisplay();
+                    renderTimeline();
+                    const fb = container.querySelector('#vread-impact-message');
+                    fb.textContent = 'Has avivado el debate: la publicación gana repercusión y ecos en la comunidad.';
+                    fb.dataset.kind = 'positive';
+                    if (window.soundEngine?.playClick) window.soundEngine.playClick();
+                }
+            });
+
+            // Quick Mute chip
+            replyBox.querySelector('[data-mute]')?.addEventListener('click', (e) => {
+                const muteTarget = e.currentTarget.dataset.mute.toLowerCase();
+                currentVreadMutedHandles.add(muteTarget);
+                renderTimeline();
+                const fb = container.querySelector('#vread-impact-message');
+                fb.textContent = `Has silenciado a @${muteTarget}. Ya no verás sus comentarios en Vread.`;
+                fb.dataset.kind = 'positive';
+                if (window.soundEngine?.playClick) window.soundEngine.playClick();
+            });
+
+            // Custom inline send
+            const doInlineReply = () => {
+                if (!inlineInput) return;
+                const text = inlineInput.value.trim();
+                if (!text) return;
+                const targetPost = allPosts.find(p => p.id === postId);
+                if (targetPost) {
+                    targetPost.replies = targetPost.replies || [];
+                    targetPost.replies.push({
+                        author: studioName,
+                        handle: studioHandle,
+                        text,
+                        isStudio: true
+                    });
+                    inlineInput.value = '';
+                    renderTimeline();
+                    const fb = container.querySelector('#vread-impact-message');
+                    fb.textContent = 'Respuesta enviada a la conversación.';
+                    fb.dataset.kind = 'positive';
+                    if (window.soundEngine?.playClick) window.soundEngine.playClick();
+                }
+            };
+
+            inlineBtn?.addEventListener('click', doInlineReply);
+            inlineInput?.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    doInlineReply();
+                }
             });
         });
     }
@@ -3092,16 +3648,94 @@ function renderVreadAppContent(container, gameInstance) {
     });
 
     // Attach Follow buttons
-    container.querySelectorAll('.vread-follow-btn').forEach(btn => {
+    container.querySelectorAll('.vread-follow-btn:not(.vread-block-hater-btn)').forEach(btn => {
         btn.addEventListener('click', () => {
             const isFollowing = btn.classList.toggle('following');
             btn.textContent = isFollowing ? 'Siguiendo' : 'Seguir';
         });
     });
 
+    // Attach Hater block/mute toggle button
+    container.querySelectorAll('.vread-block-hater-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const handle = (btn.dataset.handle || 'hatersupremo').toLowerCase();
+            const isMuted = currentVreadMutedHandles.has(handle);
+            if (isMuted) {
+                currentVreadMutedHandles.delete(handle);
+                btn.textContent = 'Silenciar';
+                btn.classList.remove('is-muted');
+            } else {
+                currentVreadMutedHandles.add(handle);
+                btn.textContent = 'Silenciado';
+                btn.classList.add('is-muted');
+            }
+            renderTimeline();
+            const fb = container.querySelector('#vread-impact-message');
+            fb.textContent = isMuted ? `Has cancelado el silencio de @${handle}.` : `Has silenciado a @${handle}.`;
+            fb.dataset.kind = 'positive';
+            if (window.soundEngine?.playClick) window.soundEngine.playClick();
+        });
+    });
+
+    // Real-time character counter and tone analysis in composer
+    const composeInput = container.querySelector('#vread-compose-input');
+    const updateComposerStatus = () => {
+        if (!composeInput) return;
+        const text = composeInput.value;
+        const len = text.length;
+        const countEl = container.querySelector('#vread-char-count');
+        const circleEl = container.querySelector('#vread-counter-circle');
+        const toneBadge = container.querySelector('#vread-tone-badge');
+
+        if (countEl) countEl.textContent = `${len} / 500`;
+        if (circleEl) {
+            const circumference = 69.115;
+            const progress = Math.min(1, len / 500);
+            const offset = circumference - progress * circumference;
+            circleEl.style.strokeDashoffset = offset;
+            if (len >= 480) {
+                circleEl.setAttribute('stroke', '#f43f5e');
+            } else if (len >= 400) {
+                circleEl.setAttribute('stroke', '#f59e0b');
+            } else {
+                circleEl.setAttribute('stroke', '#38bdf8');
+            }
+        }
+
+        if (toneBadge) {
+            if (!text.trim()) {
+                toneBadge.textContent = 'Tono: General';
+                toneBadge.className = 'vread-tone-badge tone-neutral';
+            } else {
+                const analysis = classifyVreadPost(text);
+                const toneLabels = {
+                    hype: 'Tono: Hype & Anuncio',
+                    humor: 'Tono: Humor & Comunidad',
+                    tech: 'Tono: Dev & Técnico',
+                    apology: 'Tono: Disculpa Oficial',
+                    neutral: 'Tono: General'
+                };
+                toneBadge.textContent = toneLabels[analysis.tone] || 'Tono: General';
+                toneBadge.className = `vread-tone-badge tone-${analysis.tone}`;
+            }
+        }
+    };
+    composeInput?.addEventListener('input', updateComposerStatus);
+
+    // Tag inserters in composer
+    container.querySelectorAll('.composer-tag-pill').forEach(tagBtn => {
+        tagBtn.addEventListener('click', () => {
+            const tag = tagBtn.dataset.insert;
+            if (composeInput) {
+                composeInput.value = (composeInput.value + ' ' + tag).trim() + ' ';
+                composeInput.focus();
+                updateComposerStatus();
+            }
+        });
+    });
+
     // Attach Composer publish
     const publishBtn = container.querySelector('#vread-publish-btn');
-    const composeInput = container.querySelector('#vread-compose-input');
     if (publishBtn && composeInput) {
         const doPublish = () => {
             const text = composeInput.value.trim();
@@ -3121,14 +3755,20 @@ function renderVreadAppContent(container, gameInstance) {
             const noSales = impact.sales && !gameInstance.activeSales?.length ? ' No hay juegos a la venta ahora mismo.' : '';
             feedback.textContent = `${impact.backlash ? 'Polémica: ' : ''}${effect} ${reputation}${noSales}${impact.repeated ? ' Mensaje repetido: sin nuevo impacto.' : ''}`;
             feedback.dataset.kind = impact.backlash || impact.sales < 0 ? 'negative' : 'positive';
-            container.querySelector('#vread-reputation').textContent = `${ensureVreadState(gameInstance).reputation}/100`;
+            const repEl = container.querySelector('#vread-reputation');
+            if (repEl) repEl.textContent = `${ensureVreadState(gameInstance).reputation}/100`;
+
+            updateSentimentDisplay();
+
             const reactions = impact.backlash
                 ? generateVreadFeed(gameInstance).filter(post => post.id.startsWith('backlash-'))
                 : [];
             allPosts = [result.post, ...reactions, ...allPosts].slice(0, maxFeedPosts);
             composeInput.value = '';
+            updateComposerStatus();
             renderTimeline();
-            container.querySelector('#vread-feed-timeline').scrollTop = 0;
+            const timelineEl = container.querySelector('#vread-feed-timeline');
+            if (timelineEl) timelineEl.scrollTop = 0;
 
             if (window.soundEngine?.playClick) window.soundEngine.playClick();
         };
@@ -3141,15 +3781,6 @@ function renderVreadAppContent(container, gameInstance) {
                 doPublish();
             }
         });
-
-        // Tag inserters in composer
-        container.querySelectorAll('.composer-tag-pill').forEach(tagBtn => {
-            tagBtn.addEventListener('click', () => {
-                const tag = tagBtn.dataset.insert;
-                composeInput.value = (composeInput.value + ' ' + tag).trim() + ' ';
-                composeInput.focus();
-            });
-        });
     }
 
     // Attach Refresh button
@@ -3160,15 +3791,15 @@ function renderVreadAppContent(container, gameInstance) {
             setTimeout(() => {
                 refreshBtn.classList.remove('spinning');
                 const fresh = generateVreadFeed(gameInstance).filter(post => !post.isStudio);
-                // At the memory limit, an explicit refresh starts a new browseable
-                // batch while retaining the studio's own published messages.
                 const older = allPosts.length >= maxFeedPosts ? [] : allPosts.filter(post => !post.isStudio);
                 allPosts = [...allPosts.filter(post => post.isStudio), ...fresh, ...older].slice(0, maxFeedPosts);
                 container.querySelector('#vread-update-notice').hidden = true;
+                updateSentimentDisplay();
                 updateLoadMore();
                 renderChips();
                 renderTimeline();
-                container.querySelector('#vread-feed-timeline').scrollTop = 0;
+                const timelineEl = container.querySelector('#vread-feed-timeline');
+                if (timelineEl) timelineEl.scrollTop = 0;
             }, 300);
         });
     }
@@ -3180,6 +3811,7 @@ function renderVreadAppContent(container, gameInstance) {
         lastFeedWeek = currentWeek;
         const reputation = container.querySelector('#vread-reputation');
         if (reputation) reputation.textContent = `${ensureVreadState(gameInstance).reputation}/100`;
+        updateSentimentDisplay();
         container.querySelector('#vread-update-notice').hidden = false;
     };
 
@@ -3248,7 +3880,7 @@ function renderGuideAppContent(container) {
 
 // 7. CUSTOM APP: TERMINAL DE ADMINISTRACIÓN (ADMIN CONSOLE)
 function renderAdminAppContent(container, gameInstance) {
-    const getFundsFormatted = () => `$${Math.floor(gameInstance.funds || 0).toLocaleString('es-ES')}`;
+    const getFundsFormatted = () => `${Math.floor(gameInstance.funds || 0).toLocaleString('es-ES')} €`;
     const getRP = () => Math.floor(gameInstance.researchPoints || 0);
     const getEmployeesCount = () => (gameInstance.employees ? gameInstance.employees.length : 1);
     const getAvgEnergy = () => {
@@ -3308,15 +3940,15 @@ function renderAdminAppContent(container, gameInstance) {
                             <span>Gestión de Fondos</span>
                         </div>
                         <div class="admin-funds-input-group">
-                            <input type="number" id="admin-input-funds" min="0" step="10000" value="1000000" placeholder="Cantidad en dólares">
+                            <input type="number" id="admin-input-funds" min="0" step="10000" value="1000000" placeholder="Cantidad en euros">
                             <button type="button" class="admin-btn primary" id="admin-btn-add-funds">+ Añadir</button>
                             <button type="button" class="admin-btn secondary" id="admin-btn-set-funds">= Fijar</button>
                         </div>
                         <div class="admin-pills-row">
-                            <button type="button" class="admin-pill-btn" data-add-funds="100000">+$100k</button>
-                            <button type="button" class="admin-pill-btn" data-add-funds="1000000">+$1M</button>
-                            <button type="button" class="admin-pill-btn" data-add-funds="10000000">+$10M</button>
-                            <button type="button" class="admin-pill-btn gold" data-set-funds="50000000">Max $50M</button>
+                            <button type="button" class="admin-pill-btn" data-add-funds="100000">+100k €</button>
+                            <button type="button" class="admin-pill-btn" data-add-funds="1000000">+1M €</button>
+                            <button type="button" class="admin-pill-btn" data-add-funds="10000000">+10M €</button>
+                            <button type="button" class="admin-pill-btn gold" data-set-funds="50000000">Max 50M €</button>
                         </div>
                     </div>
 
@@ -3355,7 +3987,7 @@ function renderAdminAppContent(container, gameInstance) {
                             </button>
                             <button type="button" class="admin-action-btn gold" id="admin-btn-godmode">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-5-6.5 5 2-7.5L2 9h7l3-7z"/></svg>
-                                <span>Modo Dios (+$50M, +5.000 RP, 100% Energía)</span>
+                                <span>Modo Dios (+50M €, +5.000 RP, 100% Energía)</span>
                             </button>
                         </div>
                     </div>
@@ -3425,7 +4057,7 @@ function renderAdminAppContent(container, gameInstance) {
         if (val > 0) {
             gameInstance.funds += val;
             refreshStats();
-            appendLog(`+ Fondos añadidos: +$${val.toLocaleString('es-ES')}. Saldo actual: ${getFundsFormatted()}`, 'success');
+            appendLog(`+ Fondos añadidos: +${val.toLocaleString('es-ES')} €. Saldo actual: ${getFundsFormatted()}`, 'success');
             window.soundEngine?.playClick?.();
         }
     });
@@ -3434,7 +4066,7 @@ function renderAdminAppContent(container, gameInstance) {
         const val = Math.max(0, parseInt(fundsInput?.value || 0, 10));
         gameInstance.funds = val;
         refreshStats();
-        appendLog(`= Saldo fijado exactamente en: $${val.toLocaleString('es-ES')}`, 'success');
+        appendLog(`= Saldo fijado exactamente en: ${val.toLocaleString('es-ES')} €`, 'success');
         window.soundEngine?.playClick?.();
     });
 
@@ -3443,7 +4075,7 @@ function renderAdminAppContent(container, gameInstance) {
             const val = parseInt(btn.dataset.addFunds, 10);
             gameInstance.funds += val;
             refreshStats();
-            appendLog(`+ Fondos añadidos: +$${val.toLocaleString('es-ES')}. Saldo actual: ${getFundsFormatted()}`, 'success');
+            appendLog(`+ Fondos añadidos: +${val.toLocaleString('es-ES')} €. Saldo actual: ${getFundsFormatted()}`, 'success');
             window.soundEngine?.playClick?.();
         });
     });
@@ -3453,7 +4085,7 @@ function renderAdminAppContent(container, gameInstance) {
             const val = parseInt(btn.dataset.setFunds, 10);
             gameInstance.funds = val;
             refreshStats();
-            appendLog(`= Saldo fijado en: $${val.toLocaleString('es-ES')}`, 'success');
+            appendLog(`= Saldo fijado en: ${val.toLocaleString('es-ES')} €`, 'success');
             window.soundEngine?.playClick?.();
         });
     });
@@ -3512,7 +4144,7 @@ function renderAdminAppContent(container, gameInstance) {
             });
         }
         refreshStats();
-        appendLog(`★ MODO DIOS ACTIVADO: $50.000.000, +5.000 RP, +50 Hype y 100% Energía/Moral.`, 'gold');
+        appendLog(`★ MODO DIOS ACTIVADO: 50.000.000 €, +5.000 RP, +50 Hype y 100% Energía/Moral.`, 'gold');
         window.soundEngine?.playClick?.();
     });
 
@@ -3555,7 +4187,7 @@ function renderAdminAppContent(container, gameInstance) {
                 } else {
                     gameInstance.funds += amount;
                     refreshStats();
-                    appendLog(`OK: +$${amount.toLocaleString('es-ES')} acreditados. Saldo: ${getFundsFormatted()}`, 'success');
+                    appendLog(`OK: +${amount.toLocaleString('es-ES')} € acreditados. Saldo: ${getFundsFormatted()}`, 'success');
                 }
                 break;
             }
@@ -3624,7 +4256,7 @@ function renderAdminAppContent(container, gameInstance) {
                     });
                 }
                 refreshStats();
-                appendLog('★ MODO DIOS ACTIVADO: $50.000.000, +5.000 RP, +50 Hype y 100% Energía.', 'gold');
+                appendLog('★ MODO DIOS ACTIVADO: 50.000.000 €, +5.000 RP, +50 Hype y 100% Energía.', 'gold');
                 break;
 
             case 'save':
@@ -3642,6 +4274,22 @@ function renderAdminAppContent(container, gameInstance) {
                 break;
             }
 
+            case 'news-2006':
+            case 'os-news': {
+                gameInstance.createIndustryEvent?.('os_launch_2006');
+                appendLog('OK: Noticia de lanzamiento de SO 2006 publicada en La Gaceta Tecnológica.', 'success');
+                break;
+            }
+
+            case 'update-2006':
+            case 'os-update': {
+                if (window.uwuntuOS) {
+                    window.uwuntuOS.launchApp('app-os-update');
+                    appendLog('OK: Abriendo Centro de Actualizaciones de Sistema...', 'success');
+                }
+                break;
+            }
+
             case 'clear':
                 if (termLog) termLog.innerHTML = '';
                 break;
@@ -3652,6 +4300,297 @@ function renderAdminAppContent(container, gameInstance) {
         }
 
         window.soundEngine?.playClick?.();
+    });
+}
+
+// 5.B CUSTOM APP: UWUNTU UPDATE · CENTRO DE ACTUALIZACIONES
+export function renderOSUpdateAppContent(container, gameInstance, osInstance) {
+    const os = osInstance || window.uwuntuOS;
+    const isUpdated = os?.is2006Updated || Boolean(gameInstance?.osUpdated2006);
+    const historicalYear = os?.getHistoricalYear ? os.getHistoricalYear() : (1981 + (gameInstance?.year || 1));
+    const isAvailable = (historicalYear >= 2006 || os?.forceUpdateAvailable) && !isUpdated;
+
+    if (isUpdated) {
+        // Up-to-date screen
+        container.innerHTML = `
+            <div class="os-update-container up-to-date-view">
+                <div class="update-header">
+                    <div class="update-header-badge success">
+                        <span class="badge-dot-green"></span>
+                        <span class="badge-text">SISTEMA AL DÍA</span>
+                    </div>
+                    <h2 class="update-main-title">Centro de Actualizaciones Uwuntu XD</h2>
+                    <p class="update-main-sub">Tu estación de trabajo cuenta con la última versión oficial del sistema operativo.</p>
+                </div>
+
+                <div class="update-status-card success-card">
+                    <div class="status-icon-box">
+                        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="24" cy="24" r="20" fill="rgba(34, 197, 94, 0.15)" stroke="#22c55e"/>
+                            <polyline points="15 24 21 30 33 18" stroke="#4ade80" stroke-width="3"/>
+                        </svg>
+                    </div>
+                    <div class="status-details">
+                        <div class="status-title-row">
+                            <h3 class="status-title">Uwuntu XD 2006 · Edición Crystal Aero</h3>
+                            <span class="status-badge-active">Versión 6.0 (Build 2006.11)</span>
+                        </div>
+                        <p class="status-desc">Arquitectura ultranítida de alto rendimiento con aceleración para desarrollo de videojuegos de última generación.</p>
+                        <div class="status-features-active">
+                            <span class="feat-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 8 6 11 13 4"/></svg> Interfaz Ultranítida Activa</span>
+                            <span class="feat-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 8 6 11 13 4"/></svg> Aceleración Gráfica DirectX 9 / OpenGL</span>
+                            <span class="feat-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 8 6 11 13 4"/></svg> Antialiasing Crystal Aero</span>
+                            <span class="feat-pill"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 8 6 11 13 4"/></svg> Multitarea Fluida 60 FPS</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="update-actions-bar">
+                    <button type="button" class="btn-check-updates" id="btn-check-updates">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M16 8A6.5 6.5 0 0 0 4.5 7"></path>
+                            <polyline points="4.5 3 4.5 7 8.5 7"></polyline>
+                            <path d="M4 12a6.5 6.5 0 0 0 11.5 1"></path>
+                            <polyline points="15.5 17 15.5 13 11.5 13"></polyline>
+                        </svg>
+                        <span>Buscar actualizaciones</span>
+                    </button>
+                    <button type="button" class="btn-toggle-classic" id="btn-toggle-classic-theme">
+                        <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="10" cy="10" r="7"/>
+                            <path d="M10 3v14"/>
+                        </svg>
+                        <span>Alternar vista clásica / Crystal Aero</span>
+                    </button>
+                </div>
+
+                <div class="update-history-section">
+                    <h4 class="history-title">Historial de versiones del estudio</h4>
+                    <div class="history-list">
+                        <div class="history-item current">
+                            <div class="hist-bullet active"></div>
+                            <div class="hist-info">
+                                <div class="hist-header">
+                                    <strong>Uwuntu XD 2006 Crystal Aero (v6.0)</strong>
+                                    <span class="hist-tag active">Instalado</span>
+                                </div>
+                                <p>Interfaz con efectos de cristal translúcido, renderizado ultranítido de alta definición, compatibilidad acelerada de motores 3D y estabilidad para grandes producciones.</p>
+                            </div>
+                        </div>
+                        <div class="history-item">
+                            <div class="hist-bullet"></div>
+                            <div class="hist-info">
+                                <div class="hist-header">
+                                    <strong>Uwuntu XD Fusion Millennium (v5.0)</strong>
+                                    <span class="hist-tag">Anterior</span>
+                                </div>
+                                <p>Soporte de audio multicanal y entorno de desarrollo de principios de los 2000.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const checkBtn = container.querySelector('#btn-check-updates');
+        checkBtn?.addEventListener('click', () => {
+            checkBtn.disabled = true;
+            checkBtn.innerHTML = `<span>Comprobando repositorios oficiales...</span>`;
+            setTimeout(() => {
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = `
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 8A6.5 6.5 0 0 0 4.5 7"/><polyline points="4.5 3 4.5 7 8.5 7"/><path d="M4 12a6.5 6.5 0 0 0 11.5 1"/><polyline points="15.5 17 15.5 13 11.5 13"/></svg>
+                    <span>Buscar actualizaciones</span>
+                `;
+                window.showToast?.('[[DE_ICON_073]] No hay nuevas actualizaciones disponibles. Tu equipo dispone de la versión más reciente.', 'info');
+            }, 800);
+        });
+
+        const toggleBtn = container.querySelector('#btn-toggle-classic-theme');
+        toggleBtn?.addEventListener('click', () => {
+            const desk = document.getElementById('uwuntu-desktop-environment');
+            if (desk) {
+                desk.classList.toggle('os-updated-2006');
+                const isNowAero = desk.classList.contains('os-updated-2006');
+                window.showToast?.(isNowAero ? '[[DE_ICON_073]] Estética Crystal Aero 2006 activada.' : '[[DE_ICON_060]] Estética clásica activada temporalmente.', 'info');
+            }
+        });
+        return;
+    }
+
+    // Update Available Screen
+    container.innerHTML = `
+        <div class="os-update-container">
+            <div class="update-header">
+                <div class="update-header-badge ${isAvailable ? 'pulse-blue' : ''}">
+                    <span class="badge-dot-blue"></span>
+                    <span class="badge-text">${isAvailable ? 'NUEVA VERSIÓN 2006 DISPONIBLE' : 'VERSIÓN EN DESARROLLO (AÑO 2006)'}</span>
+                </div>
+                <h2 class="update-main-title">Centro de Actualizaciones de Sistema</h2>
+                <p class="update-main-sub">La industria informática de 2006 ha dado el salto a la alta definición y gráficos translúcidos.</p>
+            </div>
+
+            <div class="update-hero-banner">
+                <div class="hero-brand-col">
+                    <div class="hero-os-icon">
+                        <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <rect width="64" height="64" rx="16" fill="url(#aero-grad-bg)"/>
+                            <circle cx="32" cy="32" r="22" stroke="rgba(255,255,255,0.4)" stroke-width="2"/>
+                            <path d="M32 14v18l14 10" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+                            <circle cx="32" cy="32" r="5" fill="#38bdf8"/>
+                            <defs>
+                                <linearGradient id="aero-grad-bg" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+                                    <stop stop-color="#0284c7"/>
+                                    <stop offset="0.5" stop-color="#0369a1"/>
+                                    <stop offset="1" stop-color="#0f172a"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                </div>
+                <div class="hero-details-col">
+                    <div class="hero-title-row">
+                        <h3 class="hero-title">Uwuntu XD 2006 · Crystal Aero</h3>
+                        <span class="hero-release-pill">Año 2006 · Build 2006.11</span>
+                    </div>
+                    <p class="hero-summary">
+                        Revolución en la estética y rendimiento de tu estación de trabajo. Introduce el motor visual <strong>Aero Glass</strong> con ventanas translúcidas, tipografía con nitidez de alta resolución, aceleración gráfica para pipelines de desarrollo y mayor fluidez de multitarea.
+                    </p>
+                    <div class="hero-specs-row">
+                        <span class="spec-item"><strong>Requisitos:</strong> Compatibilidad 100%</span>
+                        <span class="spec-item"><strong>Descarga:</strong> 2.4 GB (Verificado OK)</span>
+                        <span class="spec-item"><strong>Licencia:</strong> Gratuita (Estudio)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Features 4-grid -->
+            <div class="update-features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon-box text-cyan">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                            <line x1="2" y1="8" x2="22" y2="8"/>
+                        </svg>
+                    </div>
+                    <h4 class="feature-title">Interfaz Crystal Aero Ultranítida</h4>
+                    <p class="feature-text">Ventanas con acabado de cristal pulido, tipografía optimizada con antialiasing de precisión y contraste equilibrado para evitar el cansancio visual.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-box text-emerald">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="4" y="4" width="16" height="16" rx="2"/>
+                            <rect x="9" y="9" width="6" height="6"/>
+                            <line x1="9" y1="1" x2="9" y2="4"/>
+                            <line x1="15" y1="1" x2="15" y2="4"/>
+                            <line x1="9" y1="20" x2="9" y2="23"/>
+                            <line x1="15" y1="20" x2="15" y2="23"/>
+                            <line x1="20" y1="9" x2="23" y2="9"/>
+                            <line x1="20" y1="14" x2="23" y2="14"/>
+                            <line x1="1" y1="9" x2="4" y2="9"/>
+                            <line x1="1" y1="14" x2="4" y2="14"/>
+                        </svg>
+                    </div>
+                    <h4 class="feature-title">Aceleración DAG & Motores 3D</h4>
+                    <p class="feature-text">Compatibilidad con las APIs de renderizado de 2006 para compilar proyectos más rápido y visualizar árboles de tecnología sin latencia.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-box text-blue">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+                            <polyline points="2 17 12 22 22 17"/>
+                            <polyline points="2 12 12 17 22 12"/>
+                        </svg>
+                    </div>
+                    <h4 class="feature-title">Multitarea Fluida y Barra Glass</h4>
+                    <p class="feature-text">Barra de tareas con reflejo especular de cristal, sombreado volumétrico y transiciones instantáneas entre herramientas del estudio.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon-box text-purple">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <h4 class="feature-title">Seguridad & Notificaciones Proactivas</h4>
+                    <p class="feature-text">Bandeja de sistema con indicadores inteligentes y blindaje de procesos para proteger tu código contra fallos y fugas.</p>
+                </div>
+            </div>
+
+            <!-- Install Box -->
+            <div class="update-install-box">
+                <div class="install-ready-info" id="install-ready-info">
+                    <div class="ready-text-col">
+                        <strong>¿Deseas instalar Uwuntu XD 2006 Crystal Aero ahora?</strong>
+                        <p>La instalación descargará los paquetes y realizará un reinicio rápido del escritorio (conservando todos tus datos y proyectos intactos).</p>
+                    </div>
+                    <div class="ready-btn-col">
+                        <button type="button" class="btn-install-update" id="btn-start-install-os">
+                            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M10 3v10m-4-4l4 4 4-4M3 17h14"/>
+                            </svg>
+                            <span>Instalar y Reiniciar Escritorio</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Progress container (hidden by default) -->
+                <div class="install-progress-box" id="install-progress-box" hidden>
+                    <div class="progress-labels">
+                        <span class="progress-status-text" id="install-status-text">Descargando paquetes de sistema...</span>
+                        <strong class="progress-pct" id="install-pct-text">0%</strong>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="install-bar-fill" style="width: 0%;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const installBtn = container.querySelector('#btn-start-install-os');
+    installBtn?.addEventListener('click', () => {
+        const readyInfo = container.querySelector('#install-ready-info');
+        const progressBox = container.querySelector('#install-progress-box');
+        const statusText = container.querySelector('#install-status-text');
+        const pctText = container.querySelector('#install-pct-text');
+        const barFill = container.querySelector('#install-bar-fill');
+
+        if (readyInfo) readyInfo.hidden = true;
+        if (progressBox) progressBox.hidden = false;
+
+        let pct = 0;
+        const steps = [
+            { target: 25, label: 'Descargando paquetes del sistema Uwuntu 2006 (2.4 GB)...' },
+            { target: 55, label: 'Instalando controladores gráficos y tipografías ultranítidas Crystal Aero...' },
+            { target: 85, label: 'Configurando acelerador de compilación de proyectos y pipelines 3D...' },
+            { target: 100, label: '¡Instalación completada! Iniciando reinicio de escritorio...' }
+        ];
+        let stepIdx = 0;
+
+        const interval = setInterval(() => {
+            if (stepIdx < steps.length) {
+                const step = steps[stepIdx];
+                pct += 4;
+                if (pct >= step.target) {
+                    pct = step.target;
+                    stepIdx++;
+                }
+                if (statusText) statusText.textContent = step.label;
+                if (pctText) pctText.textContent = `${pct}%`;
+                if (barFill) barFill.style.width = `${pct}%`;
+
+                if (pct >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        os?.executeOSUpdate?.(() => {
+                            renderOSUpdateAppContent(container, gameInstance, os);
+                        });
+                    }, 400);
+                }
+            }
+        }, 50);
     });
 }
 
@@ -3723,6 +4662,29 @@ export const STORE_CATALOG = [
             'Punto de equilibrio (unidades mínimas requeridas)',
             'Proyecciones de ingresos a 10k, 50k y 250k ventas',
             'Sincronización de costes reales del proyecto en curso'
+        ],
+        isHero: false
+    },
+    {
+        id: 'app-os-update',
+        name: 'Uwuntu Update · Actualizaciones del Sistema',
+        shortName: 'Actualizaciones',
+        category: 'Herramientas de Sistema',
+        categoryKey: 'system',
+        icon: APP_ICONS.osUpdate,
+        badgeColor: '#0ea5e9',
+        author: 'Uwuntu Core Team',
+        version: 'v6.0.0',
+        size: '2.4 GB',
+        rating: '5.0',
+        ratingCount: '48.9k',
+        downloads: '150k',
+        description: 'Centro de control de parches y versiones mayores del sistema operativo para estaciones de desarrollo.',
+        features: [
+            'Actualización mayor a Uwuntu XD 2006 Crystal Aero',
+            'Efectos translúcidos de cristal y nitidez de alta resolución',
+            'Acelerador de compilación para árboles de arquitectura DAG',
+            'Blindaje de memoria y avisos proactivos en la bandeja'
         ],
         isHero: false
     }
@@ -4236,7 +5198,7 @@ export function renderCalcAppContent(container, gameInstance) {
     let marketingSpend = 12000;
 
     function formatMoney(num) {
-        return '$' + Math.round(num).toLocaleString('es-ES');
+        return Math.round(num).toLocaleString('es-ES') + ' €';
     }
 
     function calculate() {
@@ -4299,17 +5261,17 @@ export function renderCalcAppContent(container, gameInstance) {
                         <h4 class="calc-pane-title">Parámetros del Videojuego</h4>
                         
                         <div class="calc-field">
-                            <label for="calc-budget" class="calc-label">Coste de Desarrollo ($):</label>
+                            <label for="calc-budget" class="calc-label">Coste de Desarrollo (€):</label>
                             <input type="number" id="calc-budget" class="calc-input" value="${budget}" step="1000" min="0">
                         </div>
 
                         <div class="calc-field">
-                            <label for="calc-marketing" class="calc-label">Presupuesto de Marketing ($):</label>
+                            <label for="calc-marketing" class="calc-label">Presupuesto de Marketing (€):</label>
                             <input type="number" id="calc-marketing" class="calc-input" value="${marketingSpend}" step="1000" min="0">
                         </div>
 
                         <div class="calc-field">
-                            <label for="calc-price" class="calc-label">Precio de Venta al Público ($):</label>
+                            <label for="calc-price" class="calc-label">Precio de Venta al Público (€):</label>
                             <input type="number" id="calc-price" class="calc-input" value="${unitPrice}" step="0.5" min="1">
                         </div>
 
@@ -4342,7 +5304,7 @@ export function renderCalcAppContent(container, gameInstance) {
 
                             <div class="calc-kpi-card">
                                 <span class="kpi-label">Margen Neto por Copia</span>
-                                <strong class="kpi-value text-cyan">$${results.netPerUnit.toFixed(2)}</strong>
+                                <strong class="kpi-value text-cyan">${results.netPerUnit.toFixed(2)} €</strong>
                                 <span class="kpi-sub">Tras deducción de ${storeCut + royaltyCut}% en comisiones</span>
                             </div>
                         </div>

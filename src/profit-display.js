@@ -14,5 +14,5 @@ export function profitWarning(game) {
 export function formatGameProfit(game) {
     if (!Number.isFinite(game?.profit)) return 'Sin datos';
     const value = Math.floor(game.profit);
-    return `${value >= 0 ? '+' : ''}$${value.toLocaleString('es-ES')}`;
+    return `${value >= 0 ? '+' : ''}${value.toLocaleString('es-ES')} €`;
 }

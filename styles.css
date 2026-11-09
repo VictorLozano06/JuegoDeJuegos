@@ -2317,37 +2317,60 @@ select option:checked,
 }
 
 .staff-budget-field {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    color: #94a3b8;
+    gap: 12px;
+    font-size: 13.5px;
+    color: #a8bec7;
+    font-weight: 600;
 }
 
 .budget-input-wrap {
-    position: relative;
-    display: flex;
+    display: inline-flex;
     align-items: center;
+    border-radius: 8px;
+    background: #0d202e;
+    border: 1px solid #365360;
+    padding: 0 12px;
+    height: 38px;
+    gap: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.budget-input-wrap:focus-within {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 .budget-input-wrap input {
-    width: 100px;
-    padding: 6px 8px 6px 18px;
-    border-radius: 8px;
-    background: #0b1322;
-    border: 1px solid rgba(56, 189, 248, 0.25);
+    width: 75px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
     color: #f8fafc;
-    font-weight: 700;
-    font-size: 12.5px;
+    font-weight: 750;
+    font-size: 15px;
+    outline: none;
+    box-shadow: none;
+    -moz-appearance: textfield;
+}
+
+.budget-input-wrap input::-webkit-outer-spin-button,
+.budget-input-wrap input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 .budget-sym {
-    position: absolute;
-    left: 7px;
-    color: #38bdf8;
-    font-weight: 700;
-    font-size: 12px;
+    position: static;
+    color: #78cfb7;
+    font-weight: 800;
+    font-size: 15px;
     pointer-events: none;
+    user-select: none;
+    line-height: 1;
 }
 
 .staff-section-heading {

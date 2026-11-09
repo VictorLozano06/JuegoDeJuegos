@@ -1674,7 +1674,7 @@ export function initializeDeviceNav(gameInstance) {
                         </div>
                         <div class="mkt-stat-box">
                             <span class="mkt-stat-label">Tesorería</span>
-                            <span class="mkt-stat-value mkt-stat-value--green">$${Math.floor(funds).toLocaleString('es-ES')}</span>
+                            <span class="mkt-stat-value mkt-stat-value--green">${Math.floor(funds).toLocaleString('es-ES')} €</span>
                         </div>
                     </div>
                 </div>
@@ -1689,7 +1689,7 @@ export function initializeDeviceNav(gameInstance) {
                     <p class="mkt-project-meta">Inicia un juego desde Nuevo juego para desbloquear la ejecución de campañas de marketing.</p>
                     <div class="mkt-funds-row">
                         <span>Tesorería disponible:</span>
-                        <strong class="mkt-stat-value--green">$${Math.floor(funds).toLocaleString('es-ES')}</strong>
+                        <strong class="mkt-stat-value--green">${Math.floor(funds).toLocaleString('es-ES')} €</strong>
                     </div>
                 </div>
             `;
@@ -1698,7 +1698,7 @@ export function initializeDeviceNav(gameInstance) {
         const channelListMarkup = options.map(opt => {
             const state = marketingChannelState(opt, project, funds);
             const isSelected = opt.id === selectedMktChannel;
-            const costFormatted = `$${opt.cost.toLocaleString('es-ES')}`;
+            const costFormatted = `${opt.cost.toLocaleString('es-ES')} €`;
             const iconSvg = getChannelIconSvg(opt.id);
 
             return `
@@ -1722,7 +1722,7 @@ export function initializeDeviceNav(gameInstance) {
             const buttonLabel = selectedState.kind === 'done'
                 ? 'Campaña ejecutada'
                 : (selectedState.kind === 'ready'
-                    ? `Lanzar campaña ($${selectedOption.cost.toLocaleString('es-ES')})`
+                    ? `Lanzar campaña (${selectedOption.cost.toLocaleString('es-ES')} €)`
                     : selectedState.label);
 
             inspectorMarkup = `
@@ -1751,7 +1751,7 @@ export function initializeDeviceNav(gameInstance) {
                         </div>` : ''}
                         <div class="mkt-fact-item">
                             <span>Coste:</span>
-                            <strong class="text-green">$${selectedOption.cost.toLocaleString('es-ES')}</strong>
+                            <strong class="text-green">${selectedOption.cost.toLocaleString('es-ES')} €</strong>
                         </div>
                     </div>
                     ${optDesign.condition ? `<p class="mkt-inspector-note">${optDesign.condition}</p>` : ''}
@@ -1780,7 +1780,7 @@ export function initializeDeviceNav(gameInstance) {
                                         ${actions.map(act => `
                                             <li>
                                                 <span>${act.label || act.id}</span>
-                                                <small>$${act.cost?.toLocaleString('es-ES')} · S${act.week || 1}</small>
+                                                <small>${act.cost?.toLocaleString('es-ES')} € · S${act.week || 1}</small>
                                             </li>
                                         `).join('')}
                                     </ul>
@@ -1922,7 +1922,7 @@ export function initializeDeviceNav(gameInstance) {
                                     </div>
                                     <p class="mkt-creator-followers">${followers} seguidores</p>
                                     <p class="mkt-creator-genres">Afinidad: ${genres}</p>
-                                    <span class="mkt-creator-cost">Coste paquete: $${fee.toLocaleString('es-ES')}</span>
+                                    <span class="mkt-creator-cost">Coste paquete: ${fee.toLocaleString('es-ES')} €</span>
                                 </div>
                                 <button type="button" class="phone-mkt-send-key-btn ${alreadySent ? 'sent' : (canAfford ? 'ready' : 'disabled')}" 
                                     data-creator-id="${creator.id}" 
@@ -2210,7 +2210,7 @@ export function initializeDeviceNav(gameInstance) {
                         </div>
                         <div class="mkt-stat-box">
                             <span class="mkt-stat-label">Tesorería</span>
-                            <span class="mkt-stat-value mkt-stat-value--green">$${Math.floor(funds).toLocaleString('es-ES')}</span>
+                            <span class="mkt-stat-value mkt-stat-value--green">${Math.floor(funds).toLocaleString('es-ES')} €</span>
                         </div>
                     </div>
                 </div>
@@ -2225,7 +2225,7 @@ export function initializeDeviceNav(gameInstance) {
                     <p class="mkt-project-meta">Inicia un juego desde Nuevo juego para desbloquear la ejecución de campañas de marketing.</p>
                     <div class="mkt-funds-row">
                         <span>Tesorería disponible:</span>
-                        <strong class="mkt-stat-value--green">$${Math.floor(funds).toLocaleString('es-ES')}</strong>
+                        <strong class="mkt-stat-value--green">${Math.floor(funds).toLocaleString('es-ES')} €</strong>
                     </div>
                 </div>
             `;
@@ -2234,7 +2234,7 @@ export function initializeDeviceNav(gameInstance) {
         const channelListMarkup = options.map(opt => {
             const state = marketingChannelState(opt, project, funds);
             const isSelected = opt.id === selectedMktChannel;
-            const costFormatted = `$${opt.cost.toLocaleString('es-ES')}`;
+            const costFormatted = `${opt.cost.toLocaleString('es-ES')} €`;
             const iconSvg = getChannelIconSvg(opt.id);
 
             return `
@@ -2258,7 +2258,7 @@ export function initializeDeviceNav(gameInstance) {
             const buttonLabel = selectedState.kind === 'done'
                 ? 'Campaña ejecutada'
                 : (selectedState.kind === 'ready'
-                    ? `Lanzar campaña ($${selectedOption.cost.toLocaleString('es-ES')})`
+                    ? `Lanzar campaña (${selectedOption.cost.toLocaleString('es-ES')} €)`
                     : selectedState.label);
 
             inspectorMarkup = `
@@ -2287,7 +2287,7 @@ export function initializeDeviceNav(gameInstance) {
                         </div>` : ''}
                         <div class="mkt-fact-item">
                             <span>Coste:</span>
-                            <strong class="text-green">$${selectedOption.cost.toLocaleString('es-ES')}</strong>
+                            <strong class="text-green">${selectedOption.cost.toLocaleString('es-ES')} €</strong>
                         </div>
                     </div>
                     ${optDesign.condition ? `<p class="mkt-inspector-note">${optDesign.condition}</p>` : ''}
@@ -2316,7 +2316,7 @@ export function initializeDeviceNav(gameInstance) {
                                         ${actions.map(act => `
                                             <li>
                                                 <span>${act.label || act.id}</span>
-                                                <small>$${act.cost?.toLocaleString('es-ES')} · S${act.week || 1}</small>
+                                                <small>${act.cost?.toLocaleString('es-ES')} € · S${act.week || 1}</small>
                                             </li>
                                         `).join('')}
                                     </ul>
@@ -2458,7 +2458,7 @@ export function initializeDeviceNav(gameInstance) {
                                     </div>
                                     <p class="mkt-creator-followers">${followers} seguidores</p>
                                     <p class="mkt-creator-genres">Afinidad: ${genres}</p>
-                                    <span class="mkt-creator-cost">Coste paquete: $${fee.toLocaleString('es-ES')}</span>
+                                    <span class="mkt-creator-cost">Coste paquete: ${fee.toLocaleString('es-ES')} €</span>
                                 </div>
                                 <button type="button" class="phone-mkt-send-key-btn ${alreadySent ? 'sent' : (canAfford ? 'ready' : 'disabled')}" 
                                     data-creator-id="${creator.id}" 

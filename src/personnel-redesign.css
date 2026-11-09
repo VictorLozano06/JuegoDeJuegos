@@ -614,36 +614,63 @@
 }
 
 :is(#modal-hire, #phone-view-personnel) .staff-budget-field {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    gap: 10px;
-    font-size: 13px;
+    gap: 12px;
+    font-size: 13.5px;
     color: #a8bec7;
+    font-weight: 600;
 }
 
 :is(#modal-hire, #phone-view-personnel) .budget-input-wrap {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    border: 1px solid #446473;
-    border-radius: 7px;
+    border: 1px solid #365360;
+    border-radius: 8px;
     background: #0d202e;
-    padding: 0 10px;
+    padding: 0 12px;
+    height: 38px;
+    gap: 6px;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap:focus-within {
+    border-color: #38bdf8;
+    box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
 }
 
 :is(#modal-hire, #phone-view-personnel) .budget-sym {
+    position: static;
     color: #78cfb7;
-    font-weight: 700;
+    font-weight: 800;
+    font-size: 15px;
+    user-select: none;
+    line-height: 1;
 }
 
-:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input {
-    border: none;
-    background: transparent;
-    color: #edf5f3;
-    font-size: 14px;
-    padding: 8px 6px;
-    width: 90px;
-    font-weight: 700;
-    outline: none;
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input,
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input[type='number'],
+:is(#modal-hire, #phone-view-personnel) #recruitment-budget {
+    border: none !important;
+    background: transparent !important;
+    color: #f8fafc !important;
+    font-size: 15px !important;
+    font-weight: 750 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 75px !important;
+    min-height: unset !important;
+    height: 100% !important;
+    outline: none !important;
+    box-shadow: none !important;
+    -moz-appearance: textfield;
+}
+
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input[type='number']::-webkit-outer-spin-button,
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }
 
 :is(#modal-hire, #phone-view-personnel) .hr-candidate-card {
@@ -749,7 +776,7 @@
 }
 
 :is(#modal-hire, #phone-view-personnel) select,
-:is(#modal-hire, #phone-view-personnel) input[type='number'] {
+:is(#modal-hire, #phone-view-personnel) input[type='number']:not(#recruitment-budget) {
     min-height: 40px;
     padding: 6px 10px;
     border: 1px solid #446473;

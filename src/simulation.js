@@ -13,6 +13,7 @@ import { getVreadSalesMultiplier, publishVreadPost } from './vread-engine.js';
 import { createIPState, registerIP, linkGame, recordRelease, updateIPSales, getIPBenefits, advanceIPYear, transferIP, getIPValue, setIPForSale } from './ipSystem.js';
 import { generateRivalCompanies, RIVAL_COMPANY_DEFAULTS } from './rivalCompanies.js';
 import { tickRivals } from './rivalAI.js';
+import { sanitizeRivalTitles } from './gameNameGenerator.js';
 import { createFinanceState, getFinanceMetrics, getCreditOffer, requestLoan, refinanceLoan, updateFinanceWeek } from './financeSystem.js';
 import { cancelPlayerProject, reduceStaff, stopResearch, restructureCompany, prepareBankruptcy, confirmBankruptcy } from './bankruptcy.js';
 
@@ -924,8 +925,15 @@ class TycoonGame {
         for (const event of expiredEvents) {
             const defaultChoice = event.type === 'platform_supply_shock' ? 'wait_supply'
                 : (event.type === 'code_breach' ? 'legal_audit'
-                    : (event.type === 'patent_lawsuit' ? 'settle' : 'delay'));
+                    : (event.type === 'patent_lawsuit' ? 'settle'
+                        : (event.type === 'os_update_announcement' ? 'update_later' : 'delay')));
             this.resolveIndustryEvent(event.id, defaultChoice, { automatic: true });
+        }
+
+        // Hito tecnológico: Lanzamiento de nuevo sistema operativo en 2006
+        if (this.getHistoricalYear() >= 2006 && !this.osUpdate2006Announced) {
+            this.osUpdate2006Announced = true;
+            return this.createIndustryEvent('os_launch_2006');
         }
 
         // 1. Periodo de Gracia / Cooldown Obligatorio (16 meses = 64 semanas de protección mínima entre crisis)
@@ -1036,7 +1044,7 @@ class TycoonGame {
         const currentWeek = this.getIndustryWeek();
         const project = event.projectName && this.currentProject?.name !== event.projectName ? null : this.currentProject;
         const cost = Math.max(0, Math.floor(choice.cost || 0));
-        if (cost > this.funds) return { success: false, message: `Fondos insuficientes ($${cost.toLocaleString()}) para ejecutar esa decisión.` };
+        if (cost > this.funds) return { success: false, message: `Fondos insuficientes (${cost.toLocaleString('es-ES')} €) para ejecutar esa decisión.` };
         let message = '';
         let releasedGame = null;
 
@@ -1051,7 +1059,7 @@ class TycoonGame {
                     expiresAtWeek: currentWeek + 4, // Duración reducida a 4 semanas
                     source: 'reserved_supply'
                 });
-                message = `[[DE_ICON_013]] Inventario reservado por $${cost.toLocaleString()} para ${event.platformName}; el impacto se limita a un leve 10% durante solo cuatro semanas.`;
+                message = `[[DE_ICON_013]] Inventario reservado por ${cost.toLocaleString('es-ES')} € para ${event.platformName}; el impacto se limita a un leve 10% durante solo cuatro semanas.`;
             } else {
                 const duration = event.durationWeeks || 16;
                 const multiplier = event.baseSalesMultiplier || 0.60;
@@ -1091,12 +1099,12 @@ class TycoonGame {
                 project.modulesReworkRequired = (project.modulesReworkRequired || 0) + 2;
                 project.marketingHype = Math.max(0, (project.marketingHype || 0) - (choice.hypePenalty || 10));
                 project.leakAudited = true;
-                message = `[[DE_ICON_021]] Auditoría legal completada por $${cost.toLocaleString()}. Se aíslan las brechas y se reprograman los módulos afectados (+${delay} semanas de desarrollo).`;
+                message = `[[DE_ICON_021]] Auditoría legal completada por ${cost.toLocaleString('es-ES')} €. Se aíslan las brechas y se reprograman los módulos afectados (+${delay} semanas de desarrollo).`;
             }
         } else if (event.type === 'patent_lawsuit') {
             if (choiceId === 'settle') {
                 this.funds -= cost;
-                message = `[[DE_ICON_025]] Acuerdo extrajudicial cerrado: se abonaron $${cost.toLocaleString()} a los demandantes. El litigio queda archivado sin impacto en la reputación.`;
+                message = `[[DE_ICON_025]] Acuerdo extrajudicial cerrado: se abonaron ${cost.toLocaleString('es-ES')} € a los demandantes. El litigio queda archivado sin impacto en la reputación.`;
             } else {
                 this.funds -= cost;
                 const winChance = choice.winChance || 0.55;
@@ -1108,7 +1116,7 @@ class TycoonGame {
                     const penalty = Math.max(cost, Math.round((event.referenceBudget || 30000) * (choice.penaltyFraction || 0.25)));
                     this.funds = Math.max(0, this.funds - penalty);
                     this.fans = Math.max(0, this.fans - 20);
-                    message = `[[DE_ICON_047]] FALLO JUDICIAL EN CONTRA: Además de los $${cost.toLocaleString()} de procuradores, el juzgado impuso una indemnización de $${penalty.toLocaleString()} (-20 Fans).`;
+                    message = `[[DE_ICON_047]] FALLO JUDICIAL EN CONTRA: Además de los ${cost.toLocaleString('es-ES')} € de procuradores, el juzgado impuso una indemnización de ${penalty.toLocaleString('es-ES')} € (-20 Fans).`;
                 }
             }
         } else if (event.type === 'genre_trend_crash') {
@@ -1134,6 +1142,12 @@ class TycoonGame {
                 project.industryDelayWeeks = (project.industryDelayWeeks || 0) + delay;
                 this.genreDemandShocks.push({ genreId: event.projectGenreId, multiplier: 0.65, expiresAtWeek: currentWeek + shockWeeks, eventId: event.id });
                 message = `[[DE_ICON_098]] Lanzamiento retrasado ${delay} semanas (+2 meses ficticios). Esperas a que el público recupere el apetito mientras asumes la nómina.`;
+            }
+        } else if (event.type === 'os_update_announcement') {
+            if (choiceId === 'open_update_center') {
+                message = `[[DE_ICON_073]] Abriendo el Centro de Actualizaciones: El paquete del nuevo sistema operativo 2006 está listo para instalar.`;
+            } else {
+                message = `[[DE_ICON_120]] Notificación pospuesta. Puedes instalar la actualización en cualquier momento desde el icono de la barra de tareas.`;
             }
         }
 
@@ -1186,7 +1200,7 @@ class TycoonGame {
         if (!option || !option.available) return { success: false, message: option ? `Este canal se desbloquea en ${option.year}.` : 'Canal de marketing desconocido.' };
         if ((project.marketingActions || []).some(item => item.id === methodId)) return { success: false, message: 'Ya has usado este canal para el proyecto.' };
         if (['cd_demo', 'e3_trailer', 'digital_demo'].includes(methodId) && project.overallProgress < 50) return { success: false, message: 'Completa al menos la mitad del desarrollo antes de presentar una demo o trailer.' };
-        if (this.funds < option.cost) return { success: false, message: `Fondos insuficientes para esta campaña ($${option.cost.toLocaleString()}).` };
+        if (this.funds < option.cost) return { success: false, message: `Fondos insuficientes para esta campaña (${option.cost.toLocaleString('es-ES')} €).` };
 
         const releasedGames = this.gamesHistory || [];
         const reputation = releasedGames.length
@@ -1252,7 +1266,7 @@ class TycoonGame {
         this.notify();
         return {
             success: true,
-            message: `${option.label}: campaña lanzada por $${option.cost.toLocaleString()}.`,
+            message: `${option.label}: campaña lanzada por ${option.cost.toLocaleString('es-ES')} €.`,
             project,
             pressCover
         };
@@ -1448,7 +1462,7 @@ class TycoonGame {
         }
         const count = Math.max(1, Math.min(5, Math.floor(Number(keyCount) || 1)));
         const cost = creator.fee + count * 25;
-        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para contactar a ${creator.name} ($${cost.toLocaleString()}).` };
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para contactar a ${creator.name} (${cost.toLocaleString('es-ES')} €).` };
         this.funds -= cost;
         target.creatorKeyCampaign.push({
             creatorId: creator.id, creatorName: creator.name, platform: creator.platform,
@@ -1463,7 +1477,7 @@ class TycoonGame {
         target.marketingCampaign = target.marketingCampaign || { hype: 0, wishlists: 0 };
         if (!isProject) this.resolveCreatorCampaign(target);
         this.notify();
-        return { success: true, message: `Enviadas ${count} clave(s) a ${creator.name} en ${creator.platform}. Coste: $${cost.toLocaleString()}.`, creator, cost };
+        return { success: true, message: `Enviadas ${count} clave(s) a ${creator.name} en ${creator.platform}. Coste: ${cost.toLocaleString('es-ES')} €.`, creator, cost };
     }
 
     resolveCreatorCampaign(game) {
@@ -1555,6 +1569,7 @@ class TycoonGame {
     }
 
     cycleRivalMarket() {
+        sanitizeRivalTitles(this);
         const previous = new Map((this.top10Chart || []).filter(item => item.gameId).map(item => [item.gameId, item]));
         const candidates = [];
         for (const company of this.ipCompanies || []) {
@@ -1848,7 +1863,7 @@ class TycoonGame {
                 revenueShare: 0.50, // 50% royalties para la distribuidora
                 deadlineWeeks: deadlineWeeks,
                 signedAtWeek: this.getIndustryWeek(),
-                detail: `Anticipo de $${upfrontCashAdvance.toLocaleString()} transferido al estudio. Retiene 50% de royalties en ventas y fija entrega en ${deadlineWeeks} semanas.`
+                detail: `Anticipo de ${upfrontCashAdvance.toLocaleString('es-ES')} € transferido al estudio. Retiene 50% de royalties en ventas y fija entrega en ${deadlineWeeks} semanas.`
             };
             this.funds += upfrontCashAdvance;
         } else if (contractType === 'platform_exclusive') {
@@ -1867,7 +1882,7 @@ class TycoonGame {
                 exclusivityWeeks: 24,
                 revenueShare: 0.15,
                 signedAtWeek: this.getIndustryWeek(),
-                detail: `Fondo de marketing y desarrollo de $${upfrontCashAdvance.toLocaleString()} con +65% de ventas exclusivas en ${platform.name}.`
+                detail: `Fondo de marketing y desarrollo de ${upfrontCashAdvance.toLocaleString('es-ES')} € con +65% de ventas exclusivas en ${platform.name}.`
             };
             this.funds += upfrontCashAdvance;
         } else {
@@ -2007,7 +2022,7 @@ class TycoonGame {
         }
         project.offers = [];
         this.notify();
-        return { success: true, message: `Acuerdo firmado: ${offer.title}. Pago inmediato de $${amount.toLocaleString()}.` };
+        return { success: true, message: `Acuerdo firmado: ${offer.title}. Pago inmediato de ${amount.toLocaleString('es-ES')} €.` };
     }
 
     negotiateProjectOffer(offerId) {
@@ -2729,7 +2744,7 @@ class TycoonGame {
 
         const baseIntegrationCost = game.moddingApiIncluded ? 8000 : 15000;
         const cost = baseIntegrationCost + (this.employees.length * 1000);
-        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para publicar las herramientas de modding ($${cost.toLocaleString()}).` };
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para publicar las herramientas de modding (${cost.toLocaleString('es-ES')} €).` };
         this.funds -= cost;
 
         game.moddingApiIncluded = true;
@@ -2758,7 +2773,7 @@ class TycoonGame {
         this.notify();
         return {
             success: true,
-            message: `[[DE_ICON_034]] ¡Workshop oficial activado para "${game.name}"! Coste: $${cost.toLocaleString()}. La comunidad prolongará la vida útil durante 3 años de juego.`,
+            message: `[[DE_ICON_034]] ¡Workshop oficial activado para "${game.name}"! Coste: ${cost.toLocaleString('es-ES')} €. La comunidad prolongará la vida útil durante 3 años de juego.`,
             game
         };
     }
@@ -2768,7 +2783,7 @@ class TycoonGame {
         if (!game?.workshop?.enabled) return { success: false, message: 'Este juego no tiene Workshop activo.' };
         if (!game.workshop.compatibilityBroken) return { success: false, message: 'La compatibilidad de los mods con la versión actual ya está intacta.' };
         const cost = 6000 + Math.max(0, game.workshop.popularMods || 0) * 1200;
-        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para actualizar el SDK de herramientas ($${cost.toLocaleString()}).` };
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para actualizar el SDK de herramientas (${cost.toLocaleString('es-ES')} €).` };
         this.funds -= cost;
 
         game.workshop.compatibilityBroken = false;
@@ -2785,7 +2800,7 @@ class TycoonGame {
         this.notify();
         return {
             success: true,
-            message: `[[DE_ICON_015]] Herramientas de actualización publicadas para "${game.name}" por $${cost.toLocaleString()}. Compatibilidad de mods restaurada y moral comunitaria recuperada.`,
+            message: `[[DE_ICON_015]] Herramientas de actualización publicadas para "${game.name}" por ${cost.toLocaleString('es-ES')} €. Compatibilidad de mods restaurada y moral comunitaria recuperada.`,
             game
         };
     }
@@ -2864,7 +2879,7 @@ class TycoonGame {
         if (this.getHistoricalYear() < 1995) return { success: false, message: 'Los parches de software se desbloquean a partir de 1995.' };
         if (game.businessModel === 'premium' && !game.supportsPatches) return { success: false, message: 'Este juego se publicó sin contrato de soporte post-lanzamiento.' };
         const cost = 6000 + Math.max(0, this.employees.length - 1) * 1500;
-        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para el parche ($${cost.toLocaleString()}).` };
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para el parche (${cost.toLocaleString('es-ES')} €).` };
         this.funds -= cost;
         game.weeksWithoutContentPatch = 0;
         game.communityPatience = Math.min(100, (game.communityPatience || 100) + 20);
@@ -2890,7 +2905,7 @@ class TycoonGame {
         }
         this.notify();
         const compatibilityMessage = modCompatibilityBroken ? ' [[DE_ICON_016]] AVISO: El parche rompió la compatibilidad de los mods. Publica herramientas de actualización en el Workshop para restaurarla.' : '';
-        return { success: true, message: `Parche oficial desplegado en "${game.name}" por $${cost.toLocaleString()}.${compatibilityMessage}` };
+        return { success: true, message: `Parche oficial desplegado en "${game.name}" por ${cost.toLocaleString('es-ES')} €.${compatibilityMessage}` };
     }
 
     launchBattlePass(gameId, programmers = 1) {
@@ -2900,7 +2915,7 @@ class TycoonGame {
         const assigned = Math.max(1, Math.min(this.employees.length, Math.floor(programmers) || 1));
         const averageSalary = this.employees.reduce((sum, employee) => sum + (employee.salary || 0), 0) / Math.max(1, this.employees.length);
         const cost = 12000 + Math.round(averageSalary * assigned * 3);
-        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para asignar ${assigned} programador(es) ($${cost.toLocaleString()}).` };
+        if (this.funds < cost) return { success: false, message: `Fondos insuficientes para asignar ${assigned} programador(es) (${cost.toLocaleString('es-ES')} €).` };
         const monthKey = this.year * 12 + this.month;
         if (game.serviceMonthKey !== monthKey) {
             game.serviceMonthKey = monthKey;
@@ -2935,7 +2950,7 @@ class TycoonGame {
         game.lastSeasonProgrammers = assigned;
         this.funds += revenue;
         this.notify();
-        return { success: true, message: `Pase de Batalla S${game.season}: +$${revenue.toLocaleString()} de ingresos; coste de contenido $${cost.toLocaleString()}.` };
+        return { success: true, message: `Pase de Batalla S${game.season}: +${revenue.toLocaleString('es-ES')} € de ingresos; coste de contenido ${cost.toLocaleString('es-ES')} €.` };
     }
 
     closeGameServers(gameId) {
@@ -3318,7 +3333,7 @@ class TycoonGame {
             return { success: false, message: 'Hace falta un mentor Senior/Lead o con habilidad 55+.' };
         }
         if (junior.experience !== 'Junior') return { success: false, message: 'La formación interna está destinada a empleados Junior.' };
-        if (currency === 'funds' && this.funds < 4000) return { success: false, message: 'Fondos insuficientes ($4.000) para la formación.' };
+        if (currency === 'funds' && this.funds < 4000) return { success: false, message: 'Fondos insuficientes (4.000 €) para la formación.' };
         if (currency === 'researchPoints' && this.researchPoints < 18) return { success: false, message: 'Puntos de I+D insuficientes (18 RP).'};
         if (currency === 'funds') this.funds -= 4000;
         else this.researchPoints -= 18;
@@ -3347,6 +3362,10 @@ class TycoonGame {
                 this.year++;
                 advanceIPYear(this.ipState, this.getHistoricalYear());
                 if (!this.financeState.bankruptcy?.confirmed) this.triggerAnnualAwards();
+                if (this.getHistoricalYear() >= 2006 && !this.osUpdate2006Announced) {
+                    this.osUpdate2006Announced = true;
+                    this.createIndustryEvent('os_launch_2006');
+                }
             }
         }
         if (this.financeState.bankruptcy?.confirmed) {
@@ -3490,13 +3509,6 @@ class TycoonGame {
             }
         }
 
-        // Passive R&D study points generated by employees when studio is idle (no active game)
-        if (this.currentProject === null) {
-            const totalTech = this.employees.reduce((acc, e) => acc + (e.tech || 20), 0);
-            const weeklyRP = Math.max(1, Math.floor(totalTech / 45));
-            this.researchPoints += weeklyRP;
-        }
-
         tickRivals(this);
         this.processWeeklySales();
         if (!this.financeState.bankruptcy?.confirmed) {
@@ -3525,7 +3537,7 @@ class TycoonGame {
             return {
                 won: true,
                 game: winner.name,
-                message: `[[DE_ICON_107]] ¡GLORIA TOTAL! "${winner.name}" ha ganado el galardón de JUEGO DEL AÑO (GOTY)! Recibes +$${prizeMoney.toLocaleString()} y +${prizeFans} fans devotos.`
+                message: `[[DE_ICON_107]] ¡GLORIA TOTAL! "${winner.name}" ha ganado el galardón de JUEGO DEL AÑO (GOTY)! Recibes +${prizeMoney.toLocaleString('es-ES')} € y +${prizeFans} fans devotos.`
             };
         }
         return null;
@@ -3551,7 +3563,7 @@ class TycoonGame {
                 if (!isUnlocked && prerequisite && !this.unlockedOfficeIds.includes(prerequisite.id)) {
                     message = `Compra primero la oficina ${prerequisite.name}.`;
                 } else if (!isUnlocked && !meetsFunds) {
-                    message = `Fondos insuficientes. Necesitas ${requiredFunds.toLocaleString('es-ES', { useGrouping: 'always' })} $.`;
+                    message = `Fondos insuficientes. Necesitas ${requiredFunds.toLocaleString('es-ES', { useGrouping: 'always' })} €.`;
                 } else if (!isUnlocked && !meetsGames) {
                     message = `Publica al menos ${office.minGames} juegos antes de comprar esta oficina.`;
                 } else if (!isUnlocked && !meetsScore) {
@@ -3631,13 +3643,13 @@ class TycoonGame {
         const employee = this.employees.find(item => item.id === id);
         if (!employee || id === 'player') return { success: false, message: 'No se puede despedir al fundador.' };
         const cost = this.getEmployeeSeverance(employee);
-        if (this.funds < cost) return { success: false, message: `Necesitas $${cost.toLocaleString()} para la indemnización.` };
+        if (this.funds < cost) return { success: false, message: `Necesitas ${cost.toLocaleString('es-ES')} € para la indemnización.` };
         this.funds -= cost;
         this.employees = this.employees.filter(item => item.id !== id);
         this.pendingHeadhunts = (this.pendingHeadhunts || []).filter(offer => offer.employeeId !== id);
         for (const colleague of this.employees) if (colleague.id !== 'player') colleague.morale = Math.max(0, (colleague.morale ?? 70) - 5);
         this.notify();
-        return { success: true, message: `${employee.name} ha dejado el estudio. Indemnización: $${cost.toLocaleString()}.` };
+        return { success: true, message: `${employee.name} ha dejado el estudio. Indemnización: ${cost.toLocaleString('es-ES')} €.` };
     }
 
     renewEmployeeContract(id, increase) {
@@ -3717,7 +3729,7 @@ class TycoonGame {
     refreshCandidatePool(budget = 2500) {
         const cost = Math.max(1000, Math.min(25000, Math.floor(Number(budget) || 2500)));
         if (this.funds < cost) {
-            return { success: false, message: `Fondos insuficientes ($${cost.toLocaleString()}) para publicar anuncios de reclutamiento.` };
+            return { success: false, message: `Fondos insuficientes (${cost.toLocaleString('es-ES')} €) para publicar anuncios de reclutamiento.` };
         }
         this.funds -= cost;
 
@@ -3789,13 +3801,13 @@ class TycoonGame {
         if (!employee) return { success: false, message: 'Empleado no encontrado.' };
         const nextSalary = Math.max(500, Math.floor(Number(salary) || 0));
         const increase = nextSalary - (employee.salary || 0);
-        if (increase > 0 && this.funds < increase) return { success: false, message: `Fondos insuficientes para cubrir el aumento de $${increase.toLocaleString()}.` };
+        if (increase > 0 && this.funds < increase) return { success: false, message: `Fondos insuficientes para cubrir el aumento de ${increase.toLocaleString('es-ES')} €.` };
         employee.salary = nextSalary;
         employee.salaryExpectation = Math.max(employee.salaryExpectation || 0, nextSalary);
         employee.morale = Math.min(100, (employee.morale ?? 70) + (increase > 0 ? 8 : -10));
         if (increase > 0) this.funds -= increase;
         this.notify();
-        return { success: true, message: `Salario de ${employee.name} actualizado a $${nextSalary.toLocaleString()} al mes.` };
+        return { success: true, message: `Salario de ${employee.name} actualizado a ${nextSalary.toLocaleString('es-ES')} € al mes.` };
     }
 
     assignLeadership(employeeId) {
@@ -3870,23 +3882,23 @@ class TycoonGame {
         }
         if (action === 'match') {
             const increase = offer.offeredSalary - employee.salary;
-            if (increase > 0 && this.funds < increase) return { success: false, message: `Necesitas $${increase.toLocaleString()} para igualar el salario.` };
+            if (increase > 0 && this.funds < increase) return { success: false, message: `Necesitas ${increase.toLocaleString('es-ES')} € para igualar el salario.` };
             if (increase > 0) this.funds -= increase;
             employee.salary = offer.offeredSalary;
             employee.salaryExpectation = Math.max(employee.salaryExpectation || 0, offer.offeredSalary);
             employee.morale = Math.min(100, (employee.morale ?? 70) + 15);
             this.pendingHeadhunts.splice(offerIndex, 1);
             this.notify();
-            return { success: true, message: `${employee.name} acepta quedarse con el nuevo salario de $${offer.offeredSalary.toLocaleString()}.` };
+            return { success: true, message: `${employee.name} acepta quedarse con el nuevo salario de ${offer.offeredSalary.toLocaleString('es-ES')} €.` };
         }
         if (action === 'bonus') {
             const bonusAmount = Math.max(0, Math.floor(Number(bonus) || employee.salary * 2));
-            if (this.funds < bonusAmount) return { success: false, message: `Fondos insuficientes para el bonus de $${bonusAmount.toLocaleString()}.` };
+            if (this.funds < bonusAmount) return { success: false, message: `Fondos insuficientes para el bonus de ${bonusAmount.toLocaleString('es-ES')} €.` };
             this.funds -= bonusAmount;
             employee.morale = Math.min(100, (employee.morale ?? 70) + 20);
             this.pendingHeadhunts.splice(offerIndex, 1);
             this.notify();
-            return { success: true, message: `Bonus de $${bonusAmount.toLocaleString()} pagado; ${employee.name} se queda.` };
+            return { success: true, message: `Bonus de ${bonusAmount.toLocaleString('es-ES')} € pagado; ${employee.name} se queda.` };
         }
         if (action === 'let_go') {
             this.employees = this.employees.filter(item => item.id !== employeeId);
@@ -3915,7 +3927,7 @@ class TycoonGame {
 
     sendOnVacation(empId) {
         const cost = 2000;
-        if (this.funds < cost) return { success: false, message: 'Fondos insuficientes para el paquete de vacaciones ($2,000).' };
+        if (this.funds < cost) return { success: false, message: 'Fondos insuficientes para el paquete de vacaciones (2.000 €).' };
         const emp = this.employees.find(e => e.id === empId);
         if (!emp) return { success: false, message: 'Empleado no encontrado.' };
 
@@ -3933,7 +3945,7 @@ class TycoonGame {
         const costMoney = 3500;
         const costRP = 20;
 
-        if (this.funds < costMoney) return { success: false, message: 'Fondos insuficientes ($3,500) para el curso intensivo.' };
+        if (this.funds < costMoney) return { success: false, message: 'Fondos insuficientes (3.500 €) para el curso intensivo.' };
         if (this.researchPoints < costRP) return { success: false, message: 'Puntos de Investigación insuficientes (20 RP).' };
 
         const emp = this.employees.find(e => e.id === empId);
@@ -4149,7 +4161,7 @@ class TycoonGame {
 
         let totalCost = baseCost + (merchBonus ? 600 : 0);
         if (this.funds < totalCost) {
-            return { success: false, message: `Fondos insuficientes ($${totalCost.toLocaleString()}) para cubrir los costes de la feria.` };
+            return { success: false, message: `Fondos insuficientes (${totalCost.toLocaleString('es-ES')} €) para cubrir los costes de la feria.` };
         }
 
         this.funds -= totalCost;
@@ -4383,7 +4395,7 @@ class TycoonGame {
         }
 
         if (this.funds < item.costMoney) {
-            return { success: false, message: `Fondos insuficientes ($${item.costMoney.toLocaleString()} requeridos para comprar el hardware).` };
+            return { success: false, message: `Fondos insuficientes (${item.costMoney.toLocaleString('es-ES')} € requeridos para comprar el hardware).` };
         }
 
         this.funds -= item.costMoney;
@@ -4431,7 +4443,7 @@ class TycoonGame {
     createCustomEngine(name, selectedTechIds) {
         const cost = 22000 + selectedTechIds.length * 6000;
         if (this.funds < cost) {
-            return { success: false, message: `Fondos insuficientes ($${cost.toLocaleString()}) para compilar y registrar el motor.` };
+            return { success: false, message: `Fondos insuficientes (${cost.toLocaleString('es-ES')} €) para compilar y registrar el motor.` };
         }
         this.funds -= cost;
 
@@ -4478,7 +4490,7 @@ class TycoonGame {
         const costRP = 10 + (bakedNodes.length * 3);
 
         if (this.funds < costMoney) {
-            return { success: false, message: `Fondos insuficientes ($${costMoney.toLocaleString()}) para financiar el I+D del motor propio.` };
+            return { success: false, message: `Fondos insuficientes (${costMoney.toLocaleString('es-ES')} €) para financiar el I+D del motor propio.` };
         }
         if (this.researchPoints < costRP) {
             return { success: false, message: `Puntos de investigación insuficientes (${costRP} RP) para la arquitectura de I+D.` };
@@ -4519,7 +4531,7 @@ class TycoonGame {
 
         const costMoney = 20000 + (newNodes.length * 4000);
         const costRP = 25;
-        if (this.funds < costMoney) return { success: false, message: `Fondos insuficientes ($${costMoney.toLocaleString()}) para actualizar la tecnología del motor.` };
+        if (this.funds < costMoney) return { success: false, message: `Fondos insuficientes (${costMoney.toLocaleString('es-ES')} €) para actualizar la tecnología del motor.` };
         if (this.researchPoints < costRP) return { success: false, message: `Puntos de investigación insuficientes (${costRP} RP) para actualizar el motor.` };
 
         this.funds -= costMoney;
@@ -4557,7 +4569,7 @@ class TycoonGame {
         engine.licensees = engine.licensees || [];
         engine.licensees.push({ studioName, monthlyRoyalty: monthlyFee });
         this.notify();
-        return { success: true, message: `Licencia concedida a ${studioName} por $${monthlyFee}/mes.` };
+        return { success: true, message: `Licencia concedida a ${studioName} por ${monthlyFee.toLocaleString('es-ES')} €/mes.` };
     }
 
     setProjectDevMode(mode) {
@@ -4606,7 +4618,7 @@ class TycoonGame {
         if (this.funds < patchCost) {
             return {
                 success: false,
-                message: `Fondos insuficientes para costear el hotfix de emergencia ($${patchCost.toLocaleString()} requeridos).`
+                message: `Fondos insuficientes para costear el hotfix de emergencia (${patchCost.toLocaleString('es-ES')} € requeridos).`
             };
         }
         this.funds -= patchCost;
