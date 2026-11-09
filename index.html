@@ -44,6 +44,38 @@
             <button id="game-loading-retry" type="button" hidden>Reintentar carga</button>
         </div>
     </div>
+
+    <div id="office-relocation" class="office-relocation" role="status" aria-live="polite" aria-busy="false" hidden>
+        <div class="office-relocation-panel">
+            <div class="office-relocation-badge">
+                <span class="office-relocation-dot" aria-hidden="true"></span>
+                <span>MUDANZA EN TRÁNSITO</span>
+            </div>
+            <div class="office-relocation-visual" aria-hidden="true">
+                <svg class="office-relocation-truck" viewBox="0 0 96 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="6" y="14" width="54" height="34" rx="4" fill="#1e293b" stroke="#38bdf8" stroke-width="2"/>
+                    <path d="M12 24H54M12 34H54" stroke="#334155" stroke-width="1.5" stroke-dasharray="3 3"/>
+                    <rect x="22" y="20" width="22" height="18" rx="2" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+                    <path d="M33 20V38M22 29H44" stroke="#94a3b8" stroke-width="1"/>
+                    <path d="M60 22H78L88 34V48H60V22Z" fill="#0f172a" stroke="#38bdf8" stroke-width="2"/>
+                    <path d="M64 26H76L82 34H64V26Z" fill="#38bdf8" fill-opacity="0.25" stroke="#38bdf8" stroke-width="1.5"/>
+                    <circle cx="85" cy="42" r="2.5" fill="#facc15"/>
+                    <rect x="4" y="46" width="86" height="4" rx="2" fill="#475569"/>
+                    <circle cx="24" cy="50" r="9" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
+                    <circle cx="24" cy="50" r="4" fill="#38bdf8"/>
+                    <circle cx="74" cy="50" r="9" fill="#0f172a" stroke="#64748b" stroke-width="2"/>
+                    <circle cx="74" cy="50" r="4" fill="#38bdf8"/>
+                    <path class="office-relocation-road" d="M0 60H96" stroke="#38bdf8" stroke-width="2" stroke-dasharray="8 6"/>
+                </svg>
+            </div>
+            <h2 id="office-relocation-title">Mudanza en tránsito</h2>
+            <p id="office-relocation-destination" class="office-relocation-dest">Trasladando el estudio a la nueva sede…</p>
+            <p id="office-relocation-status" class="office-relocation-status">Cargando instalaciones y puestos de trabajo…</p>
+            <div class="office-relocation-progress" aria-hidden="true">
+                <div class="office-relocation-bar"></div>
+            </div>
+        </div>
+    </div>
     <!-- WebGL Three.js Container -->
     <div id="canvas-container"></div>
 

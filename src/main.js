@@ -168,6 +168,91 @@ function waitForRenderFrame() {
     });
 }
 
+let isRelocatingOffice = false;
+
+function showRelocationScreen(targetOffice) {
+    const relocation = document.getElementById('office-relocation');
+    if (!relocation) return;
+    const destEl = document.getElementById('office-relocation-destination');
+    const statusEl = document.getElementById('office-relocation-status');
+    if (destEl) destEl.textContent = `Trasladando el estudio a ${targetOffice?.name || 'la nueva sede'}…`;
+    if (statusEl) statusEl.textContent = 'Cargando instalaciones y puestos de trabajo…';
+    relocation.hidden = false;
+    relocation.setAttribute('aria-busy', 'true');
+    void relocation.offsetWidth;
+    relocation.classList.add('active');
+}
+
+function hideRelocationScreen() {
+    return new Promise(resolve => {
+        const relocation = document.getElementById('office-relocation');
+        if (!relocation) {
+            resolve();
+            return;
+        }
+        relocation.classList.remove('active');
+        relocation.setAttribute('aria-busy', 'false');
+        setTimeout(() => {
+            relocation.hidden = true;
+            resolve();
+        }, 360);
+    });
+}
+
+async function performOfficeRelocation(targetOffice, applyChangeCallback) {
+    if (isRelocatingOffice) return;
+    isRelocatingOffice = true;
+    showRelocationScreen(targetOffice);
+
+    try {
+        await new Promise(r => setTimeout(r, 320));
+
+        closeAllModals();
+        if (window.uwuntuOS?.closeWindow) {
+            window.uwuntuOS.closeWindow('app-offices');
+        }
+        if (window.studioPhoneNav?.returnHome) {
+            window.studioPhoneNav.returnHome();
+        }
+
+        if (typeof applyChangeCallback === 'function') {
+            const result = applyChangeCallback();
+            if (result && result.success === false) {
+                await hideRelocationScreen();
+                showToast(result.message, 'warn');
+                return;
+            }
+        }
+
+        world.hideScopeDAG();
+        const holoHud = document.getElementById('hologram-overlay-bar');
+        if (holoHud) holoHud.style.display = 'none';
+
+        world.buildOffice(targetOffice.tier);
+        world.syncEmployees(game.employees);
+        lastRenderedEmployeeCount = game.employees.length;
+        updatePlatformOptions();
+
+        await waitForOfficeAssets();
+
+        await new Promise(r => setTimeout(r, 550));
+
+        await hideRelocationScreen();
+        showToast(`[[DE_ICON_073]] ¡Mudanza completada! El estudio ya está instalado en ${targetOffice.name}.`, 'success');
+        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+
+        if (appliedSettings.autosave !== 'off') autosaveCurrentGame();
+        refreshOfficeManager();
+    } catch (error) {
+        console.error('Error durante la mudanza:', error);
+        await hideRelocationScreen();
+        showToast('Hubo un error durante la mudanza de oficina.', 'error');
+    } finally {
+        isRelocatingOffice = false;
+    }
+}
+window.performOfficeRelocation = performOfficeRelocation;
+
 async function bootGameApp() {
     try {
         document.getElementById('game-loading-retry').addEventListener('click', () => window.location.reload());
@@ -283,17 +368,17 @@ function initializeMainMenu() {
             closeAllModals();
             creatingNewGame = true;
             mainMenu.hidePanel();
-            const needsLoading = world.currentEra !== initialProfile.officeTier;
-            if (needsLoading) showGameLoading();
+            const targetTier = initialProfile.officeTier;
             try {
-                showMenuOffice(initialProfile.officeTier, game.employees.slice(0, 1));
-                if (needsLoading) {
-                    await waitForOfficeAssets();
-                    document.getElementById('game-loading').hidden = true;
+                if (world.currentEra !== targetTier) {
+                    await performOfficeRelocation(findOffice('garage'));
+                } else {
+                    showMenuOffice(targetTier, game.employees.slice(0, 1));
                 }
                 openCompanyCreatorModal(true);
             } catch (error) {
-                showGameLoadingError(error);
+                console.error('Error al iniciar nueva partida:', error);
+                mainMenu.show();
             }
         },
         onSave: saveName => saveSystem.save(game, { saveName }),
@@ -328,16 +413,14 @@ function showMenuOffice(tier, employees) {
 }
 
 function syncStudioScene(state) {
+    if (isRelocatingOffice) return;
     const office = state.getActiveOffice();
     const changedOffice = world.currentEra !== office.tier;
     if (changedOffice) {
-        world.hideScopeDAG();
-        const holoHud = document.getElementById('hologram-overlay-bar');
-        if (holoHud) holoHud.style.display = 'none';
-        world.buildOffice(office.tier);
-        updatePlatformOptions();
+        void performOfficeRelocation(office);
+        return;
     }
-    if (changedOffice || state.employees.length !== lastRenderedEmployeeCount) {
+    if (state.employees.length !== lastRenderedEmployeeCount) {
         world.syncEmployees(state.employees);
         lastRenderedEmployeeCount = state.employees.length;
     }
@@ -358,27 +441,19 @@ async function enterGameplay({ checkpoint = false } = {}) {
     window._pausedSpeedForNews = 0;
     if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
 
-    const needsOfficeLoading = world.currentEra !== game.getActiveOffice().tier ||
-        game.employees.some((employee, index) => world.characters[index]?.employee !== employee);
-    if (needsOfficeLoading) showGameLoading();
+    const targetOffice = game.getActiveOffice();
+    const needsOfficeRelocation = world.currentEra !== targetOffice.tier;
+
     try {
-        const office = game.getActiveOffice();
         lastRenderedEmployeeCount = game.employees.length;
-        if (world.currentEra === office.tier) {
+        if (needsOfficeRelocation) {
+            await performOfficeRelocation(targetOffice);
+            if (world.menuCamera.active) {
+                await world.transitionToGameplay({ era: targetOffice.tier });
+            }
+        } else {
             world.syncEmployees(game.employees);
             await world.transitionToGameplay();
-        } else {
-            await world.transitionToGameplay({
-                era: office.tier,
-                revealOffice: () => {
-                    world.buildOffice(office.tier);
-                    world.syncEmployees(game.employees);
-                }
-            });
-        }
-        if (needsOfficeLoading) {
-            await waitForOfficeAssets();
-            document.getElementById('game-loading').hidden = true;
         }
         populateProjectWizard();
         updateSpeedButtonsUI(game.gameSpeed);
@@ -388,7 +463,6 @@ async function enterGameplay({ checkpoint = false } = {}) {
         mainMenu.setBusy(false);
         mainMenu.show();
         mainMenu.report(error.message);
-        if (needsOfficeLoading) showGameLoadingError(error);
         return;
     }
     appState = STATE_PLAYING;
@@ -3312,10 +3386,21 @@ function openOfficePanel() {
 
 window.refreshOfficePanel = () => refreshOfficeManager(null);
 
-function changeOffice(id, action) {
-    const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
-    refreshOfficeManager(result);
-    if (result.success && appliedSettings.autosave !== 'off') autosaveCurrentGame();
+async function changeOffice(id, action) {
+    const office = game.getOffices().find(item => item.id === id);
+    if (!office) return;
+    if (action === 'activate' && !office.canActivate) {
+        refreshOfficeManager({ success: false, message: office.message || 'No se puede activar esta oficina.' });
+        return;
+    }
+    if (action === 'purchase' && !office.canPurchase) {
+        refreshOfficeManager({ success: false, message: office.message || 'No se puede comprar esta oficina.' });
+        return;
+    }
+
+    await performOfficeRelocation(office, () => {
+        return action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
+    });
 }
 
 // --- REVIEWS MODAL ---
