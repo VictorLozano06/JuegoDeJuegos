@@ -11,7 +11,7 @@ import { realisticEmployeeUrl, installRealisticEmployee, fitRealisticEmployee, a
 import { MenuCamera } from './menuCamera.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
-import { DEFAULT_CHARACTER_CUSTOMIZATION, game } from './simulation.js';
+import { game } from './simulation.js';
 
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
@@ -1029,7 +1029,15 @@ export class WorldEngine {
         }
         employeeList.forEach((employee, index) => {
             const previous = this.characters[index];
-            if (previous?.employee === employee) return;
+            if (previous) {
+                const isFounder = employee.id === 'player' || index === 0;
+                const realisticSeed = isFounder ? 0 : (employee.seed ?? index);
+                const desiredIsWoman = realisticSeed % 2 !== 0;
+                if (previous.realistic?.model && previous.realistic.isWoman === desiredIsWoman) {
+                    previous.employee = employee;
+                    return;
+                }
+            }
             if (previous) this.removeCharacter(previous);
             const character = this.buildCharacterMesh(employee, index);
             this.charactersGroup.add(character.group);
@@ -1040,6 +1048,8 @@ export class WorldEngine {
 
     buildCharacterMesh(employee, index) {
         const model = createEmployeeModel(THREE, employee, index);
+        // Hide procedural low-poly dummy mesh completely so "diseños feos" are never visible
+        model.pelvis.visible = false;
         const face = createEmployeeFace(THREE, model.faceAnchor, model.faceSize, model.skinColor, model.seed);
 
         const bulbGroup = new THREE.Group();
@@ -1096,22 +1106,17 @@ export class WorldEngine {
         };
         initializeEmployeeAnimation(character);
         const isFounder = employee.id === 'player' || index === 0;
-        const hasCustomAppearance = isFounder && Object.entries(DEFAULT_CHARACTER_CUSTOMIZATION).some(
-            ([key, value]) => employee.customization?.[key] != null && employee.customization[key] !== value
-        );
-        if (!hasCustomAppearance) {
-            const realisticSeed = isFounder ? 0 : character.seed;
-            this.loadOfficeAsset(realisticEmployeeUrl(realisticSeed), gltf => {
-                if (character.disposed) {
-                    disposeRealisticEmployee({ realistic: { model: gltf.scene } });
-                    return;
-                }
-                installRealisticEmployee(THREE, character, gltf, realisticSeed);
-                const desk = this.desks.find(slot => slot.occupant === character);
-                if (desk) fitRealisticEmployee(THREE, character, desk);
-                this.needsStaticFrame = true;
-            });
-        }
+        const realisticSeed = isFounder ? 0 : (employee.seed ?? character.seed ?? index);
+        this.loadOfficeAsset(realisticEmployeeUrl(realisticSeed), gltf => {
+            if (character.disposed) {
+                disposeRealisticEmployee({ realistic: { model: gltf.scene } });
+                return;
+            }
+            installRealisticEmployee(THREE, character, gltf, realisticSeed);
+            const desk = this.desks.find(slot => slot.occupant === character);
+            if (desk) fitRealisticEmployee(THREE, character, desk);
+            this.needsStaticFrame = true;
+        });
         return character;
     }
 
@@ -1129,6 +1134,12 @@ export class WorldEngine {
         if (customConfig && !preview) {
             employee.customization = { ...employee.customization, ...customConfig };
         }
+        if (previous.realistic?.model) {
+            previous.employee = preview ? { ...employee, customization: { ...employee.customization, ...customConfig } } : employee;
+            this.needsStaticFrame = true;
+            return;
+        }
+
         const character = this.buildCharacterMesh(preview ? { ...employee, customization: { ...employee.customization, ...customConfig } } : employee, index);
         character.state = previous.state;
         character.stateUntil = previous.stateUntil;
