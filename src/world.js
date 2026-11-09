@@ -7,10 +7,11 @@ import { OFFICE_CATALOG, STARTING_OFFICE } from './data/offices.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
 import { createEmployeeModel } from './characters/model.js';
+import { realisticEmployeeUrl, installRealisticEmployee, fitRealisticEmployee, animateRealisticEmployee, disposeRealisticEmployee } from './characters/realistic.js';
 import { MenuCamera } from './menuCamera.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
-import { game } from './simulation.js';
+import { DEFAULT_CHARACTER_CUSTOMIZATION, game } from './simulation.js';
 
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
@@ -641,6 +642,7 @@ export class WorldEngine {
         const office = officeAtTier(era);
         const eraChanged = office.tier !== this.currentEra;
         this.currentEra = office.tier;
+        this.officeLoadTasks = [];
 
         // All props and maps in this group belong to the previous office.
         const resources = new Set();
@@ -676,6 +678,32 @@ export class WorldEngine {
             this.targetLookAt = this.cameraOfficeTarget.clone();
         }
         this.updateCharacterPositions();
+    }
+
+    loadOfficeAsset(url, onLoad) {
+        const task = new Promise((resolve, reject) => {
+            if (!THREE.GLTFLoader) {
+                reject(new Error('No se ha podido iniciar el cargador de modelos.'));
+                return;
+            }
+            new THREE.GLTFLoader().load(url, asset => {
+                try {
+                    onLoad(asset);
+                    resolve();
+                } catch (error) {
+                    reject(error);
+                }
+            }, undefined, error => reject(new Error(`No se ha podido cargar ${url}: ${error?.message || 'error de red'}`)));
+        });
+        // The caller may wait after the current frame; prevent an early rejection
+        // from becoming an unhandled promise while preserving it for Promise.all.
+        task.catch(() => {});
+        this.officeLoadTasks.push(task);
+        return task;
+    }
+
+    waitForOfficeReady() {
+        return Promise.all(this.officeLoadTasks || []);
     }
 
     buildCyberCampusEra() {
@@ -723,9 +751,9 @@ export class WorldEngine {
         if (style === 'retro') {
             const chair = this.createChair(index === 0 ? 0x8d624b : 0x536d62);
             const screenTexture = this.createAnimatedMonitorCanvas('retro');
-            const { group, screen } = createRetroWorkstation(THREE, { index, screenTexture, chair });
+            const { group, screen, deskFallback, monitorFallback, keyboardFallback, mouseFallback, lampFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
-            this.registerDesk(group, index);
+            this.registerDesk(group, index, { posture: { seatTop: 0.763, chairZ: 0.85, keysTop: 1.45, keysZ: 0.42 } });
             const lamp = group.getObjectByName('flexo_bulb');
             this.monitors.push({
                 mesh: screen,
@@ -733,6 +761,85 @@ export class WorldEngine {
                 lamp,
                 lampIntensity: lamp?.intensity,
             });
+            {
+                const loadFittedModel = (url, fallback, options) => {
+                    this.loadOfficeAsset(url, gltf => {
+                        if (!group.parent) return;
+                        const model = gltf.scene;
+                        if (options.rotation) model.rotation.y = options.rotation;
+                        if (options.removeName) {
+                            const extra = model.getObjectByName(options.removeName);
+                            if (extra?.parent) extra.parent.remove(extra);
+                        }
+                        const container = new THREE.Group();
+                        container.add(model);
+                        container.updateMatrixWorld(true);
+                        const bounds = new THREE.Box3().setFromObject(container);
+                        const size = bounds.getSize(new THREE.Vector3());
+                        if (!size.x || !size.y || !size.z) throw new Error(`El modelo ${options.name} no tiene dimensiones válidas.`);
+                        const center = bounds.getCenter(new THREE.Vector3());
+                        let sx = options.width / size.x, sy = options.height / size.y, sz = options.depth / size.z;
+                        if (options.uniform) sx = sy = sz = options.height / size.y;
+                        if (options.preserveHorizontal) sx = sz = options.width / Math.max(size.x, size.z);
+                        container.scale.set(sx, sy, sz);
+                        container.position.set(options.x - center.x * sx, options.bottom - bounds.min.y * sy, options.z - center.z * sz);
+                        container.name = options.name;
+                        let animatedScreenAssigned = false;
+                        model.traverse(object => {
+                            if (!object.isMesh) return;
+                            object.castShadow = true;
+                            object.receiveShadow = true;
+                            const materialName = object.material?.name || '';
+                            if (options.animatedScreen && /screen.?surface/i.test(materialName)) {
+                                object.visible = false;
+                            } else if (options.animatedScreen && /win.?98.?screen/i.test(materialName)) {
+                                // The downloaded screen uses an atlas. Project the animated canvas
+                                // onto its own curved surface so it stays inside the CRT bezel.
+                                object.geometry = object.geometry.clone();
+                                object.geometry.computeBoundingBox();
+                                const { min, max } = object.geometry.boundingBox;
+                                const position = object.geometry.getAttribute('position');
+                                const uv = new Float32Array(position.count * 2);
+                                for (let i = 0; i < position.count; i++) {
+                                    uv[i * 2] = (position.getY(i) - min.y) / (max.y - min.y);
+                                    uv[i * 2 + 1] = (position.getZ(i) - min.z) / (max.z - min.z);
+                                }
+                                object.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+                                object.material = new THREE.MeshBasicMaterial({ map: screenTexture, side: THREE.DoubleSide });
+                                animatedScreenAssigned = true;
+                            }
+                        });
+                        group.add(container);
+                        fallback.visible = false;
+                        if (animatedScreenAssigned) screen.visible = false;
+                        this.nextShadowRefresh = 0;
+                    });
+                };
+                loadFittedModel('/models/retro-monitor.glb', monitorFallback, { name: 'Ordenador retro', width: 0.92, height: 0.78, depth: 0.58, x: 0, bottom: 1.40, z: -0.26, rotation: -Math.PI / 2, animatedScreen: true });
+                loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
+                loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });
+                loadFittedModel('/models/desk-lamp.glb', lampFallback, { name: 'Flexo', width: 0.4, height: 0.62, depth: 0.4, x: 0.86, bottom: 1.40, z: -0.35, uniform: true, removeName: 'Carc' });
+                loadFittedModel('/models/silla.glb?v=3', chair, { name: 'Silla de oficina', width: 0.64, height: 1.31, depth: 0.64, x: 0, bottom: 0.02, z: 0.85, rotation: -Math.PI / 2, preserveHorizontal: true });
+                this.loadOfficeAsset('/models/office-table.glb', gltf => {
+                    if (!group.parent) return;
+                    const model = gltf.scene;
+                    model.updateMatrixWorld(true);
+                    const bounds = new THREE.Box3().setFromObject(model);
+                    const size = bounds.getSize(new THREE.Vector3());
+                    if (!size.x || !size.y || !size.z) throw new Error('El modelo del escritorio no tiene dimensiones válidas.');
+                    const center = bounds.getCenter(new THREE.Vector3());
+                    const sx = 2.3 / size.x, sy = 1.4 / size.y, sz = 1.2 / size.z;
+                    model.scale.set(sx, sy, sz);
+                    model.position.set(-center.x * sx, -bounds.min.y * sy, -center.z * sz);
+                    model.name = 'Escritorio de madera';
+                    model.traverse(object => {
+                        if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; }
+                    });
+                    group.add(model);
+                    deskFallback.visible = false;
+                    this.nextShadowRefresh = 0;
+                });
+            }
             return;
         }
 
@@ -835,6 +942,7 @@ export class WorldEngine {
             compHitbox,
             worldPos: group.getWorldPosition(new THREE.Vector3()),
             seatPos: group.localToWorld(new THREE.Vector3(0, 0, 0.85)),
+            posture: slot.posture ?? { seatTop: 0.78, chairZ: 0.85, keysTop: 1.444, keysZ: 0.39 },
             occupant: null
         });
     }
@@ -974,6 +1082,8 @@ export class WorldEngine {
             engineProgressSprite, engineProgressCanvas, engineProgressContext, engineProgressTexture, engineProgressVal: -1,
             state: 'typing', stateUntil: 0,
             dispose() {
+                this.disposed = true;
+                disposeRealisticEmployee(this);
                 face.dispose();
                 model.dispose();
                 bulb.geometry.dispose();
@@ -985,6 +1095,23 @@ export class WorldEngine {
             },
         };
         initializeEmployeeAnimation(character);
+        const isFounder = employee.id === 'player' || index === 0;
+        const hasCustomAppearance = isFounder && Object.entries(DEFAULT_CHARACTER_CUSTOMIZATION).some(
+            ([key, value]) => employee.customization?.[key] != null && employee.customization[key] !== value
+        );
+        if (!hasCustomAppearance) {
+            const realisticSeed = isFounder ? 0 : character.seed;
+            this.loadOfficeAsset(realisticEmployeeUrl(realisticSeed), gltf => {
+                if (character.disposed) {
+                    disposeRealisticEmployee({ realistic: { model: gltf.scene } });
+                    return;
+                }
+                installRealisticEmployee(THREE, character, gltf, realisticSeed);
+                const desk = this.desks.find(slot => slot.occupant === character);
+                if (desk) fitRealisticEmployee(THREE, character, desk);
+                this.needsStaticFrame = true;
+            });
+        }
         return character;
     }
 
@@ -1025,6 +1152,7 @@ export class WorldEngine {
             if (!desk) return;
             desk.occupant = character;
             character.group.position.copy(desk.seatPos);
+            fitRealisticEmployee(THREE, character, desk);
         });
     }
 
@@ -1253,6 +1381,7 @@ export class WorldEngine {
 
         for (const character of this.characters) {
             if (!character.group.visible) continue;
+            animateRealisticEmployee(character, time);
             if (menuShot) {
                 character.state = 'typing';
                 character.bulbGroup.visible = false;
@@ -2502,6 +2631,17 @@ export class WorldEngine {
     }
 
     highlightCharacter(character) {
+        if (character?.realistic) {
+            character.realistic.model.traverse(child => {
+                for (const material of (Array.isArray(child.material) ? child.material : [child.material])) {
+                    if (material?.emissive) {
+                        material.emissive.setHex(0x00d2ff);
+                        material.emissiveIntensity = 0.25;
+                    }
+                }
+            });
+            return;
+        }
         const material = character?.torso.children.find(child => child.isMesh)?.material;
         if (material?.emissive) {
             material.emissive.setHex(0x00d2ff);
@@ -2510,6 +2650,17 @@ export class WorldEngine {
     }
 
     unhighlightCharacter(character) {
+        if (character?.realistic) {
+            character.realistic.model.traverse(child => {
+                for (const material of (Array.isArray(child.material) ? child.material : [child.material])) {
+                    if (material?.emissive) {
+                        material.emissive.setHex(0x000000);
+                        material.emissiveIntensity = 0;
+                    }
+                }
+            });
+            return;
+        }
         const material = character?.torso.children.find(child => child.isMesh)?.material;
         if (material?.emissive) {
             material.emissive.setHex(0x000000);

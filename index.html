@@ -35,6 +35,15 @@
     <link rel="stylesheet" href="research-lab.css">
 </head>
 <body class="menu-active">
+    <div id="game-loading" class="game-loading" role="status" aria-live="polite" aria-busy="true">
+        <div class="game-loading-panel">
+            <span class="game-loading-indicator" aria-hidden="true"></span>
+            <p class="game-loading-label">DEV EMPIRE 3D</p>
+            <h2 id="game-loading-title">Preparando el estudio</h2>
+            <p id="game-loading-message">Cargando modelos y texturas…</p>
+            <button id="game-loading-retry" type="button" hidden>Reintentar carga</button>
+        </div>
+    </div>
     <!-- WebGL Three.js Container -->
     <div id="canvas-container"></div>
 

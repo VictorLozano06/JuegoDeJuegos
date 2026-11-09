@@ -15,6 +15,16 @@ import { tickRivals } from './rivalAI.js';
 import { createFinanceState, getFinanceMetrics, getCreditOffer, requestLoan, refinanceLoan, updateFinanceWeek } from './financeSystem.js';
 import { cancelPlayerProject, reduceStaff, stopResearch, restructureCompany, prepareBankruptcy, confirmBankruptcy } from './bankruptcy.js';
 
+export const DEFAULT_CHARACTER_CUSTOMIZATION = Object.freeze({
+    skin: '#f0b884',
+    hairStyle: 'mop',
+    hairColor: '#3d2314',
+    shirtStyle: 'flannel',
+    shirtColor: '#367b70',
+    pantsColor: '#1e293b',
+    accessory: 'none',
+});
+
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
  * Deep, balanced mathematical systems inspired by Game Dev Tycoon & Software Inc.
@@ -398,15 +408,7 @@ class TycoonGame {
             name: 'Raúl Vance',
             trait: 'Visionario'
         };
-        this.characterCustomization = {
-            skin: '#f0b884',
-            hairStyle: 'mop',
-            hairColor: '#3d2314',
-            shirtStyle: 'flannel',
-            shirtColor: '#367b70',
-            pantsColor: '#1e293b',
-            accessory: 'none'
-        };
+        this.characterCustomization = { ...DEFAULT_CHARACTER_CUSTOMIZATION };
 
         this.employees = [
             {

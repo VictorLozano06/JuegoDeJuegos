@@ -128,11 +128,53 @@ window.populateProjectWizard = populateProjectWizard;
 window.updateWizardSynergyBadge = updateWizardSynergyBadge;
 window.updateLiveSalesWidget = updateLiveSalesWidget;
 
-function bootGameApp() {
+function showGameLoading() {
+    const loading = document.getElementById('game-loading');
+    loading.hidden = false;
+    loading.dataset.error = 'false';
+    loading.setAttribute('aria-busy', 'true');
+    document.getElementById('game-loading-title').textContent = 'Preparando el estudio';
+    document.getElementById('game-loading-message').textContent = 'Cargando modelos y texturas…';
+    document.getElementById('game-loading-retry').hidden = true;
+}
+
+function showGameLoadingError(error) {
+    const loading = document.getElementById('game-loading');
+    loading.hidden = false;
+    loading.dataset.error = 'true';
+    loading.setAttribute('aria-busy', 'false');
+    document.getElementById('game-loading-title').textContent = 'No se ha podido cargar el estudio';
+    document.getElementById('game-loading-message').textContent = 'Revisa la conexión con el juego y vuelve a intentarlo.';
+    const retry = document.getElementById('game-loading-retry');
+    retry.hidden = false;
+    retry.focus();
+    console.error('Error al preparar la escena:', error);
+}
+
+async function waitForOfficeAssets() {
+    await world.waitForOfficeReady();
+    // Let the render loop upload the loaded textures before uncovering the scene.
+    await waitForRenderFrame();
+    await waitForRenderFrame();
+}
+
+function waitForRenderFrame() {
+    return new Promise(resolve => {
+        const timeout = setTimeout(resolve, 150);
+        requestAnimationFrame(() => {
+            clearTimeout(timeout);
+            resolve();
+        });
+    });
+}
+
+async function bootGameApp() {
     try {
+        document.getElementById('game-loading-retry').addEventListener('click', () => window.location.reload());
         game.isPaused = true;
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
+        window.world = world;
         world.onNodeClick(on3DNodeClicked);
 
         // Sync initial character
@@ -175,7 +217,6 @@ function bootGameApp() {
         });
         initCompactMenuControls();
         initGameDialogs();
-        initializeMainMenu();
 
         // 4. Bind Game State Listeners
         game.onStateChange((state) => {
@@ -199,6 +240,11 @@ function bootGameApp() {
         // 5. Initial Render
         renderHUD(game);
 
+        await waitForOfficeAssets();
+        initializeMainMenu();
+        await waitForRenderFrame();
+        document.getElementById('game-loading').hidden = true;
+
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('autostart') === '1') {
             game.startNewGameProject({
@@ -214,6 +260,7 @@ function bootGameApp() {
     } catch (e) {
         console.error('CRITICAL BOOT ERROR:', e);
         window.__bootError = e.stack || e.message;
+        showGameLoadingError(e);
     }
 }
 
@@ -232,12 +279,22 @@ function initializeMainMenu() {
         onContinue: loadSavedGame,
         onLoad: loadSavedGame,
         onDelete: id => saveSystem.remove(id),
-        onNewGame: () => {
+        onNewGame: async () => {
             closeAllModals();
             creatingNewGame = true;
             mainMenu.hidePanel();
-            showMenuOffice(initialProfile.officeTier, game.employees.slice(0, 1));
-            openCompanyCreatorModal(true);
+            const needsLoading = world.currentEra !== initialProfile.officeTier;
+            if (needsLoading) showGameLoading();
+            try {
+                showMenuOffice(initialProfile.officeTier, game.employees.slice(0, 1));
+                if (needsLoading) {
+                    await waitForOfficeAssets();
+                    document.getElementById('game-loading').hidden = true;
+                }
+                openCompanyCreatorModal(true);
+            } catch (error) {
+                showGameLoadingError(error);
+            }
         },
         onSave: saveName => saveSystem.save(game, { saveName }),
         onSettingsChange: patch => applyMenuSettings(saveSystem.updateSettings(patch)),
@@ -301,6 +358,9 @@ async function enterGameplay({ checkpoint = false } = {}) {
     window._pausedSpeedForNews = 0;
     if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
 
+    const needsOfficeLoading = world.currentEra !== game.getActiveOffice().tier ||
+        game.employees.some((employee, index) => world.characters[index]?.employee !== employee);
+    if (needsOfficeLoading) showGameLoading();
     try {
         const office = game.getActiveOffice();
         lastRenderedEmployeeCount = game.employees.length;
@@ -316,6 +376,10 @@ async function enterGameplay({ checkpoint = false } = {}) {
                 }
             });
         }
+        if (needsOfficeLoading) {
+            await waitForOfficeAssets();
+            document.getElementById('game-loading').hidden = true;
+        }
         populateProjectWizard();
         updateSpeedButtonsUI(game.gameSpeed);
     } catch (error) {
@@ -324,6 +388,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
         mainMenu.setBusy(false);
         mainMenu.show();
         mainMenu.report(error.message);
+        if (needsOfficeLoading) showGameLoadingError(error);
         return;
     }
     appState = STATE_PLAYING;

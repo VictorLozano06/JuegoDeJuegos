@@ -1,3 +1,26 @@
+.game-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    background: radial-gradient(circle at 50% 35%, #173126, #07110e 65%);
+    color: #f5f6f0;
+    text-align: center;
+}
+.game-loading[hidden] { display: none; }
+.game-loading-panel { max-width: 360px; }
+.game-loading-label { color: #9acdb0; font-size: 11px; font-weight: 800; letter-spacing: .18em; }
+.game-loading h2 { margin: 14px 0 8px; font-size: 24px; }
+.game-loading p:last-of-type { color: #b5c6bb; font-size: 14px; line-height: 1.5; }
+.game-loading-indicator { display: inline-block; width: 34px; height: 34px; border: 3px solid #b8f0c530; border-top-color: #b8f0c5; border-radius: 50%; animation: game-loading-spin .9s linear infinite; }
+.game-loading[data-error="true"] .game-loading-indicator { animation: none; border-color: #e7a18f; }
+.game-loading button { margin-top: 12px; padding: 11px 18px; border: 1px solid #a9e5bd; border-radius: 8px; background: #b8f0c5; color: #10241a; font: inherit; font-weight: 700; cursor: pointer; }
+.game-loading button:focus-visible { outline: 3px solid white; outline-offset: 3px; }
+@keyframes game-loading-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .game-loading-indicator { animation: none; } }
+
 .main-menu,
 .main-menu-dialog {
     --menu-text: #f5f6f0;

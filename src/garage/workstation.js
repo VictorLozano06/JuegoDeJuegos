@@ -7,6 +7,12 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     const group = new THREE.Group();
     group.name = `workstation_${index + 1}`;
     const batches = new Map();
+    const deskBatches = new Map();
+    const deskFallback = new THREE.Group();
+    deskFallback.name = 'Mesa provisional';
+    const monitorBatches = new Map(), keyboardBatches = new Map(), mouseBatches = new Map(), lampBatches = new Map();
+    const monitorFallback = new THREE.Group(), keyboardFallback = new THREE.Group(), mouseFallback = new THREE.Group(), lampFallback = new THREE.Group();
+    let activeBatches = deskBatches;
     const worldUp = new THREE.Vector3(0, 1, 0);
 
     const wood = { roughness: 0.85, metalness: 0 };
@@ -26,10 +32,10 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
         }
         geometry.translate(...center);
 
-        let finishes = batches.get(finish);
+        let finishes = activeBatches.get(finish);
         if (!finishes) {
             finishes = new Map();
-            batches.set(finish, finishes);
+            activeBatches.set(finish, finishes);
         }
         if (!finishes.has(casts)) finishes.set(casts, []);
         finishes.get(casts).push({ geometry, color: new THREE.Color(color) });
@@ -83,6 +89,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     for (const z of [-0.555, 0.555]) {
         box([2.20, 0.025, 0.008], [0, 1.325, z + Math.sign(z) * 0.044], 0xb4794d, wood);
     }
+    activeBatches = batches;
     cylinder(0.045, 0.045, 0.006, [-0.68, 1.403, -0.47], charcoal, plastic);
     box([0.49, 0.062, 0.085], [-0.60, 1.24, -0.47], charcoal);
     const lead = new THREE.CatmullRomCurve3([
@@ -92,6 +99,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     ]);
     part(new THREE.TubeGeometry(lead, 8, 0.008, 5, false), charcoal, plastic, [0, 0, 0]);
 
+    activeBatches = monitorBatches;
     // Stacked external floppy drive and CRT with shallow chamfers and vents.
     bevelBox([0.96, 0.16, 0.55], [0, 1.48, -0.27], 0.016, taupe);
     box([0.79, 0.104, 0.009], [0, 1.48, 0.009], ivory);
@@ -124,6 +132,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     group.add(screen);
 
     // Hands sit over the key field in both office eras at y=1.44.
+    activeBatches = keyboardBatches;
     bevelBox([0.76, 0.024, 0.30], [0, 1.412, 0.42], 0.007, taupe);
     for (let row = 0; row < 3; row++) {
         for (let key = 0; key < 13; key++) {
@@ -134,7 +143,9 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     box([0.31, 0.016, 0.039], [0, 1.432, 0.491], ivory);
     for (const x of [-0.25, 0.25]) box([0.12, 0.016, 0.039], [x, 1.432, 0.491], 0x726350);
 
+    activeBatches = batches;
     box([0.245, 0.008, 0.24], [0.61, 1.404, 0.393], 0x535e58);
+    activeBatches = mouseBatches;
     bevelBox([0.089, 0.047, 0.125], [0.61, 1.4315, 0.39], 0.011, ivory);
     box([0.007, 0.002, 0.047], [0.61, 1.456, 0.36], taupe);
     box([0.009, 0.004, 0.016], [0.61, 1.458, 0.372], charcoal);
@@ -146,11 +157,13 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     ]);
     part(new THREE.TubeGeometry(mouseLead, 12, 0.004, 5, false), charcoal, plastic, [0, 0, 0]);
 
+    activeBatches = batches;
     // Porcelain coffee cup with a small torus handle.
     cylinder(0.067, 0.053, 0.104, [-0.78, 1.452, 0.37], 0xddd0ad, plastic, true);
     cylinder(0.059, 0.059, 0.003, [-0.78, 1.5048, 0.37], 0x4b2f23, plastic);
     part(new THREE.TorusGeometry(0.036, 0.010, 5, 10), 0xddd0ad, plastic, [-0.85, 1.454, 0.37]);
 
+    activeBatches = lampBatches;
     // Connected Anglepoise: two arm segments share physical hinges with the base and shade.
     const base = [0.86, 1.422, -0.35];
     cylinder(0.115, 0.143, 0.044, base, lampColor, enamel, true);
@@ -179,7 +192,8 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     group.add(lampLight);
 
     // Bake rigid parts per finish and shadow policy. Preserve the authored normals.
-    for (const [finish, shadows] of batches) {
+    for (const [batch, destination] of [[batches, group], [deskBatches, deskFallback], [monitorBatches, monitorFallback], [keyboardBatches, keyboardFallback], [mouseBatches, mouseFallback], [lampBatches, lampFallback]]) {
+      for (const [finish, shadows] of batch) {
         for (const [casts, parts] of shadows) {
             const positions = [];
             const normals = [];
@@ -208,9 +222,11 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
             mesh.name = casts ? 'shadow_casting_hardware' : 'surface_details';
             mesh.castShadow = casts;
             mesh.receiveShadow = true;
-            group.add(mesh);
+            destination.add(mesh);
         }
+      }
     }
+    group.add(deskFallback, monitorFallback, keyboardFallback, mouseFallback, lampFallback);
 
     chair.name = 'workstation_chair';
     chair.position.set(0, 0, 0.85);
@@ -218,5 +234,5 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
         if (object.isMesh) object.receiveShadow = true;
     });
     group.add(chair);
-    return { group, screen };
+    return { group, screen, deskFallback, monitorFallback, keyboardFallback, mouseFallback, lampFallback };
 }

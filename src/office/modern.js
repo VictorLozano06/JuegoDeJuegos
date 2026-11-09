@@ -137,15 +137,16 @@ export function buildModernOffice(world, THREE) {
         chair.position.z = 0.85;
         desk.add(chair);
         chairs.push({ desk, chair });
-        world.registerDesk(desk, index, slot, room);
+        world.registerDesk(desk, index, {
+            ...slot,
+            posture: { seatTop: 0.763, chairZ: 0.91, keysTop: 1.442, keysZ: 0.39 },
+        }, room);
         world.monitors[index] = { mesh: display, lightPos: display.getWorldPosition(new THREE.Vector3()) };
     }
 
     // Models are loaded once per office instance; the procedural chairs remain as
     // a fallback while the files load or if an asset cannot be retrieved.
-    if (!THREE.GLTFLoader) return;
-    const loader = new THREE.GLTFLoader();
-    loader.load('/models/silla.glb?v=3', gltf => {
+    world.loadOfficeAsset('/models/silla.glb?v=3', gltf => {
         if (!room.parent) return;
         const model = gltf.scene;
         // The source chair's back faces +X; turn it away from the desk.
@@ -153,7 +154,7 @@ export function buildModernOffice(world, THREE) {
         model.updateMatrixWorld(true);
         const bounds = new THREE.Box3().setFromObject(model);
         const size = bounds.getSize(new THREE.Vector3());
-        if (!size.x || !size.y || !size.z) return;
+        if (!size.x || !size.y || !size.z) throw new Error('El modelo de la silla no tiene dimensiones válidas.');
         // Fit the model to the seated rig: the seat is about 0.8 units above
         // the floor and the front edge must stay behind the character's knees.
         const horizontalScale = 0.64 / Math.max(size.x, size.z);
@@ -177,9 +178,9 @@ export function buildModernOffice(world, THREE) {
             });
         }
         world.nextShadowRefresh = 0;
-    }, undefined, error => console.warn('No se pudo cargar la silla:', error));
+    });
 
-    loader.load('/models/mando-nes.glb', gltf => {
+    world.loadOfficeAsset('/models/mando-nes.glb', gltf => {
         if (!room.parent) return;
         const model = gltf.scene;
         const prop = new THREE.Group();
@@ -199,14 +200,14 @@ export function buildModernOffice(world, THREE) {
         });
         room.add(prop);
         world.nextShadowRefresh = 0;
-    }, undefined, error => console.warn('No se pudo cargar el mando:', error));
+    });
 
-    loader.load('/models/primibot.glb?v=2', gltf => {
+    world.loadOfficeAsset('/models/primibot.glb?v=2', gltf => {
         if (!room.parent) return;
         const model = gltf.scene;
         const bounds = new THREE.Box3().setFromObject(model);
         const size = bounds.getSize(new THREE.Vector3());
-        if (!size.y) return;
+        if (!size.y) throw new Error('El modelo de Primibot no tiene dimensiones válidas.');
         const center = bounds.getCenter(new THREE.Vector3());
         const scale = 0.32 / size.y;
         model.scale.setScalar(scale);
@@ -217,5 +218,5 @@ export function buildModernOffice(world, THREE) {
         });
         chairs[1].desk.add(model);
         world.nextShadowRefresh = 0;
-    }, undefined, error => console.warn('No se pudo cargar Primibot:', error));
+    });
 }
