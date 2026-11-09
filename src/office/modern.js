@@ -19,6 +19,7 @@ export function buildModernOffice(world, THREE) {
     room.name = 'Oficina Moderna';
     world.officeGroup.add(room);
     const chairs = [];
+    const workstations = [];
 
     const matte = (color, roughness = 0.82) => new THREE.MeshStandardMaterial({ color, roughness });
     const floor = matte(0x777b76);
@@ -80,8 +81,8 @@ export function buildModernOffice(world, THREE) {
     }
     box(room, 'Aparador de café', walnut, 2.35, 1.12, 0.72, 3.9, 0.56, BACK + 0.62, true);
     box(room, 'Encimera de café', timber, 2.43, 0.09, 0.76, 3.9, 1.16, BACK + 0.62);
-    box(room, 'Cuerpo de cafetera', aluminum, 0.49, 0.43, 0.39, 4.18, 1.42, BACK + 0.61);
-    box(room, 'Frente de cafetera', graphite, 0.42, 0.24, 0.04, 4.18, 1.43, BACK + 0.83);
+    const applianceBody = box(room, 'Cuerpo de cafetera', aluminum, 0.49, 0.43, 0.39, 4.18, 1.42, BACK + 0.61);
+    const applianceFront = box(room, 'Frente de cafetera', graphite, 0.42, 0.24, 0.04, 4.18, 1.43, BACK + 0.83);
     const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.081, 0.07, 0.14, 10), ceramic);
     mug.name = 'Taza de café';
     mug.position.set(3.68, 1.275, BACK + 0.83);
@@ -120,14 +121,16 @@ export function buildModernOffice(world, THREE) {
         }
         const monitorWidth = boss ? 1.31 : 0.99;
         const monitorZ = -0.34;
-        box(desk, 'Marco del monitor', graphite, monitorWidth, 0.59, 0.055, 0, 1.80, monitorZ, true);
-        box(desk, 'Soporte del monitor', aluminum, 0.085, 0.22, 0.075, 0, 1.51, monitorZ);
-        box(desk, 'Pie del monitor', aluminum, 0.40, 0.035, 0.25, 0, 1.416, monitorZ);
+        const frame = box(desk, 'Marco del monitor', graphite, monitorWidth, 0.59, 0.055, 0, 1.80, monitorZ, true);
+        const stand = box(desk, 'Soporte del monitor', aluminum, 0.085, 0.22, 0.075, 0, 1.51, monitorZ);
+        const base = box(desk, 'Pie del monitor', aluminum, 0.40, 0.035, 0.25, 0, 1.416, monitorZ);
         const display = new THREE.Mesh(new THREE.PlaneGeometry(monitorWidth - 0.07, 0.51), screen);
         display.name = 'Pantalla de desarrollo';
         display.position.set(0, 1.81, monitorZ + 0.03);
         desk.add(display);
-        desk.add(createModernPeripherals(THREE, { tabletop: 1.3975 }));
+        const peripherals = createModernPeripherals(THREE, { tabletop: 1.3975 });
+        desk.add(peripherals);
+        workstations.push({ desk, display, frame, stand, base, peripherals, monitorWidth });
         if (boss) {
             box(desk, 'Organizador del fundador', graphite, 0.62, 0.08, 0.32, -0.96, 1.44, -0.20);
             box(desk, 'Cuaderno del fundador', warmWhite, 0.39, 0.032, 0.29, -0.83, 1.418, 0.30);
@@ -145,6 +148,68 @@ export function buildModernOffice(world, THREE) {
     // a fallback while the files load or if an asset cannot be retrieved.
     if (!THREE.GLTFLoader) return;
     const loader = new THREE.GLTFLoader();
+    const models = [
+        { file: 'monitor', width: 0.99, height: 0.70, depth: 0.25, x: 0, z: -0.34 },
+        { file: 'teclado-nuevo', width: 0.74, height: 0.06, depth: 0.255, x: 0, z: 0.39 },
+        { file: 'raton-nuevo', width: 0.095, height: 0.048, depth: 0.14, x: 0.64, z: 0.30 },
+    ];
+    for (const spec of models) {
+        loader.load('/models/modern-office/' + spec.file + '.glb', gltf => {
+            if (!room.parent) return;
+            for (const station of workstations) {
+                const model = gltf.scene.clone(true);
+                const bounds = new THREE.Box3().setFromObject(model);
+                const size = bounds.getSize(new THREE.Vector3());
+                const center = bounds.getCenter(new THREE.Vector3());
+                if (!size.x || !size.y || !size.z) throw new Error('Modelo de oficina sin dimensiones válidas');
+                const width = spec.file === 'monitor' ? station.monitorWidth : spec.width;
+                model.scale.set(width / size.x, spec.height / size.y, spec.depth / size.z);
+                model.position.set(spec.x - center.x * model.scale.x, 1.3975 - bounds.min.y * model.scale.y, spec.z - center.z * model.scale.z);
+                model.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+                station.desk.add(model);
+                if (spec.file === 'monitor') {
+                    station.frame.visible = station.stand.visible = station.base.visible = false;
+                    station.desk.updateWorldMatrix(true, true);
+                    let displayMesh;
+                    model.traverse(child => { if (child.isMesh && child.material?.name === 'screen') displayMesh = child; });
+                    if (!displayMesh) throw new Error('El monitor no contiene una superficie de pantalla.');
+                    const screenBounds = new THREE.Box3().setFromObject(displayMesh);
+                    const screenCenter = station.desk.worldToLocal(screenBounds.getCenter(new THREE.Vector3()));
+                    const screenSize = screenBounds.getSize(new THREE.Vector3());
+                    station.display.position.set(screenCenter.x, screenCenter.y, screenCenter.z + screenSize.z / 2 + 0.003);
+                    station.display.scale.set(screenSize.x * 0.98 / (station.monitorWidth - 0.07), screenSize.y * 0.98 / 0.51, 1);
+                } else {
+                    for (const child of station.peripherals.children) {
+                        if (spec.file === 'teclado-nuevo' && ['Carcasa de teclado', 'Teclas'].includes(child.name)) child.visible = false;
+                        if (spec.file === 'raton-nuevo' && ['Ratón', 'Rueda del ratón'].includes(child.name)) child.visible = false;
+                    }
+                }
+            }
+            world.nextShadowRefresh = 0;
+        });
+    }
+
+    for (const spec of [
+        { file: 'microondas', x: 4.18, z: BACK + 0.61, width: 0.64, height: 0.38, depth: 0.43 },
+        { file: 'taza', x: 3.68, z: BACK + 0.83, width: 0.20, height: 0.14, depth: 0.16 },
+    ]) {
+        loader.load('/models/modern-office/' + spec.file + '.glb', gltf => {
+            if (!room.parent) return;
+            const model = gltf.scene;
+            const bounds = new THREE.Box3().setFromObject(model);
+            const size = bounds.getSize(new THREE.Vector3());
+            const center = bounds.getCenter(new THREE.Vector3());
+            if (!size.x || !size.y || !size.z) throw new Error('Modelo de cocina sin dimensiones válidas');
+            model.scale.set(spec.width / size.x, spec.height / size.y, spec.depth / size.z);
+            model.position.set(spec.x - center.x * model.scale.x, 1.205 - bounds.min.y * model.scale.y, spec.z - center.z * model.scale.z);
+            model.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+            room.add(model);
+            if (spec.file === 'microondas') applianceBody.visible = applianceFront.visible = false;
+            else mug.visible = false;
+            world.nextShadowRefresh = 0;
+        });
+    }
+
     loader.load('/models/silla.glb?v=3', gltf => {
         if (!room.parent) return;
         const model = gltf.scene;
