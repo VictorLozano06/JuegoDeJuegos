@@ -346,6 +346,20 @@ test('Top Status HUD displays dimmed nodes when idle (Image 1) and vibrant nodes
     assert.equal(controller.project, null, 'removeWidget must clear project');
     assert.equal(controller.state, ProductionLifecycleState.STATE_SETUP, 'removeWidget must reset to STATE_SETUP');
     assert.ok(hudHtml.includes('Ningun proyecto'), 'HUD must return to idle state after removeWidget');
+
+    // 4. showTopHUD and hideTopHUD toggles
+    assert.equal(typeof controller.hideTopHUD, 'function', 'hideTopHUD must be a function');
+    assert.equal(typeof controller.showTopHUD, 'function', 'showTopHUD must be a function');
+    const classes = new Set();
+    mockHudEl.classList = {
+        add: (c) => classes.add(c),
+        remove: (c) => classes.delete(c),
+        contains: (c) => classes.has(c)
+    };
+    controller.hideTopHUD();
+    assert.ok(classes.has('is-hidden'), 'hideTopHUD must add is-hidden class to HUD');
+    controller.showTopHUD();
+    assert.equal(classes.has('is-hidden'), false, 'showTopHUD must remove is-hidden class');
 });
 
 

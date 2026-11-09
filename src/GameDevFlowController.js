@@ -690,10 +690,19 @@ export class GameDevFlowController {
             hud = document.createElement('div');
             hud.id = 'gdt-top-status-hud';
             hud.className = 'gdt-top-hud';
-            document.body.append(hud);
+            const targetContainer = document.getElementById('ui-overlay') || document.body;
+            targetContainer.append(hud);
         }
         this.hudEl = hud;
         this.updateTopHUD();
+    }
+
+    showTopHUD() {
+        if (this.hudEl) this.hudEl.classList.remove('is-hidden');
+    }
+
+    hideTopHUD() {
+        if (this.hudEl) this.hudEl.classList.add('is-hidden');
     }
 
     updateTopHUD() {

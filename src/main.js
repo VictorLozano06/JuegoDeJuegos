@@ -164,6 +164,9 @@ async function bootGameApp() {
             }
         });
         window.gameDevFlow = gameDevFlow;
+        if (appState === STATE_MAIN_MENU) {
+            gameDevFlow.hideTopHUD();
+        }
 
         // Sync initial character
         world.syncEmployees(game.employees);
@@ -393,6 +396,9 @@ async function enterGameplay({ checkpoint = false } = {}) {
     }
     appState = STATE_PLAYING;
     document.getElementById('ui-overlay')?.removeAttribute('inert');
+    if (gameDevFlow) {
+        gameDevFlow.showTopHUD();
+    }
     game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
     checkCalendarEvents();
     game.notify();
@@ -409,6 +415,9 @@ function returnToMainMenu() {
     if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
     appState = STATE_MAIN_MENU;
     document.getElementById('ui-overlay')?.setAttribute('inert', '');
+    if (gameDevFlow) {
+        gameDevFlow.hideTopHUD();
+    }
     game.isPaused = true;
     clearInterval(devInterval);
     clearInterval(calendarInterval);

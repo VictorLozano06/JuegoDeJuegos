@@ -3,6 +3,14 @@
 /* ==========================================================================
    1. GDT TOP STATUS HUD (Images 1 & 2)
    ========================================================================== */
+body.menu-active .gdt-top-hud,
+#ui-overlay[inert] .gdt-top-hud,
+.gdt-top-hud.is-hidden {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 .gdt-top-hud {
     position: fixed;
     top: 14px;
