@@ -738,7 +738,7 @@ export class WorldEngine {
         if (style === 'retro') {
             const chair = this.createChair(index === 0 ? 0x8d624b : 0x536d62);
             const screenTexture = this.createAnimatedMonitorCanvas('retro');
-            const { group, screen, monitorFallback, keyboardFallback, mouseFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
+            const { group, screen, tableFallback, monitorFallback, keyboardFallback, mouseFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
             this.registerDesk(group, index);
             const lamp = group.getObjectByName('flexo_bulb');
@@ -802,6 +802,8 @@ export class WorldEngine {
                         this.nextShadowRefresh = 0;
                     });
                 };
+                loadFittedModel('/models/garage-furniture/metal_office_desk/metal_office_desk_1k.gltf', tableFallback, { name: 'Mesa de oficina', width: 2.3, height: 1.4, depth: 1.2, x: 0, bottom: 0, z: 0, rotation: 0 });
+                loadFittedModel('/models/garage-furniture/painted_wooden_chair_01/painted_wooden_chair_01_1k.gltf', chair, { name: 'Silla de oficina', width: 0.68, height: 1.65, depth: 0.68, x: 0, bottom: 0, z: 0.85, rotation: Math.PI });
                 loadFittedModel('/models/retro-monitor.glb', monitorFallback, { name: 'Ordenador retro', width: 0.92, height: 0.78, depth: 0.58, x: 0, bottom: 1.40, z: -0.26, rotation: -Math.PI / 2, animatedScreen: true });
                 loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0.15, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });

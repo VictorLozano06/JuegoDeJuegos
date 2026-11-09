@@ -9,6 +9,8 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     const batches = new Map();
     const monitorBatches = new Map(), keyboardBatches = new Map(), mouseBatches = new Map();
     const monitorFallback = new THREE.Group(), keyboardFallback = new THREE.Group(), mouseFallback = new THREE.Group();
+    const tableBatches = new Map();
+    const tableFallback = new THREE.Group();
     let activeBatches = batches;
     const worldUp = new THREE.Vector3(0, 1, 0);
 
@@ -73,6 +75,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
         cylinder(radius, radius, axis.length(), start.lerp(end, 0.5).toArray(), color, finish, casts, rotation);
     }
 
+    activeBatches = tableBatches;
     // Timber top at y=1.40; feet and cross braces share one wood batch.
     bevelBox([2.30, 0.12, 1.20], [0, 1.34, 0], 0.025, honey, wood);
     for (const x of [-1.0, 1.0]) {
@@ -86,6 +89,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     for (const z of [-0.555, 0.555]) {
         box([2.20, 0.025, 0.008], [0, 1.325, z + Math.sign(z) * 0.044], 0xb4794d, wood);
     }
+    activeBatches = batches;
     cylinder(0.045, 0.045, 0.006, [-0.68, 1.403, -0.47], charcoal, plastic);
     box([0.49, 0.062, 0.085], [-0.60, 1.24, -0.47], charcoal);
     const lead = new THREE.CatmullRomCurve3([
@@ -187,7 +191,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     group.add(lampLight);
 
     // Bake rigid parts per finish and shadow policy. Preserve the authored normals.
-    for (const [batch, destination] of [[batches, group], [monitorBatches, monitorFallback], [keyboardBatches, keyboardFallback], [mouseBatches, mouseFallback]]) {
+    for (const [batch, destination] of [[batches, group], [tableBatches, tableFallback], [monitorBatches, monitorFallback], [keyboardBatches, keyboardFallback], [mouseBatches, mouseFallback]]) {
     for (const [finish, shadows] of batch) {
         for (const [casts, parts] of shadows) {
             const positions = [];
@@ -221,7 +225,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
         }
     }
     }
-    group.add(monitorFallback, keyboardFallback, mouseFallback);
+    group.add(tableFallback, monitorFallback, keyboardFallback, mouseFallback);
 
     chair.name = 'workstation_chair';
     chair.position.set(0, 0, 0.85);
@@ -229,5 +233,5 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
         if (object.isMesh) object.receiveShadow = true;
     });
     group.add(chair);
-    return { group, screen, monitorFallback, keyboardFallback, mouseFallback };
+    return { group, screen, tableFallback, monitorFallback, keyboardFallback, mouseFallback };
 }
