@@ -67,7 +67,7 @@ let lastRenderedEmployeeCount = null;
 let lastOfficeManagerSnapshot = null;
 const notifiedHeadhuntEmployeeIds = new Set();
 
-const techTreeManager = game.techTreeManager;
+let techTreeManager = game.techTreeManager;
 let scopeDAG = new ScopeDAG(null, { techTreeManager });
 let debtManager = new TechnicalDebtModel();
 let pipelineManager = new EnginePipelineManager();
@@ -141,6 +141,9 @@ let loadingScreenInstance = null;
 async function bootGameApp() {
     try {
         game.isPaused = true;
+        if (game.techTreeManager?.ensureModernCatalog) {
+            game.techTreeManager.ensureModernCatalog();
+        }
 
         const urlParams = new URLSearchParams(window.location.search);
         const skipLoading = urlParams.get('skip_loading') === '1' || window.__SKIP_LOADING_SCREEN__;
@@ -4119,8 +4122,18 @@ function renderTechTree() {
     setupResearchSections();
     setupTechBranchFilterTabs();
 
-    const mgr = techTreeManager || (game && game.techTreeManager);
+    const mgr = game?.techTreeManager || techTreeManager;
     if (!game || !mgr) return;
+
+    // Asegurar que el catálogo contiene pura y exclusivamente las 82 características del nuevo motor
+    if (typeof mgr.ensureModernCatalog === 'function') {
+        mgr.ensureModernCatalog();
+    } else if (!mgr.catalog || mgr.catalog.length !== 82 || mgr.catalog.some(n => n.isLegacyAlias)) {
+        const fresh = new mgr.constructor();
+        mgr.catalog = fresh.catalog;
+        mgr.allCatalog = fresh.allCatalog;
+        mgr.catalogMap = fresh.catalogMap;
+    }
 
     const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
 

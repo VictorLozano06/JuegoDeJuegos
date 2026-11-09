@@ -649,6 +649,10 @@ function validateTechTree(catalog) {
 
 class TechTreeManager {
     constructor(catalog = null, unlockedIds = null) {
+        this.ensureModernCatalog(unlockedIds);
+    }
+
+    ensureModernCatalog(unlockedIds = null) {
         const historical = TECH_TREE_NODES.map(node => ({
             ...node,
             historicalCategory: node.category,
@@ -689,8 +693,15 @@ class TechTreeManager {
             ...historical.filter(n => n.costRP === 0 && (n.eraYear || n.minYear || 1982) <= 1982 && (n.requiredNodes || []).length === 0).map(n => n.id)
         ];
 
-        this.unlockedTechs = new Set(Array.isArray(unlockedIds) && unlockedIds.length > 0 ? unlockedIds : defaultUnlocked);
-        this.dismantledHardware = new Set();
+        if (!this.unlockedTechs) {
+            this.unlockedTechs = new Set(Array.isArray(unlockedIds) && unlockedIds.length > 0 ? unlockedIds : defaultUnlocked);
+        } else {
+            defaultUnlocked.forEach(id => this.unlockedTechs.add(id));
+        }
+
+        if (!this.dismantledHardware) {
+            this.dismantledHardware = new Set();
+        }
     }
 
     getUnlockedCount() {

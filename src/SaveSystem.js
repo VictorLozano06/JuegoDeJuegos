@@ -177,8 +177,63 @@ function replaceGame(game, savedState) {
         if (!RUNTIME_FIELDS.has(key) && typeof game[key] !== 'function') game[key] = value;
     }
     ensureBasicEngine(game);
-    Object.assign(liveManager, defaults.techTreeManager, state.techTreeManager);
+
+    // MIGRATION & REFRESH: Always rebuild catalog and catalogMap from the fresh modern database
+    // (82 items) so that saved games never retain obsolete research items.
+    const freshManager = new defaults.techTreeManager.constructor();
+    liveManager.catalog = freshManager.catalog;
+    liveManager.allCatalog = freshManager.allCatalog;
+    liveManager.catalogMap = freshManager.catalogMap;
+
+    const LEGACY_TECH_MAP = {
+        'tech_graphics_text_ascii': 'graphics_2d_v1',
+        'tech_graphics_2d_sprites': 'graphics_2d_v2',
+        'tech_graphics_fixed_palette': 'graphics_2d_v2',
+        'tech_graphics_parallax_scroll': 'graphics_2d_v3',
+        'tech_graphics_mode7': 'graphics_2d_v4',
+        'tech_graphics_early_3d_polygons': 'graphics_3d_v1',
+        'tech_graphics_gouraud_textures': 'graphics_3d_v2',
+        'tech_graphics_hardware_accel': 'graphics_3d_v3',
+        'tech_audio_pc_speaker': 'sound_mono',
+        'tech_audio_chiptune_fm': 'sound_stereo',
+        'tech_audio_midi': 'sound_soundtrack',
+        'tech_audio_sampled_wav_mod': 'sound_surround',
+        'tech_code_pure_asm': 'engine_save_game',
+        'tech_code_real_mode_mem': 'engine_save_game',
+        'tech_code_c_cpp_migration': 'engine_local_multiplayer',
+        'tech_net_lan_ipx': 'engine_local_multiplayer',
+        'tech_net_dedicated_client_server': 'engine_dedicated_servers',
+        'tech_net_matchmaking_leaderboards': 'engine_online_play',
+        'tech_ai_rigid_patrol': 'ai_improved_ai',
+        'tech_ai_astar_pathfinding': 'ai_ai_companions',
+        'tech_gameplay_aabb_collision': 'engine_basic_physics'
+    };
+
+    const savedUnlocked = state.techTreeManager?.unlockedTechs instanceof Set
+        ? Array.from(state.techTreeManager.unlockedTechs)
+        : (Array.isArray(state.techTreeManager?.unlockedTechs) ? state.techTreeManager.unlockedTechs : []);
+
+    const mergedUnlocked = new Set(freshManager.unlockedTechs);
+    for (const id of savedUnlocked) {
+        mergedUnlocked.add(id);
+        if (LEGACY_TECH_MAP[id]) {
+            mergedUnlocked.add(LEGACY_TECH_MAP[id]);
+        }
+    }
+    liveManager.unlockedTechs = mergedUnlocked;
+    liveManager.dismantledHardware = new Set(state.techTreeManager?.dismantledHardware || []);
     game.techTreeManager = liveManager;
+
+    if (game.activeResearch && !liveManager.catalogMap.has(game.activeResearch.techId)) {
+        const replacementId = LEGACY_TECH_MAP[game.activeResearch.techId];
+        if (replacementId && liveManager.catalogMap.has(replacementId)) {
+            const def = liveManager.catalogMap.get(replacementId);
+            game.activeResearch.techId = replacementId;
+            game.activeResearch.nodeName = def.name;
+        } else {
+            game.activeResearch = null;
+        }
+    }
 }
 
 export function resetGame(game) {
