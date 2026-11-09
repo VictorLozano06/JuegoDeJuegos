@@ -287,6 +287,7 @@ export class WorldEngine {
         this.activeParticles = [];
         this.floatingRPs = [];
         this.steamParticles = [];
+        this.steamGeometry = new THREE.PlaneGeometry(0.06, 0.06);
         this.interactiveComputers = [];
         this.hoveredComputer = null;
         this.previousCameraPos = null;
@@ -1274,14 +1275,13 @@ export class WorldEngine {
 
         // Spawn and update Coffee Steam Particles
         if (this.coffeeMugPos && Math.random() < 0.25) {
-            const steamGeo = new THREE.PlaneGeometry(0.06, 0.06);
             const steamMat = new THREE.MeshBasicMaterial({
                 color: 0xffffff,
                 transparent: true,
                 opacity: 0.35,
                 depthWrite: false
             });
-            const steamMesh = new THREE.Mesh(steamGeo, steamMat);
+            const steamMesh = new THREE.Mesh(this.steamGeometry, steamMat);
             steamMesh.position.copy(this.coffeeMugPos);
             steamMesh.position.x += (Math.random() - 0.5) * 0.06;
             steamMesh.position.z += (Math.random() - 0.5) * 0.06;
@@ -1303,7 +1303,6 @@ export class WorldEngine {
             st.mesh.scale.setScalar(1 + (1 - st.life) * 1.5);
             if (st.life <= 0) {
                 this.steamGroup.remove(st.mesh);
-                st.mesh.geometry.dispose();
                 st.mesh.material.dispose();
                 this.steamParticles.splice(s, 1);
             }
@@ -2353,7 +2352,7 @@ export class WorldEngine {
         let pointerDownTime = 0;
 
         // Pointer Move for Hover Raycasting (Punto 2: Hover con outline / luminosidad brillante)
-        this.renderer.domElement.addEventListener('pointermove', (e) => {
+        const updatePointerHover = (e) => {
             if (this.menuCamera.active) return;
             const rect = this.renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2459,6 +2458,17 @@ export class WorldEngine {
                 this.hoveredCharacter = null;
                 this.container.style.cursor = 'default';
             }
+        };
+        let pendingPointer = null;
+        let pointerFramePending = false;
+        this.renderer.domElement.addEventListener('pointermove', event => {
+            pendingPointer = { clientX: event.clientX, clientY: event.clientY };
+            if (pointerFramePending) return;
+            pointerFramePending = true;
+            requestAnimationFrame(() => {
+                pointerFramePending = false;
+                updatePointerHover(pendingPointer);
+            });
         });
 
         // Pointer Down to record drag origin
