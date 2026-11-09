@@ -1,3 +1,4 @@
+import { ensureProduction } from './production.js';
 import { InHouseEngine, ScopeDAG, ScopeNode, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
 import { migrateOfficeState } from './data/offices.js';
 import { ensureBasicEngine } from './basic-engine.js';
@@ -114,6 +115,7 @@ function decodeState({ root, objects }, techTreeManager) {
     });
     const state = decode(root);
     validateState(state);
+    if (state.currentProject) ensureProduction(state.currentProject);
     Object.assign(state, migrateOfficeState(state));
     // Keep references inside the hydrated project pointed at the UI's live manager.
     for (const value of decoded) {

@@ -290,3 +290,38 @@ body:has(.modal-backdrop.active) :is(.top-bar, .action-dock) { backdrop-filter: 
  .v-post { padding: 14px 12px; }
  .v-timeline-title span { float: none; display: block; margin-top: 5px; }
 }
+/* Production allocation: three vertical controls and a shared effort bar. */
+#active-project-bar { max-height: calc(100vh - 90px); overflow-y: auto; }
+.production-phases { display:grid; grid-template-columns:repeat(3,1fr); border-bottom:1px solid #ffffff24; margin:4px -12px 0; }
+.production-phase { padding:10px 4px; text-align:center; color:#91a3b2; font-size:12px; border-bottom:2px solid transparent; }
+.production-phase b { color:#82939f; font-size:10px; letter-spacing:.06em; margin-right:4px; }
+.production-phase.is-current { color:#d6f6eb; border-color:#72d8c3; font-weight:700; }
+.production-phase.is-current b, .production-phase.is-done b { color:#72d8c3; }
+.production-intro, .production-allocation-label { display:flex; justify-content:space-between; align-items:center; gap:8px; color:#d9e5e8; font-size:12px; font-weight:700; }
+.production-intro { margin:11px 2px 3px; }
+.production-intro small { color:#9aafb8; font-weight:400; }
+.production-columns { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; padding:8px 0 12px; }
+.production-column { --bar-top:#f16a78; --bar-bottom:#aa397b; display:flex; min-width:0; flex-direction:column; align-items:center; text-align:center; gap:5px; color:#dfeaf0; }
+.production-color-1 { --bar-top:#b9d875; --bar-bottom:#2da996; }
+.production-color-2 { --bar-top:#54d5d6; --bar-bottom:#297eaa; }
+.production-slider-wrap { display:flex; justify-content:center; align-items:center; height:145px; width:100%; }
+.production-slider { appearance:none; -webkit-appearance:none; writing-mode:vertical-lr; direction:rtl; width:34px; height:135px; margin:0; cursor:pointer; border-radius:5px; background:linear-gradient(to top, var(--bar-bottom) 0%, var(--bar-top) var(--value), #ffffff14 var(--value), #ffffff14 100%); }
+.production-slider::-webkit-slider-thumb { appearance:none; -webkit-appearance:none; width:48px; height:9px; border-radius:3px; border:1px solid #d8e8e8; background:#e7f4ef; box-shadow:0 2px 7px #0009; }
+.production-slider::-moz-range-thumb { width:46px; height:8px; border-radius:3px; border:1px solid #d8e8e8; background:#e7f4ef; }
+.production-slider:focus-visible { outline:2px solid #e5fff6; outline-offset:5px; }
+.production-slider:disabled { cursor:default; opacity:.7; }
+.production-column strong { color:#eff9f8; font-size:14px; font-variant-numeric:tabular-nums; }
+.production-area-name { font-size:12px; font-weight:700; line-height:1.25; min-height:30px; }
+.production-column small { color:#a5b9c1; font-size:10px; line-height:1.35; }
+.production-allocation-label { margin:0 0 6px; color:#aebfc7; font-weight:500; }
+.production-allocation-bar { display:flex; width:100%; height:23px; overflow:hidden; border-radius:5px; background:#ffffff12; }
+.production-segment { display:flex; justify-content:center; align-items:center; min-width:0; overflow:hidden; color:#fff; font-size:10px; font-weight:700; background:linear-gradient(180deg,var(--bar-top),var(--bar-bottom)); transition:width .12s ease; }
+.production-segment:first-child { --bar-top:#f16a78; --bar-bottom:#aa397b; }
+.production-weekly { color:#aebfc7; font-size:11px; margin:7px 0; }
+#production-allocation > p:not(.production-weekly), #production-allocation details { font-size:11px; color:#b8c9d0; line-height:1.4; margin:6px 0; }
+#production-allocation details summary { cursor:pointer; color:#dce9ed; font-weight:700; }
+#production-allocation details p { margin:4px 0; }
+@media (max-height: 700px) { .production-slider-wrap { height:105px; } .production-slider { height:95px; } .production-phases .production-phase { padding:6px 4px; } }
+@media (max-width: 420px) { .production-columns { gap:3px; } .production-area-name { font-size:11px; } .production-slider-wrap { height:110px; } .production-slider { height:100px; } }
+.profit-history-warning { color:#f5c98a; font-size:11px; line-height:1.35; margin:4px 0; max-width:32em; }
+.profit-history-warning[hidden] { display:none; }

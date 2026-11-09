@@ -1,3 +1,6 @@
+import { profitWarning, formatGameProfit } from './profit-display.js';
+import { formatHistoryAllocation } from './production-history-display.js';
+import { AREAS, ensureProduction } from './production.js';
 import { initializeUwuntuOS } from './uwuntu-os.js';
 import { initializePreproductionWizard } from './preproduction-wizard.js';
 import { commitPreproduction } from './project-transaction.js';
@@ -373,13 +376,6 @@ function startSimulationLoops() {
     clearInterval(devInterval);
     clearInterval(calendarInterval);
     if (game.isPaused) return;
-
-    // Development tick loop (for active projects)
-    devInterval = setInterval(() => {
-        if (!game.isPaused && game.gameSpeed > 0 && game.currentProject && !document.getElementById('modal-expo-scene')?.classList.contains('active')) {
-            game.advanceDevTick(world);
-        }
-    }, DEVELOPMENT_TICK_MS);
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {
@@ -833,6 +829,20 @@ function setupUIControls() {
         e.preventDefault();
         if (!preproductionWizard?.isFinal()) return;
         startProjectFromWizard();
+    });
+
+    document.getElementById('production-allocation')?.addEventListener('input', e => {
+        if (!e.target.dataset.productionArea) return;
+        game.updateProductionAllocation(e.target.dataset.productionArea, e.target.value);
+        const production = game.currentProject.production;
+        e.currentTarget.querySelectorAll('[data-production-area]').forEach(input => {
+            const value = production.allocations[game.currentProject.stage][input.dataset.productionArea];
+            input.value = value;
+            input.closest('label').querySelector('strong').textContent = value + '%';
+            input.style.setProperty('--value', value + '%');
+            const segment = e.currentTarget.querySelector('[data-production-segment="' + input.dataset.productionArea + '"]');
+            if (segment) { segment.style.width = value + '%'; segment.firstElementChild.textContent = value >= 8 ? value + '%' : ''; }
+        });
     });
 
     // Dev Sliders Live Update (Across all 3 stages)
@@ -2310,8 +2320,8 @@ function renderHUD(state) {
             pipeTag.innerText = pipeName;
         }
 
-        document.getElementById('pts-tech').innerText = proj.techPoints;
-        document.getElementById('pts-design').innerText = proj.designPoints;
+        document.getElementById('pts-tech').innerText = Number(proj.techPoints || 0).toFixed(1);
+        document.getElementById('pts-design').innerText = Number(proj.designPoints || 0).toFixed(1);
 
         // Dynamic 5-Discipline Workload & Progress
         let netPoints = 0;
@@ -2409,12 +2419,53 @@ function renderHUD(state) {
         projBar.querySelector('[role="progressbar"]').setAttribute('aria-valuenow', String(Math.floor(progress)));
 
         const stageNames = {
-            1: 'Fase 1: Motor Gráfico & Guion',
-            2: 'Fase 2: Diseño de Niveles & IA',
-            3: 'Fase 3: Gráficos, Mundo & Sonido',
-            4: 'Fase 4: Depuración de Bugs & Pulido'
+            1: 'Fase 1: Diseño',
+            2: 'Fase 2: Desarrollo',
+            3: 'Fase 3: Pulido',
+            4: 'Proyecto listo para publicar'
         };
         document.getElementById('stage-label').innerText = stageNames[proj.stage];
+        const allocationPanel = document.getElementById('production-allocation');
+        if (allocationPanel) {
+            const production = ensureProduction(proj);
+            const activeStage = Math.min(3, proj.stage);
+            const focused = document.activeElement?.dataset?.productionArea;
+            if (!focused || allocationPanel.dataset.renderWeek !== String(production.weeks) || allocationPanel.dataset.renderStage !== String(proj.stage)) {
+                const openSections = [...allocationPanel.querySelectorAll('details[open]')].map(el => el.dataset.section);
+                allocationPanel.dataset.renderWeek = String(production.weeks); allocationPanel.dataset.renderStage = String(proj.stage);
+                const allocation = production.allocations[activeStage];
+                const phaseLabels = ['Diseño', 'Desarrollo', 'Pulido'];
+                allocationPanel.innerHTML = '<div class="production-phases" aria-label="Fases de producción">' + phaseLabels.map((label, index) => '<span class="production-phase ' + (index + 1 === activeStage && proj.stage < 4 ? 'is-current' : index + 1 < proj.stage ? 'is-done' : '') + '" ' + (index + 1 === activeStage && proj.stage < 4 ? 'aria-current="step"' : '') + '><b>0' + (index + 1) + '</b> ' + label + '</span>').join('') + '</div>' +
+                    '<div class="production-intro"><span>Distribución de esfuerzo</span><small>Semana ' + production.weeks + '</small></div>' +
+                    '<div class="production-columns">' + Object.entries(AREAS[activeStage]).map(([key,label], index) => '<label class="production-column production-color-' + index + '"><span class="production-slider-wrap"><input class="production-slider" type="range" min="0" max="100" step="1" value="' + allocation[key] + '" data-production-area="' + key + '" style="--value:' + allocation[key] + '%" ' + (proj.stage===4 ? 'disabled' : '') + ' aria-label="Esfuerzo: ' + label + '"></span><strong>' + allocation[key] + '%</strong><span class="production-area-name">' + label + '</span><small>Trabajo ' + (production.work[key] || 0).toFixed(1) + '<br>Semana +' + (production.lastAreaWork?.[key] || 0).toFixed(1) + '</small></label>').join('') + '</div>' +
+                    '<div class="production-allocation-label"><span>Reparto del equipo</span><span>100%</span></div><div class="production-allocation-bar" aria-label="Reparto del esfuerzo">' + Object.keys(AREAS[activeStage]).map((key,index) => '<span class="production-segment production-color-' + index + '" data-production-segment="' + key + '" style="width:' + allocation[key] + '%"><span>' + (allocation[key] >= 8 ? allocation[key] + '%' : '') + '</span></span>').join('') + '</div>' +
+                    '<p class="production-weekly">Productividad semanal: ' + (production.lastProductivity || 0).toFixed(1) + ' · Bugs: ' + (proj.bugs || 0).toFixed(1) + '</p>';
+                const summary = document.createElement('p');
+                const costs = production.costs || {initial:proj.devCostTotal || 0,payroll:0};
+                summary.textContent = 'Nómina semanal: ' + Math.round(production.history.at(-1)?.salaries || 0).toLocaleString() + ' · Coste inicial y nóminas: ' + Math.round(costs.initial + costs.payroll).toLocaleString() + ' · Fondos disponibles: ' + Math.round(state.funds).toLocaleString();
+                allocationPanel.appendChild(summary);
+                const team = document.createElement('details'); team.dataset.section='team'; team.open=openSections.includes('team');
+                const heading = document.createElement('summary'); heading.textContent = 'Aportación del equipo'; team.appendChild(heading);
+                for (const member of production.lastContributions || []) {
+                    const line = document.createElement('p');
+                    line.textContent = member.name + ' · ' + member.role + ' · energía ' + Math.round(member.energy) + '% · estrés ' + Math.round(member.stress) + '% · ' + Object.entries(member.areas).map(([key,value]) => (Object.values(AREAS).find(areas => key in areas)?.[key] || key) + ': ' + value.toFixed(1)).join(', ');
+                    team.appendChild(line);
+                }
+                allocationPanel.appendChild(team);
+                const finances = document.createElement('p');
+                finances.textContent = 'Nóminas por fase: ' + [1,2,3].map(n => n + ': ' + Math.round(costs.phases?.[n] || 0).toLocaleString()).join(' · ') + ' · Deuda técnica: ' + (proj.techDebtModel?.rawDebt || 0).toFixed(1) + ' · Corrección QA acumulada: ' + (production.work.bugs || 0).toFixed(1) + ' · Optimización: ' + (production.work.optimization || 0).toFixed(1);
+                allocationPanel.appendChild(finances);
+                const history = document.createElement('details'); history.dataset.section='history'; history.open=openSections.includes('history');
+                const historyTitle=document.createElement('summary'); historyTitle.textContent='Historial de producción'; history.appendChild(historyTitle);
+                for (const entry of [...production.history].reverse()) {
+                    const line=document.createElement('p');
+                    line.textContent='Semana ' + entry.week + ' · fase ' + entry.stage + ' · avance ' + Math.floor(entry.progress || 0) + '% · trabajo ' + (entry.effort || 0).toFixed(1) + ' · nómina ' + Math.round(entry.salaries || 0).toLocaleString() + ' · bugs ' + (entry.bugs || 0).toFixed(1) + ' · ' + formatHistoryAllocation(entry);
+                    history.appendChild(line);
+                }
+                allocationPanel.appendChild(history);
+            }
+        }
+
 
         const releaseBtn = document.getElementById('btn-release-game');
         const canLaunchBeta = proj.businessModel === 'early_access' && proj.overallProgress >= 50 && proj.overallProgress <= 80;
@@ -5223,7 +5274,8 @@ function renderHistoryAndCharts() {
     game.gamesHistory.forEach(g => {
         const card = document.createElement('div');
         card.className = 'history-card';
-        const isProfitable = g.profit >= 0;
+        const isProfitable = Number.isFinite(g.profit) && g.profit >= 0;
+        const historicalProfitWarning = profitWarning(g);
 
         let statusPill = '';
         if (g.retired) {
@@ -5262,8 +5314,9 @@ function renderHistoryAndCharts() {
                 <div style="text-align: right;">
                     <div style="font-weight: 700; color: #fff;">${g.businessModel === 'f2p' || g.businessModel === 'live_service' ? `${(g.installationsTotal || 0).toLocaleString()} instalaciones` : `${(g.unitsSoldTotal || 0).toLocaleString()} copias`}</div>
                     <div style="font-size: 13px; font-weight: 700; color: ${isProfitable ? 'var(--accent-green)' : 'var(--accent-red)'};">
-                        ${isProfitable ? '+' : ''}$${Math.floor(g.profit).toLocaleString()}
+                        ${formatGameProfit(g)}
                     </div>
+                    ${historicalProfitWarning ? `<p class="profit-history-warning">${historicalProfitWarning}</p>` : ''}
                 </div>
                 <div style="display: flex; gap: 6px;">
                     <button class="staff-action-btn" onclick="focusGameInLiveWidget('${g.id}')" title="Fijar y ver en el widget flotante del HUD">[[DE_ICON_127]] HUD</button>
@@ -5810,10 +5863,12 @@ function updateLiveSalesWidget() {
     document.getElementById('hud-sales-rank').innerText = `#${rank || (target.weeksOnMarket <= 4 ? 3 : 28)}`;
 
     // Financials
-    const profitVal = Math.floor(target.profit || 0);
     const profitEl = document.getElementById('hud-sales-profit');
-    profitEl.innerText = `${profitVal >= 0 ? '+' : ''}$${profitVal.toLocaleString()}`;
-    profitEl.className = profitVal >= 0 ? 'val-green' : 'val-red';
+    profitEl.innerText = formatGameProfit(target);
+    profitEl.className = Number.isFinite(target.profit) && target.profit >= 0 ? 'val-green' : 'val-red';
+    const warning = document.getElementById('hud-sales-profit-warning');
+    warning.textContent = profitWarning(target);
+    warning.hidden = !warning.textContent;
 
     document.getElementById('hud-sales-revenue').innerText = `$${Math.floor(target.revenueTotal || 0).toLocaleString()}`;
     document.getElementById('hud-sales-cost').innerText = `$${Math.floor(target.devCost || 0).toLocaleString()}`;

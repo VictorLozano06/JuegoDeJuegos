@@ -1,3 +1,4 @@
+import { AREAS, ensureProduction, createProduction, redistribute, workQuality } from './production.js';
 import { soundEngine } from './audio.js';
 import { ensureBasicEngine } from './basic-engine.js';
 import { CommercialEngineCatalog, InHouseEngine, REVERSE_ENGINEERING_CATALOG, ScopeDAG, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
@@ -1945,6 +1946,7 @@ class TycoonGame {
         }
 
         this.notify();
+        createProduction(this.currentProject);
         return { success: true, project: this.currentProject, contract: contractInfo };
     }
 
@@ -1976,7 +1978,7 @@ class TycoonGame {
             revenueShare,
             acceptedYear: year,
             acceptedWeek: this.week,
-            signedAtWeek: this.year * 48 + (this.month - 1) * 4 + this.week,
+            signedAtWeek: this.getIndustryWeek(),
             status: 'signed',
             latePenaltyPaid: 0
         };
@@ -2043,228 +2045,81 @@ class TycoonGame {
         return { success: true, message: 'Oferta rechazada; el estudio conserva su independencia.' };
     }
 
-    advanceDevTick(worldRef) {
-        if (this.isPaused || !this.currentProject) return;
-
-        const proj = this.currentProject;
-        const speedMultiplier = this.gameSpeed;
-        const workMode = this.workMode || 'normal';
-        const isCrunch = proj.devMode === 'crunch' || (workMode === 'crunch' && proj.devMode !== 'refactor');
-        const isRelaxed = workMode === 'relaxed';
-        this.applyEmployeeWorkTick(workMode);
-        const workingEmployees = this.employees.filter(emp => (emp.sickWeeksRemaining || 0) <= 0);
-
-        // Current stage sliders focus (for backward-compatibility)
-        const currentStageKey = proj.stage <= 3 ? `stage${proj.stage}` : 'stage3';
-        const currentSliders = (proj.sliders && proj.sliders[currentStageKey]) || {};
-
-        let stageTechWeight = 0.5;
-        let stageDesignWeight = 0.5;
-
-        if (proj.stage === 1) {
-            const eng = currentSliders.engine || 0.7;
-            const sty = currentSliders.story || 0.5;
-            stageTechWeight = 0.35 + (eng * 0.45);
-            stageDesignWeight = 0.35 + (sty * 0.45);
-        } else if (proj.stage === 2) {
-            const ai = currentSliders.ai || 0.6;
-            const dia = currentSliders.dialogues || 0.6;
-            stageTechWeight = 0.35 + (ai * 0.45);
-            stageDesignWeight = 0.35 + (dia * 0.45);
-        } else if (proj.stage === 3) {
-            const gfx = currentSliders.graphics || 0.8;
-            const wld = currentSliders.worldDesign || 0.7;
-            const snd = currentSliders.sound || 0.7;
-            stageTechWeight = 0.35 + (gfx * 0.35);
-            stageDesignWeight = 0.35 + ((wld + snd) * 0.25);
-        }
-
-        // --- TECHNICAL DEBT & DEV MODE PROCESSING ---
-        let devSpeedMultiplier = 1.0;
-        let debtTickResult = null;
-
-        if (proj.techDebtModel) {
-            if (proj.devMode === 'refactor') {
-                proj.techDebtModel.setRefactorMode(true);
-            } else if (isCrunch) {
-                proj.techDebtModel.setCrunchMode(true);
-            } else {
-                proj.techDebtModel.setCrunchMode(false);
-                proj.techDebtModel.setRefactorMode(false);
-            }
-
-            const activeNodesList = proj.scopeDAG ? proj.scopeDAG.getActiveNodes() : [];
-            const inHouseEngine = proj.engineObj;
-            const engineModifier = proj.pipelineType === 'inhouse'
-                ? ((inHouseEngine && typeof inHouseEngine.isAffineGenre === 'function' && inHouseEngine.isAffineGenre(proj.genre.id)) ? 0.5 : 1.0)
-                : 1.0;
-            const qaPower = workingEmployees.reduce((acc, emp) => {
-                let p = 0;
-                if (emp.trait === 'Bug Hunter' || emp.trait === 'Cazador de Bugs') p += 25;
-                if (emp.role && (emp.role.toLowerCase().includes('qa') || emp.role.toLowerCase().includes('tester'))) p += 35;
-                return acc + p;
-            }, 0);
-
-            const burnoutRiskActive = this.employees.some(emp => (emp.energy ?? emp.stamina ?? 100) < 30);
-            const perfectionistShare = workingEmployees.length
-                ? workingEmployees.filter(emp => emp.trait === 'Perfeccionista' || emp.traits?.includes('Perfeccionista')).length / workingEmployees.length
-                : 0;
-            debtTickResult = proj.techDebtModel.simulateTick({
-                staff: workingEmployees,
-                activeNodes: activeNodesList,
-                dagComplexity: proj.friction || 25,
-                connectedCount: activeNodesList.length || 6,
-                isLateStage: proj.stage >= 3,
-                engineModifier: engineModifier * (proj.historicalIncompatibility?.multiplier || 1) * (1 - perfectionistShare) * (burnoutRiskActive ? 3 : 1),
-                qaPower: qaPower,
-                extraHours: isCrunch ? 3.0 : 0
-            });
-
-            // Punto 3.1: Penalización de velocidad y fricción acumulada
-            devSpeedMultiplier = debtTickResult.speedMultiplier / (proj.historicalIncompatibility?.multiplier || 1); // 1.0 / accumulatedFriction
-            proj.accumulatedFriction = debtTickResult.accumulatedFriction;
-            proj.regressionRisk = debtTickResult.regressionRisk;
-            proj.burnoutDebtMultiplier = burnoutRiskActive ? 3 : 1;
-
-            // Punto 3.2: Gestión de eventos de regresión
-            if (debtTickResult.regression) {
-                proj.regressionsCount = (proj.regressionsCount || 0) + 1;
-                proj.bugs += debtTickResult.regression.newBugs;
-                proj.lastRegression = debtTickResult.regression;
-                proj.lastRegressionTime = Date.now();
-                if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('bug', 0);
-                if (soundEngine) soundEngine.playBubble('bug');
-            }
-        }
-
-        // Punto 4: Acción Activa "Refactorizar / Limpiar Código"
-        // Mientras está activo, el equipo deja de avanzar en las características del juego (Progreso = 0%)
-        if (proj.devMode === 'refactor') {
-            if (Math.random() < 0.45 * speedMultiplier) {
-                proj.bugs = Math.max(0, proj.bugs - 1);
-                if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('research', 0);
-            }
-            this.employees.forEach(emp => {
-                emp.stamina = Math.max(10, emp.stamina - 0.08 * speedMultiplier);
-                emp.energy = emp.stamina;
-            });
-            this.notify();
-            return;
-        }
-
-        // Effective Speed calculation with Crunch Time Boost & Technical Debt Penalties
-        const crunchBoost = isCrunch ? 1.4 : 1.0;
-        const workPaceMultiplier = isRelaxed ? 0.8 : 1.0;
-        const staffPresenceMultiplier = Math.max(0.25, workingEmployees.length / Math.max(1, this.employees.length));
-        const effectiveProgressSpeed = speedMultiplier * devSpeedMultiplier * crunchBoost * workPaceMultiplier * staffPresenceMultiplier;
-
-        // Employees contribute points and progress across disciplines
-        workingEmployees.forEach((emp, index) => {
-            const isFatigued = (emp.energy ?? emp.stamina ?? 100) < 50;
-            const isExhausted = emp.stamina < 10;
-
-            if (!isExhausted) {
-                // Stamina burn: crunch accelerates fatigue at 2.2x rate
-                // Speed modifier drops if fatigued
-                const isPerfectionist = emp.trait === 'Perfeccionista' || emp.traits?.includes('Perfeccionista');
-                const juniorCount = workingEmployees.filter(member => member.experience === 'Junior').length;
-                const isIsolated = (emp.trait === 'Lobo Solitario' || emp.traits?.includes('Lobo Solitario')) && juniorCount >= 2;
-                const traitSpeedMultiplier = (isPerfectionist ? 0.8 : 1) * (isIsolated ? 0.8 : 1);
-                const effectiveSpeed = (isFatigued ? emp.speed * 0.55 : emp.speed) * traitSpeedMultiplier;
-
-                // Tech Points generation
-                const techChance = 0.32 * effectiveSpeed * stageTechWeight;
-                if (Math.random() < techChance) {
-                    const techGained = Math.max(1, Math.ceil(emp.tech * 0.075 * stageTechWeight));
-                    proj.techPoints += techGained;
-                    if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('tech', index);
-                    if (soundEngine && Math.random() < 0.18) soundEngine.playBubble('tech');
-                }
-
-                // Design Points generation
-                const designChance = 0.32 * effectiveSpeed * stageDesignWeight;
-                if (Math.random() < designChance) {
-                    const designGained = Math.max(1, Math.ceil(emp.design * 0.075 * stageDesignWeight));
-                    proj.designPoints += designGained;
-                    if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('design', index);
-                    if (soundEngine && Math.random() < 0.18) soundEngine.playBubble('design');
-                }
-
-                // DAG Discipline Progress contribution
-                if (proj.scopeDAG) {
-                    const uncompletedNodes = proj.scopeDAG.getActiveNodes().filter(n => !n.completed);
-                    if (uncompletedNodes.length > 0) {
-                        const targetNode = uncompletedNodes[0];
-                        targetNode.disciplineProgress.engine += (emp.tech * 0.05 * effectiveProgressSpeed);
-                        targetNode.disciplineProgress.gameplay += (emp.design * 0.05 * effectiveProgressSpeed);
-                        targetNode.disciplineProgress.network += (emp.tech * 0.03 * effectiveProgressSpeed);
-                        targetNode.disciplineProgress.art += (emp.design * 0.04 * effectiveProgressSpeed);
-                        targetNode.disciplineProgress.qa += ((emp.tech + emp.design) * 0.02 * effectiveProgressSpeed);
-                        targetNode.updateCompletionState();
-                    }
-                }
-
-                // Bug Generation (Stages 1-3)
-                if (proj.stage < 4) {
-                    let bugChance = (0.16 / (1 + emp.tech * 0.025));
-                    if (isFatigued) bugChance *= 2.0;
-                    if (emp.trait === 'Bug Hunter') bugChance *= 0.6;
-                    if (isCrunch) bugChance *= 1.8; // Crunch generates bugs faster
-
-                    if (Math.random() < bugChance) {
-                        proj.bugs += 1;
-                        if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('bug', index);
-                        if (soundEngine && Math.random() < 0.15) soundEngine.playBubble('bug');
-                    }
-                }
-
-                // Bug Squashing during Stage 4 (Polish & Bugfix)
-                if (proj.stage === 4 && proj.bugs > 0) {
-                    let fixChance = 0.40 * effectiveSpeed;
-                    if (emp.trait === 'Bug Hunter') fixChance *= 2.2;
-
-                    if (Math.random() < fixChance) {
-                        proj.bugs = Math.max(0, proj.bugs - 1);
-                        if (worldRef && worldRef.spawnCodeParticle) worldRef.spawnCodeParticle('research', index);
-                        if (soundEngine && Math.random() < 0.20) soundEngine.playBubble('research');
-                    }
-                }
-
-                // Trickle Research Points
-                if (Math.random() < 0.09) {
-                    this.researchPoints += 1;
-                }
-            } else {
-                // Employee is exhausted and takes a break
-                emp.stamina = Math.min(emp.maxStamina, emp.stamina + 1.6 * speedMultiplier);
-                emp.energy = emp.stamina;
-            }
-        });
-
-        // Stage progress progression governed by technical debt speed multipliers
-        proj.stageProgress += 2.2 * effectiveProgressSpeed;
-
-        if (proj.scopeDAG) {
-            const dagProgress = proj.scopeDAG.getOverallProgress();
-            proj.overallProgress = Math.max(dagProgress, Math.min(100, Math.floor(((proj.stage - 1) * 33.3) + (proj.stageProgress / 3))));
-        } else {
-            proj.overallProgress = Math.min(100, Math.floor(((proj.stage - 1) * 33.3) + (proj.stageProgress / 3)));
-        }
-
-        if (proj.stageProgress >= 100) {
-            proj.stageProgress = 0;
-            if (proj.stage < 3) {
-                proj.stage += 1;
-                if (soundEngine) soundEngine.playClick();
-            } else if (proj.stage === 3) {
-                proj.stage = 4; // Polish & bugfix stage
-                if (soundEngine) soundEngine.playClick();
-            }
-        }
-
-        if (proj.overallProgress >= 50) this.generateProjectOffers();
-
+    updateProductionAllocation(key, value) {
+        const p = this.currentProject;
+        if (!p || p.stage > 3) return;
+        const prod = ensureProduction(p);
+        const current = prod.allocations[p.stage];
+        if (!(key in current)) return;
+        const next = redistribute(current, key, value);
+        const change = Object.keys(current).reduce((sum, k) => sum + Math.abs(current[k] - next[k]), 0) / 2;
+        prod.allocations[p.stage] = next;
+        prod.reorganization = Math.min(0.25, (prod.reorganization || 0) + change / 500);
         this.notify();
+    }
+
+    advanceDevTick() {
+        const p = this.currentProject;
+        if (!p || p.stage > 3) return;
+        const prod = ensureProduction(p), stage = p.stage;
+        const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0);
+        this.applyEmployeeWorkTick(this.workMode || 'normal');
+        const activeNodes = p.scopeDAG?.getActiveNodes() || [];
+        let speed = 1;
+        if (p.techDebtModel) {
+            p.techDebtModel.setRefactorMode(p.devMode === 'refactor');
+            p.techDebtModel.setCrunchMode(p.devMode === 'crunch');
+            const debt = p.techDebtModel.simulateTick({staff, activeNodes, dagComplexity:p.friction || 25, connectedCount:activeNodes.length || 6, isLateStage:stage===3, engineModifier:p.historicalIncompatibility?.multiplier || 1, qaPower:staff.filter(e=>/qa|tester/i.test(e.role||'')).length*35, extraHours:p.devMode==='crunch'?3:0});
+            speed = debt.speedMultiplier / (p.historicalIncompatibility?.multiplier || 1);
+            if (debt.regression) { p.bugs += debt.regression.newBugs; p.lastRegression = debt.regression; p.lastRegressionTime = Date.now(); p.regressionsCount = (p.regressionsCount || 0) + 1; }
+        }
+        const personCapacity = e => Math.max(0,Number(e.speed)||1) * Math.max(.2,Math.min(1,(e.energy ?? e.stamina ?? 100)/100)) * Math.max(.5,Math.min(1.2,(e.morale ?? 70)/70)) * (1-Math.min(.4,Math.max(0,Number(e.stress)||0)/250));
+        const weighted = staff.reduce((sum,e) => sum + personCapacity(e),0);
+        const capacity = weighted / (1 + Math.max(0,staff.length-4)*.08) * speed * (1-(prod.reorganization||0)) * (p.devMode==='crunch'?1.3:1);
+        prod.reorganization=0;
+        const effort = p.devMode==='refactor' ? 0 : capacity;
+        const skills = {
+            engine:['tech',/engine|program|ingenier/i], gameplay:['design',/design|diseñ/i], story:['design',/guion|narrativ/i],
+            graphics:['design',/art|gráfic/i], sound:['design',/audio|sonid/i], world:['design',/design|diseñ/i],
+            optimization:['tech',/engine|program|ingenier/i], bugs:['tech',/qa|tester|bugs/i], refinement:['design',/design|diseñ/i]
+        };
+        let tech=0, design=0;
+        const contributions = staff.map(e => ({ id:e.id, name:e.name, role:e.role, energy:e.energy ?? e.stamina ?? 100, stress:e.stress || 0, areas:{} }));
+        const areaWeekly = {};
+        for (const [key, percent] of Object.entries(prod.allocations[stage])) {
+            const [attr, role] = skills[key];
+            const skill = weighted ? staff.reduce((sum,e)=>sum+personCapacity(e)*(Math.max(1,Number(e[attr])||20)/35)*(role.test(e.role||'')?1.25:1),0)/weighted : 0;
+            const techCount=(p.historicalTechIds||[]).filter(id => key==='graphics'?id.includes('graphics'):key==='sound'?id.includes('audio'):['engine','optimization'].includes(key)?id.includes('code'):false).length;
+            const amount=effort*percent/100*skill*(1+Math.min(.3,techCount*.04));
+            prod.work[key]=(prod.work[key]||0)+amount;
+            areaWeekly[key]=amount;
+            const weights=staff.map(e=>personCapacity(e)*(Math.max(1,Number(e[attr])||20)/35)*(role.test(e.role||'')?1.25:1));
+            const weightSum=weights.reduce((a,b)=>a+b,0);
+            contributions.forEach((entry,i)=>{entry.areas[key]=weightSum ? amount*weights[i]/weightSum : 0;});
+            if (['engine','graphics','optimization'].includes(key)) tech+=amount; else if (key!=='bugs') design+=amount;
+            if (key==='bugs') p.bugs=Math.max(0,p.bugs-amount*.3/(1+Math.max(0,p.techDebtModel?.rawDebt||0)/50));
+        }
+        p.techPoints+=tech; p.designPoints+=design;
+        const node = activeNodes.find(item => !item.completed);
+        if (node && effort > 0) {
+            const a = prod.allocations[stage];
+            const amounts = stage === 1 ? {engine:a.engine,gameplay:a.gameplay,network:a.engine*.25,art:a.story*.35,qa:a.engine*.15} : stage === 2 ? {engine:a.graphics*.35,gameplay:a.world,network:a.world*.2,art:a.graphics+a.sound*.5,qa:a.sound*.15} : {engine:a.optimization,gameplay:a.refinement,network:a.optimization*.3,art:a.refinement*.35,qa:a.bugs};
+            for (const [key,value] of Object.entries(amounts)) node.disciplineProgress[key] += effort * value / 100;
+            node.updateCompletionState();
+        }
+        if (stage<3) p.bugs+=(effort*.06)*(p.devMode==='crunch'?1.8:1);
+        const scope=Math.sqrt(Math.max(1,(p.disciplineWorkloads?.totalSum||105)/105));
+        const step=effort*10/scope;
+        p.stageProgress=Math.min(100,(p.stageProgress||0)+step);
+        p.overallProgress=Math.max(prod.legacyProgress||0,Math.min(100,((stage-1)*100+p.stageProgress)/3));
+        const salaries = this.employees.reduce((sum,e)=>sum+(Number(e.salary)||0),0)/4;
+        prod.costs ||= { initial:p.devCostTotal || 0, payroll:0, phases:{} };
+        prod.costs.payroll += salaries;
+        prod.costs.phases[stage] = (prod.costs.phases[stage]||0)+salaries;
+        prod.lastContributions=contributions; prod.lastAreaWork=areaWeekly;
+        prod.weeks++; prod.lastProductivity=effort; prod.history.push({week:this.getIndustryWeek(),stage,effort,tech,design,bugs:p.bugs,salaries,progress:p.overallProgress,allocation:{...prod.allocations[stage]},areas:{...areaWeekly},contributions:contributions.map(entry=>({...entry,areas:{...entry.areas}})),debt:p.techDebtModel?.rawDebt||0});
+        if (p.stageProgress>=100) { prod.phaseHistory.push({stage,allocation:{...prod.allocations[stage]},week:this.getIndustryWeek()}); p.stage++; p.stageProgress=0; if(p.stage===4)p.overallProgress=100; }
+        if (p.overallProgress>=50) this.generateProjectOffers();
     }
 
     // --- REVIEW CALCULATION & GAME LAUNCH ---
@@ -2289,21 +2144,7 @@ class TycoonGame {
         const platformAudienceFit = (proj.platform.audienceFit && proj.platform.audienceFit[proj.targetAudience]) || 1.0;
         const audienceFactor = (topicAudienceMatch + platformAudienceFit) / 2; // ~0.85 to 1.20
 
-        // 3. 3-Stage Slider Allocation Accuracy vs Genre Ideals
-        const ideal = proj.genre;
-        let sliderAccuracy = 0;
-        let count = 0;
-
-        ['stage1', 'stage2', 'stage3'].forEach((sKey) => {
-            const idealStage = ideal[`ideal${sKey.charAt(0).toUpperCase() + sKey.slice(1)}`];
-            const actualStage = (proj.sliders && proj.sliders[sKey]) || {};
-            for (let k in idealStage) {
-                const diff = Math.abs(idealStage[k] - (actualStage[k] || 0.7));
-                sliderAccuracy += Math.max(0, 1.0 - diff * 1.25);
-                count++;
-            }
-        });
-        const sliderScoreFactor = count > 0 ? (sliderAccuracy / count) : 0.8;
+        const sliderScoreFactor = workQuality(proj);
 
         // 4. Points Accumulation vs Era Target Expectation
         const pointsSum = proj.techPoints + proj.designPoints;
@@ -2481,7 +2322,7 @@ class TycoonGame {
         // A physical publisher contract has a firm delivery date. Late fees are
         // charged once at the 1.0 release and capped to keep the clause survivable.
         const contractLateWeeks = proj.contractDeadlineWeek
-            ? Math.max(0, this.year * 48 + (this.month - 1) * 4 + this.week - proj.contractDeadlineWeek)
+            ? Math.max(0, this.getIndustryWeek() - proj.contractDeadlineWeek)
             : 0;
         const contractLatePenalty = !existingEarlyAccessGame && contractLateWeeks
             ? Math.min(proj.contractLatePenaltyCap || 0, contractLateWeeks * (proj.contractLatePenaltyPerWeek || 0))
@@ -2655,7 +2496,10 @@ class TycoonGame {
             unitsSoldLastWeek: 0,
             revenueTotal: 0,
             devCost: proj.devCostTotal,
-            profit: (proj.offerRevenue || 0) - proj.devCostTotal - contractLatePenalty - physicalManufacturingCost - (proj.marketingCostTotal || 0),
+            productionPayrollCost: Math.max(0, Number(proj.production?.costs?.payroll) || 0),
+            productionCostHistory: (proj.production?.history || []).map(entry => ({ week: entry.week, stage: entry.stage, payroll: entry.salaries || 0, contributions: entry.contributions || [] })),
+            productionCostCompleteness: proj.production?.legacy ? 'incomplete' : 'complete',
+            profit: (proj.offerRevenue || 0) - proj.devCostTotal - Math.max(0, Number(proj.production?.costs?.payroll) || 0) - contractLatePenalty - physicalManufacturingCost - (proj.marketingCostTotal || 0),
             weeksOnMarket: 0,
             maxWeeks: Math.max(10 + (finalScore >= 8.5 ? 4 : 0), postLaunchReleaseWeek + 4),
             salesPotential: totalSalesPotential,
@@ -2695,6 +2539,9 @@ class TycoonGame {
                 wishlists: releasedGame.wishlists,
                 wishlistsConverted: releasedGame.wishlistsConverted,
                 marketingCostTotal: releasedGame.marketingCostTotal,
+                productionPayrollCost: releasedGame.productionPayrollCost,
+                productionCostHistory: releasedGame.productionCostHistory,
+                productionCostCompleteness: releasedGame.productionCostCompleteness,
                 techPoints: releasedGame.techPoints,
                 designPoints: releasedGame.designPoints,
                 bugsAtRelease: releasedGame.bugsAtRelease,
@@ -2706,6 +2553,7 @@ class TycoonGame {
                 weeksWithoutContentPatch: 0,
                 communityPatience: Math.min(100, (existingEarlyAccessGame.communityPatience || 100) + 20)
             });
+            existingEarlyAccessGame.profit = (existingEarlyAccessGame.upfrontOfferRevenue || 0) + (existingEarlyAccessGame.revenueTotal || 0) - (existingEarlyAccessGame.devCost || 0) - (existingEarlyAccessGame.productionPayrollCost || 0) - (existingEarlyAccessGame.lifetimeServiceCosts || 0) - (existingEarlyAccessGame.contractLatePenalty || 0) - (existingEarlyAccessGame.physicalManufacturingCost || 0) - (existingEarlyAccessGame.marketingCostTotal || 0);
             this.currentProject = null;
             this.notify();
             return existingEarlyAccessGame;
@@ -3209,7 +3057,7 @@ class TycoonGame {
             game.publisherSharePaid = (game.publisherSharePaid || 0) + publisherShare;
             game.revenueTotal += netRevenueThisWeek;
             game.grossRevenueTotal = (game.grossRevenueTotal || 0) + grossRevenueThisWeek;
-            game.profit = (game.upfrontOfferRevenue || 0) + game.revenueTotal - game.devCost - game.lifetimeServiceCosts - (game.contractLatePenalty || 0) - (game.physicalManufacturingCost || 0) - (game.marketingCostTotal || 0);
+            game.profit = (game.upfrontOfferRevenue || 0) + game.revenueTotal - game.devCost - (game.productionPayrollCost || 0) - game.lifetimeServiceCosts - (game.contractLatePenalty || 0) - (game.physicalManufacturingCost || 0) - (game.marketingCostTotal || 0);
             this.funds += netRevenueThisWeek;
             weeklyIncomeTotal += netRevenueThisWeek;
             if (isService && this.week === 4) {
@@ -3469,6 +3317,7 @@ class TycoonGame {
             return;
         }
         this.processEmployeeWeeklyWellbeing();
+        if (this.currentProject) this.advanceDevTick();
         if (typeof this.processHeadhunters === 'function') this.processHeadhunters();
         // Annual obsolescence check for proprietary in-house engines (-15% per year)
         if (this.inHouseEngines && this.inHouseEngines.length > 0) {
