@@ -956,9 +956,12 @@ function setupUIControls() {
             updateLiveSalesWidget();
             showReviewModal(releasedGame);
             if (gameDevFlow) {
-                gameDevFlow.removeWidget();
-                gameDevFlow.closeCurrentModal();
+                if (typeof gameDevFlow.removeWidget === 'function') {
+                    gameDevFlow.removeWidget();
+                }
+                gameDevFlow.closeCurrentModal?.();
                 gameDevFlow.state = ProductionLifecycleState.STATE_SETUP;
+                gameDevFlow.updateTopHUD?.();
             }
         }
     });

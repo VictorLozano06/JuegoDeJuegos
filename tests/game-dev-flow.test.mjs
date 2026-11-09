@@ -339,6 +339,13 @@ test('Top Status HUD displays dimmed nodes when idle (Image 1) and vibrant nodes
     assert.ok(hudHtml.includes('Juego#3'), 'Active HUD card must display project title');
     assert.ok(hudHtml.includes('Viaje en el Tiempo / Estrategia'), 'Active HUD card must display topic / genre');
     assert.ok(hudHtml.includes('is-active'), 'Circles must light up in is-active state');
+
+    // 3. removeWidget cleanup
+    assert.equal(typeof controller.removeWidget, 'function', 'removeWidget must be a callable method');
+    controller.removeWidget();
+    assert.equal(controller.project, null, 'removeWidget must clear project');
+    assert.equal(controller.state, ProductionLifecycleState.STATE_SETUP, 'removeWidget must reset to STATE_SETUP');
+    assert.ok(hudHtml.includes('Ningun proyecto'), 'HUD must return to idle state after removeWidget');
 });
 
 

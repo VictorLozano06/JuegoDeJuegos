@@ -778,13 +778,20 @@ export class GameDevFlowController {
         }
     }
 
-    releaseProject() {
+    removeWidget() {
         this.closeCurrentModal();
         this.project = null;
         this.state = ProductionLifecycleState.STATE_SETUP;
         this.updateTopHUD();
+    }
+
+    releaseProject() {
+        this.closeCurrentModal();
         if (typeof this.onRelease === 'function') {
             this.onRelease();
         }
+        this.project = null;
+        this.state = ProductionLifecycleState.STATE_SETUP;
+        this.updateTopHUD();
     }
 }
