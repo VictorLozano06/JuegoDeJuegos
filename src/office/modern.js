@@ -20,6 +20,7 @@ export function buildModernOffice(world, THREE) {
     world.officeGroup.add(room);
     const chairs = [];
     const workstations = [];
+    const plants = [];
 
     const matte = (color, roughness = 0.82) => new THREE.MeshStandardMaterial({ color, roughness });
     const floor = matte(0x777b76);
@@ -92,10 +93,13 @@ export function buildModernOffice(world, THREE) {
     const leaf = matte(0x547a55);
     const leafLight = matte(0x6c9366);
     for (const [x, z] of [[-5.68, -3.8], [5.76, -3.45]]) {
+        const placeholder = new THREE.Group();
+        room.add(placeholder);
+        plants.push({ x, z, placeholder });
         const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.29, 0.21, 0.47, 10), ceramic);
         pot.name = 'Maceta';
         pot.position.set(x, 0.235, z);
-        room.add(pot);
+        placeholder.add(pot);
         for (let i = 0; i < 5; i++) {
             const angle = i * Math.PI * 2 / 5;
             const frond = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 5), i % 2 ? leaf : leafLight);
@@ -103,7 +107,7 @@ export function buildModernOffice(world, THREE) {
             frond.scale.set(0.12, 0.36, 0.075);
             frond.position.set(x + Math.sin(angle) * 0.15, 0.68 + (i % 3) * 0.055, z + Math.cos(angle) * 0.15);
             frond.rotation.set(Math.cos(angle) * 0.55, angle, -Math.sin(angle) * 0.55);
-            room.add(frond);
+            placeholder.add(frond);
         }
     }
 
@@ -148,6 +152,25 @@ export function buildModernOffice(world, THREE) {
     // a fallback while the files load or if an asset cannot be retrieved.
     if (!THREE.GLTFLoader) return;
     const loader = new THREE.GLTFLoader();
+    loader.load('/models/modern-office/planta.glb', gltf => {
+        if (!room.parent) return;
+        const bounds = new THREE.Box3().setFromObject(gltf.scene);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (!size.x || !size.y || !size.z) return;
+        const scale = 1.12 / size.y;
+        for (const { x, z, placeholder } of plants) {
+            const model = gltf.scene.clone(true);
+            model.scale.setScalar(scale);
+            model.position.set(x - center.x * scale, -bounds.min.y * scale, z - center.z * scale);
+            model.traverse(child => {
+                if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+            });
+            room.add(model);
+            placeholder.visible = false;
+        }
+        world.nextShadowRefresh = 0;
+    }, undefined, error => console.warn('No se ha podido cargar la planta de oficina:', error));
     const models = [
         { file: 'monitor', width: 0.99, height: 0.70, depth: 0.25, x: 0, z: -0.34 },
         { file: 'teclado-nuevo', width: 0.74, height: 0.06, depth: 0.255, x: 0, z: 0.39 },
