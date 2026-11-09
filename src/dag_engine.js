@@ -648,33 +648,68 @@ function validateTechTree(catalog) {
 }
 
 class TechTreeManager {
-    constructor(catalog = DAG_CATALOG, unlockedIds = null) {
-        const categories = { Graphics:'render', Physics:'physics', Network:'netcode', AI:'ai', Audio:'audio', Engine:'systems' };
-        const historical = TECH_TREE_NODES.map(node => ({
-            ...node, historicalCategory: node.category, category: categories[node.category] || node.category,
-            prerequisites: node.requiredNodes, minYear: node.eraYear, costRP: node.researchCost,
-            icon: '[[DE_ICON_006]]', tier: 1, eraName: 'Tecnología histórica', desc: `Riesgo base de deuda técnica: ${node.baseDebt}.`
-        }));
-        this.catalog = [...catalog, ...historical.filter(n => !catalog.some(existing => existing.id === n.id))];
-        const validation = validateTechTree(this.catalog);
-        if (!validation.valid) throw new Error(`Árbol tecnológico inválido: ${validation.errors.join('; ')}`);
-        this.catalogMap = new Map();
-        this.catalog.forEach(n => this.catalogMap.set(n.id, n));
+    constructor(catalog = null, unlockedIds = null) {
+        this.ensureModernCatalog(unlockedIds);
+    }
 
-        // Default foundation technologies unlocked in Era 8-bit (1982)
+    ensureModernCatalog(unlockedIds = null) {
+        const historical = TECH_TREE_NODES.map(node => ({
+            ...node,
+            historicalCategory: node.category,
+            category: node.category,
+            prerequisites: node.requiredNodes || node.prerequisites || [],
+            minYear: node.eraYear || node.minYear || 1982,
+            costRP: node.researchCost || node.costRP || 0,
+            costK: node.costK || (node.cost ? Math.round(node.cost / 1000) : 10),
+            costMoney: node.cost || (node.costK ? node.costK * 1000 : 10000),
+            icon: node.icon || '[[DE_ICON_006]]',
+            tier: node.tier || 1,
+            eraName: `Año ${node.eraYear || 1982}`,
+            desc: `Coste de implementación: ${node.costK || 10}K Cr.`
+        }));
+
+        // Catálogo oficial de investigación tecnológica: 82 características del motor
+        this.catalog = historical.filter(n => !n.isLegacyAlias);
+        this.allCatalog = [...historical];
+
+        this.catalogMap = new Map();
+        this.allCatalog.forEach(n => this.catalogMap.set(n.id, n));
+        if (Array.isArray(DAG_CATALOG)) {
+            DAG_CATALOG.forEach(n => {
+                if (!this.catalogMap.has(n.id)) this.catalogMap.set(n.id, n);
+            });
+        }
+
+        // Tecnologías fundamentales desbloqueadas por defecto en el Año 1982
         const defaultUnlocked = [
+            'graphics_2d_v1',
+            'sound_mono',
+            'story_linear',
+            'engine_save_game',
             'render_raster',
-            'render_pixel',
             'physics_basic',
-            'net_singleplayer',
-            'ai_scripts',
-            'audio_stereo',
-            'content_linear',
-            ...historical.filter(n => n.researchCost === 0 && n.eraYear <= 1982 && n.requiredNodes.length === 0).map(n => n.id)
+            'tech_graphics_text_ascii',
+            'tech_code_pure_asm',
+            ...historical.filter(n => n.costRP === 0 && (n.eraYear || n.minYear || 1982) <= 1982 && (n.requiredNodes || []).length === 0).map(n => n.id)
         ];
 
-        this.unlockedTechs = new Set(Array.isArray(unlockedIds) && unlockedIds.length > 0 ? unlockedIds : defaultUnlocked);
-        this.dismantledHardware = new Set();
+        if (!this.unlockedTechs) {
+            this.unlockedTechs = new Set(Array.isArray(unlockedIds) && unlockedIds.length > 0 ? unlockedIds : defaultUnlocked);
+        } else {
+            defaultUnlocked.forEach(id => this.unlockedTechs.add(id));
+        }
+
+        if (!this.dismantledHardware) {
+            this.dismantledHardware = new Set();
+        }
+    }
+
+    getUnlockedCount() {
+        return this.catalog.filter(n => this.unlockedTechs.has(n.id)).length;
+    }
+
+    getTotalCount() {
+        return this.catalog.length;
     }
 
     isUnlocked(nodeId) {

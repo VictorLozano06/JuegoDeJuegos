@@ -27,6 +27,7 @@ import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
+import { EngineCreationModal } from './EngineCreationModal.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -66,7 +67,7 @@ let lastRenderedEmployeeCount = null;
 let lastOfficeManagerSnapshot = null;
 const notifiedHeadhuntEmployeeIds = new Set();
 
-const techTreeManager = game.techTreeManager;
+let techTreeManager = game.techTreeManager;
 let scopeDAG = new ScopeDAG(null, { techTreeManager });
 let debtManager = new TechnicalDebtModel();
 let pipelineManager = new EnginePipelineManager();
@@ -140,6 +141,9 @@ let loadingScreenInstance = null;
 async function bootGameApp() {
     try {
         game.isPaused = true;
+        if (game.techTreeManager?.ensureModernCatalog) {
+            game.techTreeManager.ensureModernCatalog();
+        }
 
         const urlParams = new URLSearchParams(window.location.search);
         const skipLoading = urlParams.get('skip_loading') === '1' || window.__SKIP_LOADING_SCREEN__;
@@ -1147,16 +1151,19 @@ function setupDeveloperContextMenu() {
         });
     }
 
-    // 6. Action: Desarrollar / Mantener Motor Propio
+    // 6. Action: Desarrollar / Mantener Motor Propio (EngineCreationModal unificado)
     if (btnEngine) {
         btnEngine.addEventListener('click', (e) => {
             e.stopPropagation();
             contextMenu.style.display = 'none';
-            renderTechTree();
-            openModal('modal-research');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
+            EngineCreationModal.open();
         });
     }
+
+    window.openEngineCreationModal = () => {
+        return EngineCreationModal.open();
+    };
 
     // 6b. Action: Investigar Temática Nueva (Subagente 2)
     if (btnTopicResearch) {
@@ -4430,9 +4437,11 @@ function renderResearchSummary(mgr, historicalYear) {
             : '<span class="rd-unlock-chip">Módulo de producción de alta calidad</span>';
 
         const branchNames = {
-            render: 'Render & Gráficos', physics: 'Físicas & Dinámica', netcode: 'Netcode & Red', net: 'Netcode & Red',
-            ai: 'Inteligencia Artificial', audio: 'Audio & Sonido', content: 'Contenido & Narrativa',
-            systems: 'Sistemas & Motor'
+            graphics: 'Gráfico', story: 'Historia / Misiones', engine: 'Motor', gameplay: 'Jugabilidad',
+            dialogues: 'Diálogos', level_design: 'Diseño de Nivel', ai: 'Inteligencia Artificial',
+            world_design: 'Diseño de Mundo', sound: 'Sonido',
+            render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
+            audio: 'Sonido', content: 'Historia / Misiones', systems: 'Motor'
         };
         const branchLabel = branchNames[heroNode.category] || heroNode.category;
         const canAfford = game.researchPoints >= (heroNode.costRP || 30);
@@ -4473,8 +4482,8 @@ function renderResearchSummary(mgr, historicalYear) {
                             ${heroUnlocksHtml}
                         </div>
                         <div class="rd-hero-meta-row">
-                            <div class="rd-hero-meta-item">Coste: <strong>${heroNode.costRP || 30} RP</strong></div>
-                            <div class="rd-hero-meta-item">Riesgo deuda: <strong>Base ${heroNode.baseDebt ?? 2}</strong></div>
+                            <div class="rd-hero-meta-item">Coste I+D: <strong>${heroNode.costRP || 30} RP</strong></div>
+                            <div class="rd-hero-meta-item">Coste en Motor: <strong>${heroNode.costK || 10}K Cr.</strong></div>
                             <div class="rd-hero-meta-item">Aparición histórica: <strong>Año ${heroNode.minYear || 1982}</strong></div>
                         </div>
                     </div>
@@ -4520,8 +4529,11 @@ function renderResearchSummary(mgr, historicalYear) {
             const canAfford = game.researchPoints >= (node.costRP || 30);
             const isBusy = !!game.activeResearch;
             const branchNames = {
-                render: 'Render', physics: 'Físicas', netcode: 'Netcode', net: 'Netcode',
-                ai: 'IA', audio: 'Audio', content: 'Contenido', systems: 'Sistemas'
+                graphics: 'Gráfico', story: 'Historia', engine: 'Motor', gameplay: 'Jugabilidad',
+                dialogues: 'Diálogos', level_design: 'Nivel', ai: 'IA',
+                world_design: 'Mundo', sound: 'Sonido',
+                render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
+                audio: 'Sonido', content: 'Historia', systems: 'Motor'
             };
             const branch = branchNames[node.category] || node.category;
 
@@ -4537,7 +4549,7 @@ function renderResearchSummary(mgr, historicalYear) {
                         ${unlocksSnippet}
                     </div>
                     <div class="rd-card-footer">
-                        <span class="rd-card-debt">Deuda: <span>+${node.baseDebt ?? 2}</span></span>
+                        <span class="rd-card-debt">Motor: <span>${node.costK || 10}K Cr.</span></span>
                         <button type="button" class="rd-btn-investigate" ${!canAfford || isBusy ? 'disabled' : ''} onclick="window.startTechResearch('${node.id}')">
                             ${isBusy ? 'Ocupado' : !canAfford ? 'Faltan RP' : 'Investigar'}
                         </button>
@@ -4547,15 +4559,17 @@ function renderResearchSummary(mgr, historicalYear) {
         }).join('');
     }
 
-    // 6. Studio Technology Progression
+    // 6. Studio Technology Progression (9 Categorías del Motor de Videojuegos)
     const branches = [
-        { id: 'render', name: 'Render & Gráficos', icon: '[[DE_ICON_054]]', match: ['render', 'Graphics'] },
-        { id: 'physics', name: 'Físicas & Dinámica', icon: '[[DE_ICON_055]]', match: ['physics', 'Physics'] },
-        { id: 'netcode', name: 'Netcode & Red', icon: '[[DE_ICON_020]]', match: ['net', 'netcode', 'Network'] },
+        { id: 'graphics', name: 'Gráfico', icon: '[[DE_ICON_054]]', match: ['graphics', 'render', 'Graphics'] },
+        { id: 'story', name: 'Historia / Misiones', icon: '[[DE_ICON_057]]', match: ['story', 'content'] },
+        { id: 'engine', name: 'Motor', icon: '[[DE_ICON_049]]', match: ['engine', 'systems', 'Engine'] },
+        { id: 'gameplay', name: 'Jugabilidad', icon: '[[DE_ICON_070]]', match: ['gameplay', 'physics', 'Physics'] },
+        { id: 'dialogues', name: 'Diálogos', icon: '[[DE_ICON_024]]', match: ['dialogues'] },
+        { id: 'level_design', name: 'Diseño de Nivel', icon: '[[DE_ICON_055]]', match: ['level_design'] },
         { id: 'ai', name: 'Inteligencia Artificial', icon: '[[DE_ICON_056]]', match: ['ai', 'AI'] },
-        { id: 'audio', name: 'Audio & Sonido', icon: '[[DE_ICON_045]]', match: ['audio', 'Audio'] },
-        { id: 'content', name: 'Contenido & Diseño', icon: '[[DE_ICON_057]]', match: ['content'] },
-        { id: 'systems', name: 'Sistemas & Motor', icon: '[[DE_ICON_049]]', match: ['systems', 'Engine'] }
+        { id: 'world_design', name: 'Diseño de Mundo', icon: '[[DE_ICON_066]]', match: ['world_design'] },
+        { id: 'sound', name: 'Sonido', icon: '[[DE_ICON_045]]', match: ['sound', 'audio', 'Audio'] }
     ];
 
     let leadingBranch = null;
@@ -4619,8 +4633,18 @@ function renderTechTree() {
     setupResearchSections();
     setupTechBranchFilterTabs();
 
-    const mgr = techTreeManager || (game && game.techTreeManager);
+    const mgr = game?.techTreeManager || techTreeManager;
     if (!game || !mgr) return;
+
+    // Asegurar que el catálogo contiene pura y exclusivamente las 82 características del nuevo motor
+    if (typeof mgr.ensureModernCatalog === 'function') {
+        mgr.ensureModernCatalog();
+    } else if (!mgr.catalog || mgr.catalog.length !== 82 || mgr.catalog.some(n => n.isLegacyAlias)) {
+        const fresh = new mgr.constructor();
+        mgr.catalog = fresh.catalog;
+        mgr.allCatalog = fresh.allCatalog;
+        mgr.catalogMap = fresh.catalogMap;
+    }
 
     const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
 
@@ -4630,565 +4654,49 @@ function renderTechTree() {
     // 2. Render Secondary DAG Map
     renderResearchMap(mgr, historicalYear);
 
-    // 3. Render In-house Engine Management
+    // 3. Render In-house Engine Management & Launcher
     const enginePanel = document.getElementById('engine-management-container');
     if (enginePanel) {
         const rd = game.activeEngineRD;
         const engineCards = (game.inHouseEngines || []).map(engine => {
             const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
-            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Especialidad: ${(engine.affineGenres || []).join(', ') || 'general' } · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="upgradeStudioEngine('${engine.id}')">Actualizar e integrar los módulos seleccionados (20.000 € + 4.000 €/módulo, 25 RP)</button> <button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
+            const featCount = (engine.features || engine.bakedNodes || []).length;
+            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Características: ${featCount} módulos integrados · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
         }).join('');
-        enginePanel.innerHTML = `${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : ''}`;
-    }
 
-    // 4. Asistente Visual de Construcción de Motores
-    renderEngineWorkshop(mgr, historicalYear);
+        const launcherCardHtml = `
+            <div class="engine-create-launcher-card" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 20px;">[[DE_ICON_015]]</span>
+                    <div>
+                        <strong style="color: #fff; font-size: 13px;">Creación de Motor Modular</strong>
+                        <p style="color: var(--text-secondary); font-size: 11px; margin: 2px 0 0 0;">
+                            Crea un motor nuevo con gráficos, sonido, físicas, historia y más.
+                        </p>
+                    </div>
+                </div>
+                <button type="button" class="dock-btn btn-primary-action" id="btn-open-engine-modal-tab" style="font-weight: 700; padding: 8px 16px; font-size: 13px;">
+                    [[DE_ICON_015]] Crear Nuevo Motor
+                </button>
+            </div>
+        `;
 
-    // 5. Banco de Análisis de Hardware Rival (Ingeniería Inversa)
-    renderHardwareWorkbench(mgr, historicalYear);
-}
+        enginePanel.innerHTML = `
+            ${launcherCardHtml}
+            ${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}
+            ${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : '<div style="font-size:12px;color:var(--text-secondary);padding:10px 0;">No tienes motores propios desarrollados. Pulsa en "Crear Nuevo Motor" para iniciar uno.</div>'}
+        `;
 
-/* =========================================================================
-   ASISTENTE VISUAL DE CONSTRUCCIÓN DE MOTORES (ENGINE WORKSHOP)
-   ========================================================================= */
-
-const engineWorkshopState = {
-    currentStage: 1, // 1: Identidad, 2: Especializaciones, 3: Arquitectura Blueprint, 4: Revisión
-    name: 'Titan Forge',
-    version: 'v1.0',
-    selectedGenres: new Set(['Action', 'RPG']),
-    selectedModules: new Set(),
-    paletteBranchFilter: 'all',
-    initialized: false
-};
-
-const ENGINE_RANDOM_NAMES = [
-    'Titan Forge', 'Apex Velocity', 'Vanguard Core', 'CyberPulse',
-    'Nova Engine', 'Aether Tech', 'Matrix Core', 'Quantum Strike',
-    'RetroGrid Pro', 'OmniVision', 'HyperDrive 3D', 'Zenith Engine',
-    'Chrono Shift', 'Hydra System', 'Solaris FX', 'Pulse Dynamic'
-];
-
-const ENGINE_GENRE_DEFINITIONS = [
-    { id: 'Action', label: 'Acción & Arcade', icon: '[[DE_ICON_070]]', desc: 'Optimizado para alta tasa de FPS, latencia nula de mandos y cálculo rápido de colisiones.' },
-    { id: 'RPG', label: 'Rol & Aventura Gráfica', icon: '[[DE_ICON_071]]', desc: 'Gestión masiva de árboles de estadísticas, inventarios dinámicos y persistencia de mundos.' },
-    { id: 'Strategy', label: 'Estrategia & Táctica', icon: '[[DE_ICON_072]]', desc: 'Simulación multihilo de agentes concurrentes, cálculo de rutas e IA táctica.' },
-    { id: 'Simulation', label: 'Simulación Continua', icon: '[[DE_ICON_073]]', desc: 'Modelado vehicular y físico de precisión, telemetría y ecuaciones de variables complejas.' },
-    { id: 'Adventure', label: 'Aventura Narrativa', icon: '[[DE_ICON_074]]', desc: 'Manejo cinemático de cámaras, sincronización de diálogos y máquinas de estado para puzzles.' },
-    { id: 'Casual', label: 'Casual & Accesible', icon: '[[DE_ICON_075]]', desc: 'Carga instantánea, bajo consumo de memoria y ejecución perfecta en hardware modesto.' }
-];
-
-const BAY_DEFINITIONS = [
-    { id: 'render', label: 'Render & Gráficos', match: ['render', 'Graphics'], icon: '[[DE_ICON_020]]' },
-    { id: 'physics', label: 'Físicas & Colisiones', match: ['physics', 'Physics'], icon: '[[DE_ICON_021]]' },
-    { id: 'netcode', label: 'Red & Multijugador', match: ['net', 'netcode', 'Network'], icon: '[[DE_ICON_023]]' },
-    { id: 'ai', label: 'Inteligencia Artificial', match: ['ai', 'AI'], icon: '[[DE_ICON_024]]' },
-    { id: 'audio', label: 'Audio & Acústica', match: ['audio', 'Audio'], icon: '[[DE_ICON_025]]' },
-    { id: 'systems', label: 'Contenido & Sistemas', match: ['content', 'systems', 'Engine'], icon: '[[DE_ICON_026]]' }
-];
-
-window.setEngineWorkshopStage = function(stage) {
-    if (stage < 1 || stage > 4) return;
-    const nameInput = document.getElementById('workshop-engine-name');
-    if (nameInput && nameInput.value.trim()) {
-        engineWorkshopState.name = nameInput.value.trim();
-    }
-    engineWorkshopState.currentStage = stage;
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.randomizeEngineName = function() {
-    const randomName = ENGINE_RANDOM_NAMES[Math.floor(Math.random() * ENGINE_RANDOM_NAMES.length)];
-    engineWorkshopState.name = randomName;
-    const input = document.getElementById('workshop-engine-name');
-    if (input) input.value = randomName;
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.setEngineVersion = function(version) {
-    engineWorkshopState.version = version;
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.toggleEngineGenre = function(genreId) {
-    if (engineWorkshopState.selectedGenres.has(genreId)) {
-        if (engineWorkshopState.selectedGenres.size <= 1) {
-            showToast('El motor debe tener al menos una especialización de género.', 'warn');
-            return;
+        const btnTabOpen = document.getElementById('btn-open-engine-modal-tab');
+        if (btnTabOpen) {
+            btnTabOpen.addEventListener('click', () => {
+                EngineCreationModal.open();
+            });
         }
-        engineWorkshopState.selectedGenres.delete(genreId);
-    } else {
-        engineWorkshopState.selectedGenres.add(genreId);
-    }
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.filterEnginePalette = function(filter) {
-    engineWorkshopState.paletteBranchFilter = filter;
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.toggleEngineModule = function(moduleId) {
-    if (engineWorkshopState.selectedModules.has(moduleId)) {
-        engineWorkshopState.selectedModules.delete(moduleId);
-    } else {
-        engineWorkshopState.selectedModules.add(moduleId);
-    }
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.removeEngineModule = function(moduleId) {
-    engineWorkshopState.selectedModules.delete(moduleId);
-    const mgr = techTreeManager || (game && game.techTreeManager);
-    const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
-    renderEngineWorkshop(mgr, historicalYear);
-};
-
-window.submitEngineWorkshop = function() {
-    if (!game) return;
-    const input = document.getElementById('workshop-engine-name');
-    if (input && input.value.trim()) {
-        engineWorkshopState.name = input.value.trim();
-    }
-    const fullName = `${engineWorkshopState.name.trim()} ${engineWorkshopState.version}`.trim();
-    const modules = Array.from(engineWorkshopState.selectedModules);
-    if (modules.length === 0) {
-        showToast('Debes seleccionar al menos un módulo tecnológico para el motor.', 'warn');
-        return;
-    }
-    const affineGenres = Array.from(engineWorkshopState.selectedGenres);
-    const historicalTechIds = modules.filter(id => id.startsWith('tech_'));
-    const bakedNodes = modules.filter(id => !id.startsWith('tech_'));
-
-    const res = game.startInHouseEngineRD({
-        name: fullName,
-        bakedNodes,
-        historicalTechIds,
-        affineGenres
-    });
-
-    if (res.success) {
-        if (typeof updateEngineOptions === 'function') updateEngineOptions();
-        if (typeof renderTechTree === 'function') renderTechTree();
-        if (typeof renderPipelineSelector === 'function') renderPipelineSelector();
-        showToast(res.message || `[[DE_ICON_049]] ¡Proyecto de motor "${fullName}" iniciado con éxito!`, 'success');
-        if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
-    } else {
-        showToast(res.message, 'warn');
-        if (soundEngine && soundEngine.playDebtAlert) soundEngine.playDebtAlert();
-    }
-};
-
-function renderEngineWorkshop(mgr, year) {
-    const container = document.getElementById('engine-workshop-container');
-    if (!container || !mgr || !game) return;
-
-    // Initialize default unlocked modules if empty
-    if (!engineWorkshopState.initialized) {
-        const unlocked = mgr.catalog.filter(n => mgr.isUnlocked(n.id));
-        unlocked.slice(0, 4).forEach(n => engineWorkshopState.selectedModules.add(n.id));
-        engineWorkshopState.initialized = true;
     }
 
-    const seniorProgrammers = (game.employees || []).filter(e => (e.tech || 0) >= 30 && (!e.role || /program|desarroll|ingenier|líder/i.test(e.role)));
-    const leadSenior = seniorProgrammers.length > 0 ? seniorProgrammers[0] : null;
-
-    const moduleCount = engineWorkshopState.selectedModules.size;
-    const costMoney = 18000 + (moduleCount * 2000);
-    const costRP = 10 + (moduleCount * 3);
-    const historicalTechIds = Array.from(engineWorkshopState.selectedModules).filter(id => id.startsWith('tech_'));
-    const incompatibility = typeof calculateTechIncompatibility === 'function' ? calculateTechIncompatibility(historicalTechIds) : { multiplier: 1, debt: 0 };
-    const engineWeeks = Math.ceil(8 * (incompatibility.multiplier || 1));
-    const canAfford = game.funds >= costMoney && game.researchPoints >= costRP && !!leadSenior && moduleCount > 0;
-
-    const stage = engineWorkshopState.currentStage;
-    const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
-    // Stepper HTML
-    const stepperSteps = [
-        { num: 1, title: 'Identidad', sub: 'Nombre y versión' },
-        { num: 2, title: 'Especialización', sub: 'Géneros optimizados' },
-        { num: 3, title: 'Arquitectura', sub: 'Plano tecnológico' },
-        { num: 4, title: 'Revisión & I+D', sub: 'Presupuesto final' }
-    ];
-
-    const stepperHtml = `
-        <div class="engine-stepper">
-            ${stepperSteps.map(s => `
-                <button type="button" class="engine-step-btn ${stage === s.num ? 'active' : ''}" onclick="window.setEngineWorkshopStage(${s.num})">
-                    <span class="step-num">0${s.num}</span>
-                    <div class="step-info">
-                        <strong>${s.title}</strong>
-                        <small>${s.sub}</small>
-                    </div>
-                </button>
-            `).join('')}
-        </div>
-    `;
-
-    // Stage 1: Identity
-    const versionPills = ['v1.0', 'v1.5', 'v2.0 Pro', 'v3.0 Ultra'];
-    const stage1Html = `
-        <div class="engine-stage-panel ${stage === 1 ? 'active' : ''}">
-            <div class="engine-identity-grid">
-                <div class="engine-badge-preview">
-                    <div class="engine-badge-icon">[[DE_ICON_015]]</div>
-                    <div style="font-weight: 800; font-size: 15px; color: #fff; text-align: center;">${safe(engineWorkshopState.name)}</div>
-                    <span class="engine-badge-tag">${safe(engineWorkshopState.version)}</span>
-                </div>
-                <div>
-                    <div class="form-group" style="margin-bottom: 14px;">
-                        <label class="form-label" style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block;">
-                            Nombre del Motor Tecnológico
-                        </label>
-                        <div class="engine-name-input-wrap">
-                            <input type="text" id="workshop-engine-name" class="form-input" value="${safe(engineWorkshopState.name)}" placeholder="Ej: Titan Forge" style="flex: 1;" onchange="engineWorkshopState.name = this.value">
-                            <button type="button" class="dock-btn" onclick="window.randomizeEngineName()" style="gap: 6px; font-weight: 700;">
-                                [[DE_ICON_028]] Generar Nombre
-                            </button>
-                        </div>
-                    </div>
-
-                    <label class="form-label" style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 6px; display: block;">
-                        Generación de Versión
-                    </label>
-                    <div class="engine-version-pills">
-                        ${versionPills.map(v => `
-                            <button type="button" class="engine-version-pill ${engineWorkshopState.version === v ? 'active' : ''}" onclick="window.setEngineVersion('${v}')">
-                                ${v}
-                            </button>
-                        `).join('')}
-                    </div>
-
-                    <div style="margin-top: 14px; padding: 12px 14px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.06);">
-                        <div style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; margin-bottom: 4px;">
-                            Ingeniero Jefe de Arquitectura
-                        </div>
-                        ${leadSenior ? `
-                            <div style="font-size: 13px; font-weight: 700; color: #38bdf8; display: flex; align-items: center; gap: 8px;">
-                                <span>[[DE_ICON_059]]</span> ${safe(leadSenior.name)} (Habilidad Técnica: ${leadSenior.tech}) · Asignado automáticamente al proyecto.
-                            </div>
-                        ` : `
-                            <div style="font-size: 12px; font-weight: 700; color: #ef4444; display: flex; align-items: center; gap: 8px;">
-                                <span>[[DE_ICON_093]]</span> Se requiere al menos un desarrollador con 30+ de Habilidad Técnica para liderar el motor.
-                            </div>
-                        `}
-                    </div>
-                </div>
-            </div>
-            <div class="engine-stage-actions">
-                <span style="font-size: 12px; color: #94a3b8;">Coste base inicial: 18.000 € y 10 RP.</span>
-                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(2)" style="font-weight: 700; padding: 10px 20px;">
-                    Siguiente: Elegir Especialización →
-                </button>
-            </div>
-        </div>
-    `;
-
-    // Stage 2: Genres
-    const stage2Html = `
-        <div class="engine-stage-panel ${stage === 2 ? 'active' : ''}">
-            <div style="margin-bottom: 14px;">
-                <h4 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0 0 4px 0;">Especializaciones de Género</h4>
-                <p style="font-size: 12px; color: #94a3b8; margin: 0;">
-                    Selecciona los géneros para los que este motor brindará bonificaciones automáticas de puntuación y rendimiento técnico.
-                </p>
-            </div>
-            <div class="engine-genres-grid">
-                ${ENGINE_GENRE_DEFINITIONS.map(g => {
-                    const isSelected = engineWorkshopState.selectedGenres.has(g.id);
-                    return `
-                        <div class="engine-genre-card ${isSelected ? 'selected' : ''}" onclick="window.toggleEngineGenre('${g.id}')">
-                            <div class="engine-genre-icon">${g.icon}</div>
-                            <div>
-                                <h5 class="engine-genre-title">${g.label}</h5>
-                                <p class="engine-genre-desc">${g.desc}</p>
-                            </div>
-                        </div>
-                    `;
-                }).join('')}
-            </div>
-            <div class="engine-stage-actions">
-                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(1)" style="font-weight: 700;">
-                    ← Volver a Identidad
-                </button>
-                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(3)" style="font-weight: 700; padding: 10px 20px;">
-                    Siguiente: Arquitectura Tecnológica →
-                </button>
-            </div>
-        </div>
-    `;
-
-    // Stage 3: Architecture Blueprint
-    const branchFilter = engineWorkshopState.paletteBranchFilter;
-    const filterCategories = {
-        all: null,
-        render: ['render', 'Graphics'],
-        physics: ['physics', 'Physics'],
-        netcode: ['net', 'netcode', 'Network'],
-        ai: ['ai', 'AI'],
-        audio: ['audio', 'Audio'],
-        systems: ['content', 'systems', 'Engine']
-    };
-
-    const unlockedCatalog = mgr.catalog.filter(n => mgr.isUnlocked(n.id));
-    const filteredCatalog = unlockedCatalog.filter(n => {
-        if (branchFilter === 'all') return true;
-        const valid = filterCategories[branchFilter];
-        return valid ? valid.includes(n.category) : true;
-    });
-
-    const stage3Html = `
-        <div class="engine-stage-panel ${stage === 3 ? 'active' : ''}">
-            <div class="engine-blueprint-layout">
-                <!-- Left Palette -->
-                <div class="engine-palette-panel">
-                    <div class="engine-palette-header">
-                        <span>Módulos Desbloqueados</span>
-                        <span style="color: #38bdf8;">${unlockedCatalog.length} disp.</span>
-                    </div>
-                    <div style="display: flex; gap: 4px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 8px; flex-shrink: 0;">
-                        ${['all', 'render', 'physics', 'netcode', 'ai', 'audio', 'systems'].map(b => `
-                            <button type="button" class="dock-btn" style="padding: 3px 8px; font-size: 10px; ${branchFilter === b ? 'background:#0284c7;color:#fff;border-color:#38bdf8;' : ''}" onclick="window.filterEnginePalette('${b}')">
-                                ${b.toUpperCase()}
-                            </button>
-                        `).join('')}
-                    </div>
-                    <div class="engine-palette-list">
-                        ${filteredCatalog.length === 0 ? `<div style="font-size:11px;color:#94a3b8;text-align:center;padding:12px;">Sin módulos en esta categoría</div>` : ''}
-                        ${filteredCatalog.map(node => {
-                            const isSlotted = engineWorkshopState.selectedModules.has(node.id);
-                            return `
-                                <div class="engine-palette-item ${isSlotted ? 'integrated' : ''}" onclick="window.toggleEngineModule('${node.id}')">
-                                    <div class="engine-palette-item-name">
-                                        <span>${node.icon}</span>
-                                        <span>${safe(node.name)}</span>
-                                    </div>
-                                    <button type="button" class="engine-palette-item-btn">
-                                        ${isSlotted ? '[[DE_ICON_149]] En Plano' : '[[DE_ICON_015]] Añadir'}
-                                    </button>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-
-                <!-- Center Blueprint Canvas -->
-                <div class="engine-blueprint-canvas">
-                    <div class="engine-core-hub">
-                        <span>[[DE_ICON_049]]</span>
-                        <span>${safe(engineWorkshopState.name)} CORE</span>
-                        <span style="font-size: 10px; opacity: 0.8; margin-left: 6px;">(${moduleCount} Módulos)</span>
-                    </div>
-
-                    <div class="engine-bays-grid">
-                        ${BAY_DEFINITIONS.map(bay => {
-                            const bayModules = Array.from(engineWorkshopState.selectedModules)
-                                .map(id => mgr.catalogMap.get(id))
-                                .filter(Boolean)
-                                .filter(node => bay.match.includes(node.category));
-
-                            return `
-                                <div class="engine-bay-box">
-                                    <div class="engine-bay-title">
-                                        <span>${bay.icon}</span> ${bay.label}
-                                    </div>
-                                    <div class="engine-bay-slots">
-                                        ${bayModules.length === 0 ? `
-                                            <div class="engine-empty-slot">Sin módulos asignados</div>
-                                        ` : bayModules.map(node => `
-                                            <div class="engine-slotted-chip">
-                                                <span style="display:flex;align-items:center;gap:6px;">
-                                                    <span>${node.icon}</span> ${safe(node.name)}
-                                                </span>
-                                                <button type="button" class="chip-remove" onclick="event.stopPropagation(); window.removeEngineModule('${node.id}')" title="Quitar módulo">&times;</button>
-                                            </div>
-                                        `).join('')}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                    </div>
-                </div>
-
-                <!-- Right Telemetry -->
-                <div class="engine-telemetry-panel">
-                    <div class="engine-telemetry-header">
-                        <span>Telemetría & Costes</span>
-                        <span style="color: #fbbf24;">[[DE_ICON_059]]</span>
-                    </div>
-
-                    <div class="engine-telemetry-item">
-                        <div class="engine-telemetry-label">Módulos Instalados</div>
-                        <div class="engine-telemetry-value" style="color: #38bdf8;">${moduleCount} <span style="font-size:12px;color:#94a3b8;">subsistemas</span></div>
-                    </div>
-
-                    <div class="engine-telemetry-item">
-                        <div class="engine-telemetry-label">Presupuesto de Fabricación</div>
-                        <div class="engine-telemetry-value" style="color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
-                            ${costMoney.toLocaleString('es-ES')} €
-                        </div>
-                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
-                            Estudio: ${game.funds.toLocaleString('es-ES')} €
-                        </div>
-                    </div>
-
-                    <div class="engine-telemetry-item">
-                        <div class="engine-telemetry-label">Puntos de I+D Requeridos</div>
-                        <div class="engine-telemetry-value" style="color: ${game.researchPoints >= costRP ? '#38bdf8' : '#ef4444'};">
-                            ${costRP} RP
-                        </div>
-                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">
-                            Disponibles: ${game.researchPoints} RP
-                        </div>
-                    </div>
-
-                    <div class="engine-telemetry-item">
-                        <div class="engine-telemetry-label">Compilación Estimada</div>
-                        <div class="engine-telemetry-value" style="color: #f8fafc;">
-                            ${engineWeeks} semanas
-                        </div>
-                    </div>
-
-                    ${incompatibility.debt > 0 ? `
-                        <div class="engine-telemetry-warning">
-                            [[DE_ICON_093]] Deuda Técnica Proyectada: +${incompatibility.debt} pts de riesgo.
-                        </div>
-                    ` : ''}
-
-                    <div style="margin-top: auto; padding-top: 10px;">
-                        ${moduleCount === 0 ? `
-                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">Debe añadir al menos 1 módulo al plano.</div>
-                        ` : (game.funds < costMoney ? `
-                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">Fondos insuficientes para compilar.</div>
-                        ` : (game.researchPoints < costRP ? `
-                            <div style="font-size: 11px; color: #ef4444; font-weight: 700;">RP insuficientes para compilar.</div>
-                        ` : `
-                            <div style="font-size: 11px; color: #10b981; font-weight: 700;">[[DE_ICON_149]] Arquitectura validada y lista.</div>
-                        `))}
-                    </div>
-                </div>
-            </div>
-            <div class="engine-stage-actions">
-                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(2)" style="font-weight: 700;">
-                    ← Volver a Especialización
-                </button>
-                <button type="button" class="dock-btn btn-primary-action" onclick="window.setEngineWorkshopStage(4)" style="font-weight: 700; padding: 10px 20px;">
-                    Siguiente: Revisión y Financiación →
-                </button>
-            </div>
-        </div>
-    `;
-
-    // Stage 4: Review
-    const stage4Html = `
-        <div class="engine-stage-panel ${stage === 4 ? 'active' : ''}">
-            <div class="engine-review-dossier">
-                <div class="engine-review-header">
-                    <div>
-                        <span style="font-size: 11px; font-weight: 800; color: #f59e0b; text-transform: uppercase; letter-spacing: 0.08em;">
-                            Dossier de Fabricación de Software
-                        </span>
-                        <h4 style="font-size: 20px; font-weight: 800; color: #fff; margin: 4px 0 2px 0;">
-                            ${safe(engineWorkshopState.name)} ${safe(engineWorkshopState.version)}
-                        </h4>
-                        <div style="font-size: 12px; color: #94a3b8;">
-                            Especializaciones: <strong style="color: #38bdf8;">${Array.from(engineWorkshopState.selectedGenres).join(', ')}</strong>
-                        </div>
-                    </div>
-                    <div style="text-align: right;">
-                        <span class="engine-lead-badge">
-                            [[DE_ICON_059]] ${leadSenior ? safe(leadSenior.name) : 'Sin líder asignado'}
-                        </span>
-                    </div>
-                </div>
-
-                <div style="font-size: 12px; font-weight: 700; color: #cbd5e1; margin-bottom: 8px;">
-                    Módulos Ensamblados en Arquitectura (${moduleCount}):
-                </div>
-                <div class="engine-review-modules-summary">
-                    ${Array.from(engineWorkshopState.selectedModules).map(id => {
-                        const node = mgr.catalogMap.get(id);
-                        if (!node) return '';
-                        return `
-                            <div style="background: rgba(15,23,42,0.8); border: 1px solid rgba(255,255,255,0.06); padding: 8px 10px; border-radius: 6px; font-size: 11px; display: flex; align-items: center; gap: 8px;">
-                                <span>${node.icon}</span>
-                                <span style="color: #e2e8f0; font-weight: 600;">${safe(node.name)}</span>
-                            </div>
-                        `;
-                    }).join('')}
-                </div>
-
-                <div class="engine-review-finance-box">
-                    <div>
-                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Inversión Monetaria</div>
-                        <div style="font-size: 18px; font-weight: 900; color: ${game.funds >= costMoney ? '#10b981' : '#ef4444'};">
-                            ${costMoney.toLocaleString('es-ES')} €
-                        </div>
-                    </div>
-                    <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
-                    <div>
-                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Coste de Investigación</div>
-                        <div style="font-size: 18px; font-weight: 900; color: ${game.researchPoints >= costRP ? '#38bdf8' : '#ef4444'};">
-                            ${costRP} RP
-                        </div>
-                    </div>
-                    <div style="width: 1px; height: 35px; background: rgba(255,255,255,0.1);"></div>
-                    <div>
-                        <div style="font-size: 11px; color: #94a3b8; text-transform: uppercase;">Tiempo de Compilación</div>
-                        <div style="font-size: 18px; font-weight: 900; color: #f8fafc;">
-                            ${engineWeeks} semanas
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div style="display: flex; gap: 12px; align-items: center;">
-                <button type="button" class="dock-btn" onclick="window.setEngineWorkshopStage(3)" style="font-weight: 700;">
-                    ← Volver a Arquitectura
-                </button>
-                <button type="button" class="dock-btn btn-primary-action" id="btn-submit-engine-workshop" style="flex: 1; justify-content: center; padding: 14px; font-size: 15px; font-weight: 800;" ${!canAfford ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''} onclick="window.submitEngineWorkshop()">
-                    [[DE_ICON_015]] INICIAR DESARROLLO DEL MOTOR
-                </button>
-            </div>
-        </div>
-    `;
-
-    container.innerHTML = `
-        <div class="engine-workshop-header">
-            <div>
-                <span class="engine-workshop-kicker">[[DE_ICON_015]] Taller de Ingeniería In-House</span>
-                <h3 class="engine-workshop-title">Asistente de Construcción de Motores</h3>
-                <p class="engine-workshop-subtitle">Diseña la arquitectura técnica de tu próximo motor gráfico y de simulación modular.</p>
-            </div>
-            ${leadSenior ? `
-                <div class="engine-lead-badge">
-                    [[DE_ICON_059]] Ingeniero Jefe: ${safe(leadSenior.name)} (${leadSenior.tech} Tech)
-                </div>
-            ` : `
-                <div class="engine-lead-badge" style="border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.1);">
-                    [[DE_ICON_093]] Falta Programador Senior
-                </div>
-            `}
-        </div>
-        ${stepperHtml}
-        ${stage1Html}
-        ${stage2Html}
-        ${stage3Html}
-        ${stage4Html}
-    `;
+    // 4. Banco de Análisis de Hardware Rival (Ingeniería Inversa)
+    renderHardwareWorkbench(mgr, historicalYear);
 }
 
 /* =========================================================================
@@ -5560,14 +5068,40 @@ function renderResearchMap(mgr, year, centerSelection = false) {
     const host = document.getElementById('tech-tree-branches-container');
     if (!host) return;
     const priorSearch = host.querySelector('#research-map-search')?.value || '';
-    const categoryFilter = {render:['render','Graphics'],physics:['physics','Physics'],netcode:['net','netcode','Network'],ai:['ai','AI'],audio:['audio','Audio'],content:['content'],systems:['systems','Engine']};
-    const historical = mgr.catalog.filter(n => activeTechBranchFilter === 'all' || (categoryFilter[activeTechBranchFilter] || []).includes(n.category));
+    const categoryFilter = {
+        graphics: ['graphics', 'render', 'Graphics'],
+        story: ['story', 'content'],
+        engine: ['engine', 'systems', 'Engine'],
+        gameplay: ['gameplay'],
+        dialogues: ['dialogues'],
+        level_design: ['level_design'],
+        ai: ['ai', 'AI'],
+        world_design: ['world_design', 'physics', 'Physics'],
+        sound: ['sound', 'audio', 'Audio']
+    };
+    const historical = mgr.catalog.filter(n => {
+        if (activeTechBranchFilter === 'all') return true;
+        const valid = categoryFilter[activeTechBranchFilter] || [activeTechBranchFilter];
+        return valid.includes(n.category);
+    });
     const selected = historical.find(n => n.id === researchSelectedId) || historical.find(n => mgr.getNodeState(n.id, year).canResearch) || historical[0];
     if (!selected) return;
     const selectionChanged = selected.id !== researchSelectedId;
     researchSelectedId = selected.id;
     const categories = [...new Set(historical.map(n => n.category))];
     const state = mgr.getNodeState(selected.id, year);
+    const CATEGORY_NAMES = {
+        graphics: 'Gráficos',
+        story: 'Historia / Misiones',
+        engine: 'Motor',
+        gameplay: 'Jugabilidad',
+        dialogues: 'Diálogos',
+        level_design: 'Diseño de Nivel',
+        ai: 'I.A.',
+        world_design: 'Diseño de Mundo',
+        sound: 'Sonido'
+    };
+    const categoryLabel = CATEGORY_NAMES[selected.category] || selected.category;
     const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const positions = new Map();
     historical.forEach((node, i) => { const lane = categories.indexOf(node.category); const same = historical.slice(0, i).filter(n => n.category === node.category && n.minYear === node.minYear).length; positions.set(node.id, {x: 30 + ((node.minYear || 1982) - 1982) * 165, y: 35 + lane * 150 + same * 60}); });
@@ -5642,13 +5176,14 @@ function renderResearchMap(mgr, year, centerSelection = false) {
             </div>
             <aside class="research-detail">
                 <div>
-                    <span class="research-detail-kicker">${safe(selected.category)} · Año ${selected.minYear || 1982}</span>
+                    <span class="research-detail-kicker">${safe(categoryLabel)} · Año ${selected.minYear || 1982}</span>
                     <h3>${state.isHistoricalLock ? 'Tecnología futura' : safe(selected.name)}</h3>
                     <div class="research-detail-status ${statusClass}">${statusText}</div>
                     ${state.isHistoricalLock ? `<p style="color:#94a3b8;font-size:12px;">${safe(state.reason)}</p>` : `
                         <p style="font-size:12px;color:#cbd5e1;line-height:1.4;">${safe(selected.desc || 'Módulo técnico para videojuegos y motores de juego.')}</p>
                         <div class="research-detail-section-title">Parámetros de I+D</div>
-                        <p style="font-size:12px;margin:4px 0;"><b>Coste:</b> ${selected.costRP ?? 0} RP · <b>Disponibles:</b> ${game.researchPoints} RP</p>
+                        <p style="font-size:12px;margin:4px 0;"><b>Coste de investigación:</b> ${selected.costRP ?? 0} RP · <b>Disponibles:</b> ${game.researchPoints} RP</p>
+                        ${selected.costK ? `<p style="font-size:12px;margin:4px 0;"><b>Coste en motor:</b> <span style="color:#ef4444;font-weight:700;">${selected.costK}K Cr.</span></p>` : ''}
                         <p style="font-size:12px;margin:4px 0;"><b>Deuda técnica base:</b> ${selected.baseDebt ?? 2}</p>
                         
                         <div class="research-detail-section-title">Prerrequisitos</div>
@@ -5852,14 +5387,6 @@ window.dismantleHardware = function(hwId) {
 window.researchTech = function(id) {
     window.startTechResearch(id);
 };
-
-const legacyEngineForm = document.getElementById('form-custom-engine');
-if (legacyEngineForm) {
-    legacyEngineForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        window.submitEngineWorkshop();
-    });
-}
 
 // --- CHARTS & HISTORY MODAL (WITH TOP 10 RIVAL LEADERBOARD) ---
 

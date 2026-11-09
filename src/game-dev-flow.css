@@ -191,6 +191,24 @@ body.menu-active .gdt-top-hud,
     margin-top: 1px;
 }
 
+.gdt-hud-prog-bar-wrap {
+    width: 100%;
+    max-width: 190px;
+    height: 5px;
+    background: #e2e8f0;
+    border-radius: 4px;
+    margin-top: 3px;
+    overflow: hidden;
+    border: 1px solid #cbd5e1;
+}
+
+.gdt-hud-prog-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #0284c7, #38bdf8);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
 .gdt-hud-publish-btn {
     margin-top: 4px;
     padding: 4px 12px;

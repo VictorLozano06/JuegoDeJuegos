@@ -1,0 +1,441 @@
+/* DEV EMPIRE 3D - Estilos del Modal de Creación de Motor (EngineCreationModal) */
+
+.engine-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10050;
+    padding: 16px;
+    animation: engineFadeIn 0.2s ease-out;
+    user-select: none;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@keyframes engineFadeIn {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.engine-modal-window {
+    background: #ffffff;
+    border: 1px solid #dbe2ea;
+    border-radius: 14px;
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.25);
+    width: 620px;
+    max-width: 95vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: #1e293b;
+}
+
+/* Header */
+.engine-modal-header {
+    padding: 18px 24px 14px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.engine-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.engine-modal-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #0f172a;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.engine-title-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    background: #0284c7;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.engine-modal-close-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.engine-modal-close-btn:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+/* Engine Name & Total Cost Row */
+.engine-name-cost-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.engine-name-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.engine-name-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.engine-name-input {
+    height: 38px;
+    padding: 0 14px;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0f172a;
+    background: #ffffff;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.engine-name-input:focus {
+    border-color: #0284c7;
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+}
+
+.engine-cost-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    padding: 6px 14px;
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    min-width: 130px;
+}
+
+.engine-cost-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #991b1b;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.engine-cost-value {
+    font-size: 17px;
+    font-weight: 800;
+    color: #dc2626;
+    line-height: 1.2;
+}
+
+/* Category Filter Chips */
+.engine-category-chips {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+    scrollbar-width: thin;
+}
+
+.engine-chip {
+    padding: 5px 12px;
+    background: #edf2f7;
+    border: 1px solid #d0dce5;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+}
+
+.engine-chip:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+}
+
+.engine-chip.is-active {
+    background: #0284c7;
+    border-color: #0284c7;
+    color: #ffffff;
+    font-weight: 700;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+}
+
+/* Parts Scrollable List */
+.engine-parts-scroll-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-height: 420px;
+    background: #f8fafc;
+}
+
+.engine-group-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.engine-group-heading {
+    font-size: 12px;
+    font-weight: 700;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding-left: 2px;
+}
+
+.engine-group-heading-icon {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.engine-cards-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+/* Feature Card */
+.engine-part-card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 9px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease, transform 0.08s ease, box-shadow 0.12s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.engine-part-card:hover {
+    background: #f1f5f9;
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.engine-part-card.is-selected {
+    background: #e0f2fe;
+    border-color: #7dd3fc;
+    box-shadow: 0 2px 8px rgba(2, 132, 199, 0.15);
+}
+
+.engine-part-card.is-locked {
+    opacity: 0.6;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+.engine-part-card.is-locked:hover {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    transform: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.engine-part-card.is-locked .engine-card-name {
+    color: #64748b;
+}
+
+.engine-part-card.is-locked .engine-card-cost {
+    color: #94a3b8;
+}
+
+.engine-part-card.is-locked .engine-status-indicator {
+    background: #e2e8f0;
+    color: #94a3b8;
+}
+
+.engine-card-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.engine-card-cat-icon {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.engine-card-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+    letter-spacing: -0.01em;
+}
+
+.engine-part-card.is-selected .engine-card-name {
+    color: #0369a1;
+}
+
+.engine-card-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.engine-card-cost {
+    font-size: 12px;
+    font-weight: 700;
+    color: #dc2626;
+    letter-spacing: -0.01em;
+}
+
+/* Status Indicator: Gray circle with subtle arrow when inactive, Green check when active */
+.engine-status-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #e2e8f0;
+    color: #94a3b8;
+    transition: background 0.15s ease, color 0.15s ease;
+    flex-shrink: 0;
+}
+
+.engine-part-card.is-selected .engine-status-indicator {
+    background: #10b981;
+    color: #ffffff;
+}
+
+/* Footer */
+.engine-modal-footer {
+    padding: 14px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.engine-footer-funds {
+    display: flex;
+    flex-direction: column;
+}
+
+.engine-funds-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+}
+
+.engine-funds-value {
+    font-size: 14px;
+    font-weight: 800;
+    color: #059669;
+}
+
+.engine-funds-value.is-insufficient {
+    color: #dc2626;
+}
+
+.engine-footer-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.engine-btn-cancel {
+    height: 38px;
+    padding: 0 16px;
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+.engine-btn-cancel:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+
+.engine-btn-submit {
+    height: 38px;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #0284c7, #0369a1);
+    border: 1px solid #0284c7;
+    border-radius: 6px;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.35);
+    transition: background 0.12s ease, transform 0.08s ease;
+}
+
+.engine-btn-submit:hover:not(:disabled) {
+    background: linear-gradient(135deg, #0369a1, #075985);
+}
+
+.engine-btn-submit:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.engine-btn-submit:disabled {
+    background: #94a3b8;
+    border-color: #94a3b8;
+    color: #f1f5f9;
+    cursor: not-allowed;
+    box-shadow: none;
+    opacity: 0.75;
+}
+
