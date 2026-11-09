@@ -25,6 +25,7 @@ import { renderOfficeManager } from './office-ui.js';
 import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
+import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -131,9 +132,20 @@ window.populateProjectWizard = populateProjectWizard;
 window.updateWizardSynergyBadge = updateWizardSynergyBadge;
 window.updateLiveSalesWidget = updateLiveSalesWidget;
 
-function bootGameApp() {
+let loadingScreenInstance = null;
+
+async function bootGameApp() {
     try {
         game.isPaused = true;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const skipLoading = urlParams.get('skip_loading') === '1' || window.__SKIP_LOADING_SCREEN__;
+
+        if (!skipLoading && document.getElementById('game-loading-screen')) {
+            loadingScreenInstance = new LoadingScreen();
+            loadingScreenInstance.start();
+        }
+
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
         world.onNodeClick(on3DNodeClicked);
@@ -202,7 +214,20 @@ function bootGameApp() {
         // 5. Initial Render
         renderHUD(game);
 
-        const urlParams = new URLSearchParams(window.location.search);
+        // 6. Preload 3D assets, textures, and warmup WebGL shaders
+        if (loadingScreenInstance) {
+            const preloader = new AssetPreloader({
+                onProgress: (ratio, label) => {
+                    loadingScreenInstance.setProgress(ratio, label);
+                }
+            });
+
+            await preloader.loadAll(world);
+            loadingScreenInstance.setComplete('¡Llegada al almacén de videojuegos! Texturas y modelos 3D preparados.');
+            await loadingScreenInstance.waitForCompletion();
+            loadingScreenInstance.hide();
+        }
+
         if (urlParams.get('autostart') === '1') {
             game.startNewGameProject({
                 name: 'Neon Matrix 1985',
@@ -217,8 +242,21 @@ function bootGameApp() {
     } catch (e) {
         console.error('CRITICAL BOOT ERROR:', e);
         window.__bootError = e.stack || e.message;
+        if (loadingScreenInstance) loadingScreenInstance.setError();
     }
 }
+
+window.testLoadingScreen = async () => {
+    const ls = new LoadingScreen();
+    ls.start();
+    const preloader = new AssetPreloader({
+        onProgress: (ratio, label) => ls.setProgress(ratio, label)
+    });
+    await preloader.loadAll(world);
+    ls.setComplete('¡Llegada al almacén de videojuegos! Texturas y modelos 3D preparados.');
+    await ls.waitForCompletion();
+    ls.hide();
+};
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', bootGameApp);

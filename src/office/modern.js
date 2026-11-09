@@ -1,3 +1,4 @@
+import { preloadedModels } from '../loading-screen.js';
 import { createModernPeripherals } from './peripherals.js';
 
 export const MODERN_OFFICE_LAYOUT = Object.freeze([
@@ -233,9 +234,19 @@ export function buildModernOffice(world, THREE) {
         });
     }
 
-    loader.load('/models/silla.glb?v=3', gltf => {
+    const installChair = source => {
         if (!room.parent) return;
-        const model = gltf.scene;
+        const model = source.clone(true);
+        // Each office owns its GPU resources; the cached template survives office changes.
+        model.traverse(object => {
+            if (!object.isMesh) return;
+            object.geometry = object.geometry.clone();
+            object.material = Array.isArray(object.material) ? object.material.map(material => material.clone()) : object.material.clone();
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            for (const material of materials) for (const key of Object.keys(material)) {
+                if (material[key]?.isTexture) material[key] = material[key].clone();
+            }
+        });
         // The source chair's back faces +X; turn it away from the desk.
         model.rotation.y = -Math.PI / 2;
         model.updateMatrixWorld(true);
@@ -265,7 +276,10 @@ export function buildModernOffice(world, THREE) {
             });
         }
         world.nextShadowRefresh = 0;
-    }, undefined, error => console.warn('No se pudo cargar la silla:', error));
+    };
+    const cachedChair = preloadedModels.get('/models/silla.glb?v=3');
+    if (cachedChair) installChair(cachedChair);
+    else loader.load('/models/silla.glb?v=3', gltf => installChair(gltf.scene), undefined, error => console.warn('No se pudo cargar la silla:', error));
 
     loader.load('/models/mando-nes.glb', gltf => {
         if (!room.parent) return;

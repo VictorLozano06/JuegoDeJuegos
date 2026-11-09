@@ -33,8 +33,52 @@
     <link rel="stylesheet" href="/src/uwuntu-os.css">
     <link rel="stylesheet" href="preproduction-wizard.css">
     <link rel="stylesheet" href="research-lab.css">
+    <link rel="stylesheet" href="/src/loading-screen.css">
 </head>
 <body class="menu-active">
+    <!-- 2D Video Game Loading Screen (Truck & Warehouse Asset Preloader) -->
+    <div id="game-loading-screen" class="loading-screen" aria-label="Pantalla de carga de texturas y modelos 3D" role="region">
+        <canvas id="loading-canvas"></canvas>
+        <div class="loading-hud">
+            <header class="loading-header">
+                <div class="loading-brand">
+                    <span class="loading-brand-tag">DEV EMPIRE <span>3D</span></span>
+                    <span class="loading-brand-sub">EDICIÓN ORIGINAL · EST. 1982</span>
+                </div>
+                <div class="loading-badge" id="loading-dock-badge">
+                    <span class="dock-light-dot" aria-hidden="true"></span>
+                    <span id="loading-dock-status">EN RUTA AL ALMACÉN</span>
+                </div>
+            </header>
+
+            <div class="loading-story"><p>DEL GARAJE AL MUNDO</p><h2>Las grandes ideas<br>merecen llegar lejos.</h2><span>Un nuevo viaje está a punto de empezar.</span></div>
+            <footer class="loading-footer">
+                <div class="loading-info-row">
+                    <div class="loading-action-status">
+                        <span class="loading-indicator-icon" aria-hidden="true"></span>
+                        <span id="loading-status-text">Preparando los juegos para el viaje…</span>
+                    </div>
+                    <div class="loading-percentage" id="loading-percent-text">0%</div>
+                </div>
+
+                <div class="loading-track" aria-label="Preparación del estudio" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" id="loading-progress-bar">
+                    <div class="loading-fill" id="loading-progress-fill" style="width: 0%;">
+                        <div class="loading-fill-glow"></div>
+                    </div>
+                </div>
+
+                <div class="loading-completion-row" id="loading-completion-row" hidden>
+                    <div class="loading-arrival-msg">
+                        <strong>Entrega recibida.</strong> Es hora de crear algo inolvidable.
+                    </div>
+                    <button type="button" id="loading-enter-btn" class="loading-enter-button">
+                        Entrar al estudio <span class="loading-key-hint">ENTER</span>
+                    </button>
+                </div>
+            </footer>
+        </div>
+    </div>
+
     <!-- WebGL Three.js Container -->
     <div id="canvas-container"></div>
 

@@ -363,6 +363,20 @@ export class WorldEngine {
         this.animate();
     }
 
+    warmupRenderer() {
+        if (!this.renderer || !this.scene || !this.camera) return;
+        try {
+            this.renderer.compile(this.scene, this.camera);
+            if (this.composer) {
+                this.composer.render();
+            } else {
+                this.renderer.render(this.scene, this.camera);
+            }
+        } catch (e) {
+            console.warn('Compilación inicial de shaders:', e);
+        }
+    }
+
     enterMainMenu() {
         this.setViewMode('office');
         this.targetCamPos = null;
