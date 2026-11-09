@@ -1663,6 +1663,7 @@ class TycoonGame {
     // --- PROJECT CREATION & DEV CYCLES ---
     startNewGameProject(config) {
         if (this.currentProject) return { success: false, message: 'Ya hay un videojuego en desarrollo.' };
+        if (this.activeEngineRD) return { success: false, message: `[[DE_ICON_093]] Hay un motor de videojuegos en desarrollo ("${this.activeEngineRD.name}"). Espera a que finalice para iniciar un nuevo juego.` };
         // Validación de Modo Parche de Emergencia Post-Lanzamiento (Punto 5)
         if (this.isEmergencyPatchActive && this.emergencyPatchData) {
             return {
@@ -3444,14 +3445,27 @@ class TycoonGame {
         if (this.activeEngineRD) {
             this.activeEngineRD.weeksRemaining--;
             const completed = this.activeEngineRD.totalWeeks - this.activeEngineRD.weeksRemaining;
-            this.activeEngineRD.progress = Math.min(100, Math.floor(completed / this.activeEngineRD.totalWeeks * 100));
+            this.activeEngineRD.progress = Math.min(100, Math.floor((completed / this.activeEngineRD.totalWeeks) * 100));
 
             // Technical R&D feedback: lead programmer earns +2 to +4 RP per week through architecture research
             const leadEmp = this.employees[this.activeEngineRD.leadProgrammerIndex] || this.employees[0];
             const rpGain = Math.max(2, Math.floor(2 + ((leadEmp?.tech || 30) / 35)));
             this.researchPoints += rpGain;
+
+            // Generate design & tech points during engine development
+            const leadTech = leadEmp?.tech || 35;
+            const techGained = Math.max(1, Math.floor((leadTech / 8) + Math.random() * 3));
+            const designGained = Math.max(1, Math.floor(2 + Math.random() * 3));
+            this.activeEngineRD.techPoints = (this.activeEngineRD.techPoints || 0) + techGained;
+            this.activeEngineRD.designPoints = (this.activeEngineRD.designPoints || 0) + designGained;
+
             if (typeof this.onEngineRPTick === 'function') {
                 this.onEngineRPTick(rpGain, this.activeEngineRD.leadProgrammerIndex, this.activeEngineRD);
+            }
+
+            // Sync top status HUD
+            if (typeof window !== 'undefined' && window.gameDevFlow && typeof window.gameDevFlow.updateTopHUD === 'function') {
+                window.gameDevFlow.updateTopHUD();
             }
 
             if (this.activeEngineRD.weeksRemaining <= 0) {
@@ -3460,17 +3474,42 @@ class TycoonGame {
                     name: cfg.name,
                     tier: this.era,
                     affineGenres: cfg.affineGenres,
-                    bakedNodes: cfg.bakedNodes,
+                    bakedNodes: cfg.bakedNodes || cfg.features || [],
                     createdYear: this.year,
                     createdWeek: this.week,
                     releaseYear: this.getHistoricalYear()
                 });
+                engine.id = cfg.id || engine.id;
+                engine.cost = cfg.cost || 0;
+                engine.version = cfg.version || '1.0';
+                engine.features = Array.isArray(cfg.features) ? cfg.features : (cfg.bakedNodes || []);
+                engine.bakedNodes = [...engine.features];
                 engine.historicalTechIds = cfg.historicalTechIds || [];
                 engine.historicalIncompatibility = cfg.historicalIncompatibility;
-                cfg.bakedNodes.forEach(nodeId => this.techTreeManager?.unlockTech(nodeId, this.getHistoricalYear()));
-                this.inHouseEngines.push(engine);
+                engine.isDeveloping = false;
+                engine.isReady = true;
+
+                (cfg.bakedNodes || []).forEach(nodeId => this.techTreeManager?.unlockTech(nodeId, this.getHistoricalYear()));
+
+                if (!this.inHouseEngines.some(e => e.id === engine.id || e.name === engine.name)) {
+                    this.inHouseEngines.push(engine);
+                }
+                if (!Array.isArray(this.customEngines)) this.customEngines = [];
+                const existingIdx = this.customEngines.findIndex(e => e.id === engine.id || e.name === engine.name);
+                if (existingIdx >= 0) {
+                    this.customEngines[existingIdx] = engine;
+                } else {
+                    this.customEngines.push(engine);
+                }
+
                 this.activeEngineRD = null;
                 if (soundEngine && soundEngine.playLevelUp) soundEngine.playLevelUp();
+                if (typeof window !== 'undefined' && window.showToast) {
+                    window.showToast(`[[DE_ICON_024]] ¡Desarrollo finalizado! Motor "${engine.name}" creado con éxito.`, 'success');
+                }
+                if (typeof window !== 'undefined' && window.gameDevFlow && typeof window.gameDevFlow.updateTopHUD === 'function') {
+                    window.gameDevFlow.updateTopHUD();
+                }
                 this.onEngineRDCompleted?.(engine);
             }
         }

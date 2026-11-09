@@ -455,7 +455,13 @@ export class EngineCreationModal {
         const hasName = Boolean(this.engineName && this.engineName.length >= 2);
         const hasParts = this.selectedPartIds.size > 0;
 
-        if (!hasEnoughFunds) {
+        if (this.game?.currentProject) {
+            this.submitBtn.disabled = true;
+            this.submitBtn.textContent = 'Juego en Desarrollo';
+        } else if (this.game?.activeEngineRD) {
+            this.submitBtn.disabled = true;
+            this.submitBtn.textContent = 'Motor en Desarrollo';
+        } else if (!hasEnoughFunds) {
             this.submitBtn.disabled = true;
             this.submitBtn.textContent = 'Fondos Insuficientes';
         } else if (!hasName) {
@@ -494,6 +500,20 @@ export class EngineCreationModal {
             return;
         }
 
+        if (this.game?.currentProject) {
+            if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+                window.showToast('[[DE_ICON_093]] Ya tienes un videojuego en desarrollo. Termínalo antes de iniciar el motor.', 'warn');
+            }
+            return;
+        }
+
+        if (this.game?.activeEngineRD) {
+            if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+                window.showToast(`[[DE_ICON_093]] Ya hay un motor en desarrollo ("${this.game.activeEngineRD.name}").`, 'warn');
+            }
+            return;
+        }
+
         // Deducción real de créditos del estudio
         if (this.game && Number.isFinite(this.game.funds)) {
             this.game.funds = Math.max(0, this.game.funds - totalCost);
@@ -506,6 +526,14 @@ export class EngineCreationModal {
         const engineId = 'engine_' + Date.now();
         const finalName = this.engineName.trim() || `Motor v${engineCount}.0`;
 
+        // Duración en semanas según volumen de módulos (mínimo 3, máximo 10 semanas)
+        const featureCount = this.selectedPartIds.size;
+        const totalWeeks = Math.max(3, Math.min(10, Math.ceil(featureCount / 2) + 1));
+
+        const seniorProgrammers = (this.game?.employees || []).filter(e => (e.tech || 0) >= 20);
+        const leadEmp = seniorProgrammers[0] || (this.game?.employees || [])[0] || { name: 'Fundador' };
+        const leadIndex = (this.game?.employees || []).indexOf(leadEmp);
+
         const newEngine = {
             id: engineId,
             name: finalName,
@@ -513,19 +541,30 @@ export class EngineCreationModal {
             features: Array.from(this.selectedPartIds),
             cost: totalCost,
             createdAt: currentYear,
-            // Propiedades limpias de compatibilidad con pipelines y simulación
             createdYear: currentYear,
             createdWeek: currentWeek,
+            totalWeeks,
+            weeksRemaining: totalWeeks,
+            progress: 0,
+            techPoints: 0,
+            designPoints: 0,
+            bugs: 0,
+            leadProgrammerIndex: leadIndex >= 0 ? leadIndex : 0,
+            leadProgrammerName: leadEmp.name,
             isProprietary: true,
             isCustom: true,
+            isDeveloping: true,
             efficiency: 1.0,
             getEfficiency: () => 1.0,
             getFrictionMultiplier: () => 0.5,
-            bakedNodes: Array.from(this.selectedPartIds)
+            bakedNodes: Array.from(this.selectedPartIds),
+            isEngineProject: true
         };
 
-        // Registrar en los almacenes del juego sin residuos de AST ni grafos antiguos
+        // Iniciar como proyecto activo de motor en el juego
         if (this.game) {
+            this.game.activeEngineRD = newEngine;
+
             if (!Array.isArray(this.game.customEngines)) {
                 this.game.customEngines = [];
             }
@@ -536,9 +575,20 @@ export class EngineCreationModal {
             }
             this.game.inHouseEngines.push(newEngine);
 
-            // Sincronizar catálogo comercial/propio
-            if (this.game.onEngineRDCompleted && typeof this.game.onEngineRDCompleted === 'function') {
-                this.game.onEngineRDCompleted(newEngine);
+            if (typeof this.game.notify === 'function') {
+                this.game.notify();
+            }
+        }
+
+        if (typeof window !== 'undefined') {
+            if (typeof window.showToast === 'function') {
+                window.showToast(`[[DE_ICON_015]] ¡Iniciado el proyecto de motor "${finalName}"! Duración estimada: ${totalWeeks} semanas.`, 'success');
+            }
+            if (window.gameDevFlow && typeof window.gameDevFlow.updateTopHUD === 'function') {
+                window.gameDevFlow.updateTopHUD();
+            }
+            if (typeof window.renderHUD === 'function' && this.game) {
+                window.renderHUD(this.game);
             }
         }
 

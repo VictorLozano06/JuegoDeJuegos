@@ -191,12 +191,13 @@ function replaceGame(game, savedState) {
         'tech_graphics_fixed_palette': 'graphics_2d_v2',
         'tech_graphics_parallax_scroll': 'graphics_2d_v3',
         'tech_graphics_mode7': 'graphics_2d_v4',
+        'tech_graphics_raycasting_pseudo3d': 'graphics_3d_v1',
         'tech_graphics_early_3d_polygons': 'graphics_3d_v1',
         'tech_graphics_gouraud_textures': 'graphics_3d_v2',
         'tech_graphics_hardware_accel': 'graphics_3d_v3',
         'tech_audio_pc_speaker': 'sound_mono',
         'tech_audio_chiptune_fm': 'sound_stereo',
-        'tech_audio_midi': 'sound_soundtrack',
+        'tech_audio_midi': 'sound_soundtrack_basic',
         'tech_audio_sampled_wav_mod': 'sound_surround',
         'tech_code_pure_asm': 'engine_save_game',
         'tech_code_real_mode_mem': 'engine_save_game',
@@ -204,9 +205,9 @@ function replaceGame(game, savedState) {
         'tech_net_lan_ipx': 'engine_local_multiplayer',
         'tech_net_dedicated_client_server': 'engine_dedicated_servers',
         'tech_net_matchmaking_leaderboards': 'engine_online_play',
-        'tech_ai_rigid_patrol': 'ai_improved_ai',
-        'tech_ai_astar_pathfinding': 'ai_ai_companions',
-        'tech_gameplay_aabb_collision': 'engine_basic_physics'
+        'tech_ai_rigid_patrol': 'ai_improved',
+        'tech_ai_astar_pathfinding': 'ai_companions',
+        'tech_gameplay_aabb_collision': 'engine_physics_basic'
     };
 
     const savedUnlocked = state.techTreeManager?.unlockedTechs instanceof Set
@@ -215,9 +216,10 @@ function replaceGame(game, savedState) {
 
     const mergedUnlocked = new Set(freshManager.unlockedTechs);
     for (const id of savedUnlocked) {
-        mergedUnlocked.add(id);
         if (LEGACY_TECH_MAP[id]) {
             mergedUnlocked.add(LEGACY_TECH_MAP[id]);
+        } else if (freshManager.catalogMap.has(id)) {
+            mergedUnlocked.add(id);
         }
     }
     liveManager.unlockedTechs = mergedUnlocked;

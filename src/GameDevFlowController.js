@@ -709,17 +709,24 @@ export class GameDevFlowController {
         if (!this.hudEl || typeof document === 'undefined') return;
 
         const p = this.project;
-        const isActive = Boolean(p && this.state !== ProductionLifecycleState.STATE_SETUP);
+        const isGameActive = Boolean(p && this.state !== ProductionLifecycleState.STATE_SETUP);
+        const engineRD = this.game?.activeEngineRD;
+        const isEngineActive = Boolean(engineRD && !isGameActive);
+        const isActive = isGameActive || isEngineActive;
         const rp = Math.round(Number(this.game?.researchPoints) || 0);
 
-        const bugs = isActive ? Math.max(0, Math.round(Number(p.bugs) || 0)) : 0;
-        const design = isActive ? Math.round(Number(p.designPoints) || 0) : 0;
-        const tech = isActive ? Math.round(Number(p.techPoints) || 0) : 0;
+        let bugs = 0;
+        let design = 0;
+        let tech = 0;
 
         let statusText = 'Iniciando...';
-        const isBugFixing = isActive && (this.state === ProductionLifecycleState.STAGE_BUG_FIXING || p.stage >= 4);
+        const isBugFixing = isGameActive && (this.state === ProductionLifecycleState.STAGE_BUG_FIXING || p.stage >= 4);
 
-        if (isActive) {
+        if (isGameActive) {
+            bugs = Math.max(0, Math.round(Number(p.bugs) || 0));
+            design = Math.round(Number(p.designPoints) || 0);
+            tech = Math.round(Number(p.techPoints) || 0);
+
             if (isBugFixing) {
                 statusText = 'Fase de depuración';
             } else if (p.stage === 1) {
@@ -729,7 +736,15 @@ export class GameDevFlowController {
             } else if (p.stage === 3) {
                 statusText = `Etapa 3: Audiovisual (${Math.floor(p.overallProgress || 0)}%)`;
             }
+        } else if (isEngineActive) {
+            bugs = Math.max(0, Math.round(Number(engineRD.bugs) || 0));
+            design = Math.round(Number(engineRD.designPoints) || 0);
+            tech = Math.round(Number(engineRD.techPoints) || 0);
+            const prog = Math.floor(engineRD.progress || 0);
+            statusText = `I+D de Arquitectura (${prog}%)`;
         }
+
+        const enginePartsCount = isEngineActive ? ((engineRD.features || engineRD.bakedNodes || []).length) : 0;
 
         this.hudEl.innerHTML = `
             <!-- Errores -->
@@ -750,11 +765,18 @@ export class GameDevFlowController {
 
             <!-- Central Card (overlapped by Diseño on left & Tecnología on right) -->
             <div class="gdt-hud-card ${isActive ? 'is-active' : 'is-idle'}">
-                ${isActive ? `
+                ${isGameActive ? `
                     <div class="gdt-hud-proj-title">${p.name || 'Juego'}</div>
                     <div class="gdt-hud-proj-sub">${p.topic?.name || 'Tema'} / ${p.genre?.name || 'Género'}</div>
                     <div class="gdt-hud-proj-status">${statusText}</div>
                     ${isBugFixing ? `<button type="button" id="gdt-btn-publish" class="gdt-hud-publish-btn">Publicar Juego</button>` : ''}
+                ` : isEngineActive ? `
+                    <div class="gdt-hud-proj-title">${engineRD.name}</div>
+                    <div class="gdt-hud-proj-sub">Desarrollando Motor · ${enginePartsCount} Módulos</div>
+                    <div class="gdt-hud-proj-status">${statusText} · Quedan ${engineRD.weeksRemaining} sem</div>
+                    <div class="gdt-hud-prog-bar-wrap">
+                        <div class="gdt-hud-prog-bar-fill" style="width: ${engineRD.progress || 0}%;"></div>
+                    </div>
                 ` : `
                     <span class="gdt-hud-idle-text">Ningun proyecto</span>
                 `}
