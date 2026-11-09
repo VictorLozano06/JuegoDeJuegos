@@ -151,17 +151,17 @@ export function fitRealisticEmployee(THREE, character, desk) {
     const deskRotation = desk.group.getWorldQuaternion(new THREE.Quaternion());
     npc.wrists = npc.arms.map((arm, i) => {
         const side = i === 0 ? -1 : 1;
-        const wristY = keysTop + (npc.isWoman ? 0.035 : 0.038);
-        const wristZ = keysZ + (npc.isWoman ? 0.11 : 0.105);
-        const wristX = side * (npc.isWoman ? 0.135 : 0.145);
-        const elbowX = side * (npc.isWoman ? 0.23 : 0.25);
+        const wristY = keysTop + (npc.isWoman ? 0.052 : 0.055);
+        const wristZ = keysZ + (npc.isWoman ? 0.090 : 0.085);
+        const wristX = side * (npc.isWoman ? 0.095 : 0.105);
+        const elbowX = side * (npc.isWoman ? 0.23 : 0.24);
         const elbowY = seatTop + 0.32;
         const elbowZ = chairZ - 0.08;
 
         reach(THREE, arm, point(wristX, wristY, wristZ), point(elbowX, elbowY, elbowZ));
 
         const hand = arm[2];
-        const forwardDir = new THREE.Vector3(-side * 0.14, 0.02, -0.98).normalize();
+        const forwardDir = new THREE.Vector3(-side * 0.12, -0.04, -0.98).normalize();
         const boneX = (side === -1 ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 1, 0));
         const boneY = forwardDir;
         const boneZ = new THREE.Vector3().crossVectors(boneX, boneY).normalize();

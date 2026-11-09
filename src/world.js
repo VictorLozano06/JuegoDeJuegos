@@ -816,7 +816,7 @@ export class WorldEngine {
                     });
                 };
                 loadFittedModel('/models/retro-monitor.glb', monitorFallback, { name: 'Ordenador retro', width: 0.92, height: 0.78, depth: 0.58, x: 0, bottom: 1.40, z: -0.26, rotation: -Math.PI / 2, animatedScreen: true });
-                loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
+                loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0.15, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/desk-lamp.glb', lampFallback, { name: 'Flexo', width: 0.4, height: 0.62, depth: 0.4, x: 0.86, bottom: 1.40, z: -0.35, uniform: true, removeName: 'Carc' });
                 loadFittedModel('/models/silla.glb?v=3', chair, { name: 'Silla de oficina', width: 0.64, height: 1.31, depth: 0.64, x: 0, bottom: 0.02, z: 0.85, rotation: -Math.PI / 2, preserveHorizontal: true });
