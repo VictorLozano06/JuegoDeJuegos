@@ -2060,8 +2060,32 @@ class TycoonGame {
 
     advanceDevTick() {
         const p = this.currentProject;
-        if (!p || p.stage > 3) return;
+        if (!p) return;
+        // Pause development progress during interactive stage input modals
+        if (p.lifecycleState === 'STAGE_1_INPUT' || p.lifecycleState === 'STAGE_2_INPUT' || p.lifecycleState === 'STAGE_3_INPUT') {
+            return;
+        }
+        if (p.stage >= 4 || p.lifecycleState === 'STAGE_BUG_FIXING') {
+            const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0);
+            this.applyEmployeeWorkTick(this.workMode || 'normal');
+            const qaStrength = staff.reduce((acc, e) => {
+                const isQA = /qa|tester|program|ingenier/i.test(e.role || '');
+                return acc + (isQA ? 2.5 : 1.0) * (Number(e.speed) || 1);
+            }, 0);
+            const bugReduction = Math.max(1, qaStrength * 0.8);
+            if (p.bugs > 0) {
+                p.bugs = Math.max(0, p.bugs - bugReduction);
+            }
+            if (p.techDebtModel) {
+                p.techDebtModel.rawDebt = Math.max(0, (p.techDebtModel.rawDebt || 0) - bugReduction);
+            }
+            this.notify();
+            return;
+        }
         const prod = ensureProduction(p), stage = p.stage;
+        if (!prod || !prod.allocations || !prod.allocations[stage]) {
+            return;
+        }
         const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0);
         this.applyEmployeeWorkTick(this.workMode || 'normal');
         const activeNodes = p.scopeDAG?.getActiveNodes() || [];
@@ -2079,15 +2103,22 @@ class TycoonGame {
         prod.reorganization=0;
         const effort = p.devMode==='refactor' ? 0 : capacity;
         const skills = {
+            // Stage 1
             engine:['tech',/engine|program|ingenier/i], gameplay:['design',/design|diseñ/i], story:['design',/guion|narrativ/i],
-            graphics:['design',/art|gráfic/i], sound:['design',/audio|sonid/i], world:['design',/design|diseñ/i],
-            optimization:['tech',/engine|program|ingenier/i], bugs:['tech',/qa|tester|bugs/i], refinement:['design',/design|diseñ/i]
+            // Stage 2
+            dialogues:['design',/guion|narrativ|escrit|design|diseñ/i], levelDesign:['design',/design|diseñ|level/i], ai:['tech',/ai|ia|program|engine|ingenier/i],
+            // Stage 3
+            graphics:['design',/art|gráfic/i], sound:['design',/audio|sonid|músic/i], worldDesign:['design',/design|diseñ|world|mundo/i],
+            designUI:['design',/design|diseñ|interfaz|ui/i], design:['design',/design|diseñ|interfaz|ui/i], ui:['design',/design|diseñ|interfaz|ui/i],
+            // Legacy / Support
+            world:['design',/design|diseñ/i], optimization:['tech',/engine|program|ingenier/i], bugs:['tech',/qa|tester|bugs/i], refinement:['design',/design|diseñ/i]
         };
+        const techKeys = ['engine', 'ai', 'optimization', 'graphics'];
         let tech=0, design=0;
         const contributions = staff.map(e => ({ id:e.id, name:e.name, role:e.role, energy:e.energy ?? e.stamina ?? 100, stress:e.stress || 0, areas:{} }));
         const areaWeekly = {};
         for (const [key, percent] of Object.entries(prod.allocations[stage])) {
-            const [attr, role] = skills[key];
+            const [attr, role] = skills[key] || (techKeys.includes(key) ? ['tech', /engine|program/i] : ['design', /design|art/i]);
             const skill = weighted ? staff.reduce((sum,e)=>sum+personCapacity(e)*(Math.max(1,Number(e[attr])||20)/35)*(role.test(e.role||'')?1.25:1),0)/weighted : 0;
             const techCount=(p.historicalTechIds||[]).filter(id => key==='graphics'?id.includes('graphics'):key==='sound'?id.includes('audio'):['engine','optimization'].includes(key)?id.includes('code'):false).length;
             const amount=effort*percent/100*skill*(1+Math.min(.3,techCount*.04));
@@ -2096,15 +2127,23 @@ class TycoonGame {
             const weights=staff.map(e=>personCapacity(e)*(Math.max(1,Number(e[attr])||20)/35)*(role.test(e.role||'')?1.25:1));
             const weightSum=weights.reduce((a,b)=>a+b,0);
             contributions.forEach((entry,i)=>{entry.areas[key]=weightSum ? amount*weights[i]/weightSum : 0;});
-            if (['engine','graphics','optimization'].includes(key)) tech+=amount; else if (key!=='bugs') design+=amount;
+            if (techKeys.includes(key)) tech+=amount; else if (key!=='bugs') design+=amount;
             if (key==='bugs') p.bugs=Math.max(0,p.bugs-amount*.3/(1+Math.max(0,p.techDebtModel?.rawDebt||0)/50));
         }
         p.techPoints+=tech; p.designPoints+=design;
         const node = activeNodes.find(item => !item.completed);
         if (node && effort > 0) {
-            const a = prod.allocations[stage];
-            const amounts = stage === 1 ? {engine:a.engine,gameplay:a.gameplay,network:a.engine*.25,art:a.story*.35,qa:a.engine*.15} : stage === 2 ? {engine:a.graphics*.35,gameplay:a.world,network:a.world*.2,art:a.graphics+a.sound*.5,qa:a.sound*.15} : {engine:a.optimization,gameplay:a.refinement,network:a.optimization*.3,art:a.refinement*.35,qa:a.bugs};
-            for (const [key,value] of Object.entries(amounts)) node.disciplineProgress[key] += effort * value / 100;
+            const a = prod.allocations[stage] || {};
+            const amounts = stage === 1
+                ? { engine: a.engine || 0, gameplay: a.gameplay || 0, network: (a.engine || 0) * 0.25, art: (a.story || 0) * 0.35, qa: (a.engine || 0) * 0.15 }
+                : stage === 2
+                ? { engine: (a.ai || a.graphics || 0) * 0.35, gameplay: (a.levelDesign || a.world || 0), network: (a.ai || a.world || 0) * 0.2, art: (a.dialogues || a.graphics || 0) + (a.sound || 0) * 0.5, qa: (a.ai || a.sound || 0) * 0.15 }
+                : { engine: (a.graphics || a.optimization || 0) * 0.4, gameplay: (a.designUI || a.refinement || 0), network: 0, art: (a.graphics || a.sound || 0) * 0.5, qa: (a.bugs || 0) };
+            for (const [key,value] of Object.entries(amounts)) {
+                if (node.disciplineProgress && node.disciplineProgress[key] !== undefined) {
+                    node.disciplineProgress[key] += effort * value / 100;
+                }
+            }
             node.updateCompletionState();
         }
         if (stage<3) p.bugs+=(effort*.06)*(p.devMode==='crunch'?1.8:1);

@@ -26,12 +26,15 @@ import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
 import { LoadingScreen, AssetPreloader } from './loading-screen.js';
+import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
  * Seamless bridge connecting Simulation Logic, Three.js 3D World Engine,
  * Procedural Web Audio, and High-Performance Glassmorphism UI.
  */
+
+let gameDevFlow = null;
 
 let world = null;
 let currentLiveSalesWidgetGameId = null;
@@ -149,6 +152,18 @@ async function bootGameApp() {
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
         world.onNodeClick(on3DNodeClicked);
+
+        // Initialize Game Dev Tycoon Sequential Production Flow Controller
+        gameDevFlow = new GameDevFlowController({
+            game,
+            world,
+            setGameSpeed,
+            onRelease: () => {
+                const releaseBtn = document.getElementById('btn-release-game');
+                if (releaseBtn) releaseBtn.click();
+            }
+        });
+        window.gameDevFlow = gameDevFlow;
 
         // Sync initial character
         world.syncEmployees(game.employees);
@@ -940,6 +955,11 @@ function setupUIControls() {
             world.triggerLaunchConfetti();
             updateLiveSalesWidget();
             showReviewModal(releasedGame);
+            if (gameDevFlow) {
+                gameDevFlow.removeWidget();
+                gameDevFlow.closeCurrentModal();
+                gameDevFlow.state = ProductionLifecycleState.STATE_SETUP;
+            }
         }
     });
 
@@ -2272,6 +2292,9 @@ function startProjectFromWizard() {
         }
         showToast(`[[DE_ICON_015]] Comenzando desarrollo con arquitectura DAG de: "${name}"`, 'success');
         preproductionWizard.reset();
+        if (gameDevFlow && game.currentProject) {
+            gameDevFlow.initProject(game.currentProject);
+        }
     } else {
         preproductionWizard.setError(result.message, check.newIPName && /franquicia|registro|nombre/i.test(result.message) ? 0 : 5);
     }
@@ -2348,10 +2371,13 @@ function renderHUD(state) {
         trendText.innerText = `Tendencia: ${state.marketTrend.topicName} + ${state.marketTrend.genreName} (${state.marketTrend.weeksRemaining} sem)`;
     }
 
-    // Active Project Bar
+    // Active Project Bar & GameDevFlowController Sync
     const projBar = document.getElementById('active-project-bar');
     if (state.currentProject) {
-        projBar.style.display = 'flex';
+        if (gameDevFlow) {
+            gameDevFlow.syncWithProject(state.currentProject);
+        }
+        if (projBar) projBar.style.display = 'none';
         const proj = state.currentProject;
 
         document.getElementById('proj-title').innerText = proj.name;
@@ -2546,7 +2572,10 @@ function renderHUD(state) {
             releaseBtn.style.display = 'none';
         }
     } else {
-        projBar.style.display = 'none';
+        if (gameDevFlow) {
+            gameDevFlow.syncWithProject(null);
+        }
+        if (projBar) projBar.style.display = 'none';
     }
 
     const offersContainer = document.getElementById('project-offers-container');

@@ -1133,6 +1133,45 @@ export class WorldEngine {
         });
     }
 
+    spawnDevelopmentBubble(type, empIndex = 0) {
+        let origin = new THREE.Vector3(0, 1.85, 0);
+        const char = this.characters && this.characters[empIndex];
+        if (char) {
+            char.state = 'typing';
+            origin.copy(char.group.position);
+            origin.y += 1.8;
+            origin.z += (char.deskIndex === 0 ? -0.3 : 0.3);
+        }
+        const monitor = this.monitors && this.monitors[char?.deskIndex || 0];
+        if (monitor) {
+            origin.copy(monitor.lightPos);
+        }
+
+        let color = 0x00d2ff; // Tech cyan/blue
+        if (type === 'design') color = 0xf59e0b; // Design amber/orange
+        if (type === 'bug') color = 0xef4444; // Bug red
+
+        const geo = new THREE.SphereGeometry(0.12, 12, 12);
+        const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.88 });
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.position.copy(origin);
+        mesh.position.x += (Math.random() - 0.5) * 0.3;
+        mesh.position.z += (Math.random() - 0.5) * 0.3;
+        this.particlesGroup.add(mesh);
+
+        const velocity = new THREE.Vector3(
+            (Math.random() - 0.5) * 0.5,
+            1.5 + Math.random() * 0.8,
+            (Math.random() - 0.5) * 0.5
+        );
+
+        this.activeParticles.push({
+            mesh, velocity, life: 1.0, decay: 0.018,
+            isBubble: true,
+            rotSpeed: new THREE.Vector3(0, Math.random() * 2, 0)
+        });
+    }
+
     spawnParticle(arg1, arg2) {
         if (typeof this.spawnCodeParticle === 'function') {
             if (typeof arg1 === 'string') {
@@ -1428,12 +1467,18 @@ export class WorldEngine {
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const p = this.activeParticles[i];
             p.mesh.position.addScaledVector(p.velocity, delta);
-            p.mesh.rotation.x += p.rotSpeed.x * delta;
-            p.mesh.rotation.y += p.rotSpeed.y * delta;
-            p.velocity.y -= 2.2 * delta;
+            if (p.isBubble) {
+                p.velocity.y += 0.25 * delta;
+                p.mesh.position.x += Math.sin((p.life * 8) + i) * 0.008;
+                p.mesh.scale.setScalar(Math.max(0.05, Math.min(1.3, 1.25 - p.life * 0.35)));
+            } else {
+                p.mesh.rotation.x += p.rotSpeed.x * delta;
+                p.mesh.rotation.y += p.rotSpeed.y * delta;
+                p.velocity.y -= 2.2 * delta;
+                p.mesh.scale.setScalar(Math.max(0.01, p.life));
+            }
 
             p.life -= p.decay;
-            p.mesh.scale.setScalar(Math.max(0.01, p.life));
             if (p.life <= 0) {
                 this.particlesGroup.remove(p.mesh);
                 p.mesh.geometry.dispose();

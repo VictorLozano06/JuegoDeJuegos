@@ -43,7 +43,13 @@ export function createProduction(p) { const result=ensureProduction(p); result.l
 export function workQuality(p) {
   const prod=ensureProduction(p); if (!prod || prod.legacy && !prod.weeks) return 0.8;
   const work=prod.work, genre=p.genre||{};
-  const weights={engine:genre.idealStage1?.engine||.7,gameplay:genre.idealStage1?.gameplay||.7,story:genre.idealStage1?.story||.7,graphics:genre.idealStage3?.graphics||.7,sound:genre.idealStage3?.sound||.7,world:genre.idealStage3?.worldDesign||.7,optimization:.6,bugs:.6,refinement:.6};
-  let sum=0,total=0; for (const [k,w] of Object.entries(weights)) { sum+=Math.min(1.2,(work[k]||0)/25)*w;total+=w; }
-  return Math.min(1.2,sum/total + (prod.legacy ? 0.55 : 0));
+  const weights={
+    engine:genre.idealStage1?.engine||.7,gameplay:genre.idealStage1?.gameplay||.7,story:genre.idealStage1?.story||.7,
+    dialogues:genre.idealStage2?.dialogues||.7,levelDesign:genre.idealStage2?.levelDesign||.7,ai:genre.idealStage2?.ai||.7,
+    worldDesign:genre.idealStage3?.worldDesign||.7,graphics:genre.idealStage3?.graphics||.7,sound:genre.idealStage3?.sound||.7,
+    designUI:genre.idealStage3?.designUI||.7,
+    world:genre.idealStage3?.worldDesign||.7,optimization:.6,bugs:.6,refinement:.6
+  };
+  let sum=0,total=0; for (const [k,w] of Object.entries(weights)) { if (work[k] !== undefined) { sum+=Math.min(1.2,(work[k]||0)/25)*w;total+=w; } }
+  return total > 0 ? Math.min(1.2,sum/total + (prod.legacy ? 0.55 : 0)) : 1.0;
 }
