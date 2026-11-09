@@ -10,7 +10,7 @@ import {
     calculateEngineCost,
     resolveBranchReplacement
 } from '../src/EngineDatabase.js';
-import { EngineCreationModal } from '../src/EngineCreationModal.js';
+import { EngineCreationModal, sanitizeEngineData } from '../src/EngineCreationModal.js';
 
 test('ENGINE_PARTS_DATABASE has all 82 items across 9 categories with valid structure', () => {
     assert.equal(ENGINE_PARTS_DATABASE.length, 82, 'Total parts in database must be 82');
@@ -191,3 +191,202 @@ test('No system emojis in EngineDatabase, EngineCreationModal and engine-creatio
     assert.equal(emojiRegex.test(modalCode), false, 'EngineCreationModal.js must not contain system emojis');
     assert.equal(emojiRegex.test(cssCode), false, 'engine-creation.css must not contain system emojis');
 });
+
+test('EngineCreationModal.open() unifies trigger entry point and ensures single modal without duplicates (Subagente 2 & 4)', () => {
+    const elements = new Map();
+
+    globalThis.document = {
+        body: {
+            append: (el) => elements.set(el.id || 'body-child', el)
+        },
+        createElement: (tag) => {
+            const listeners = {};
+            const children = [];
+            const classSet = new Set();
+            const el = {
+                tagName: tag.toUpperCase(),
+                id: '',
+                set className(val) {
+                    classSet.clear();
+                    val.split(/\s+/).filter(Boolean).forEach(c => classSet.add(c));
+                },
+                get className() {
+                    return Array.from(classSet).join(' ');
+                },
+                classList: {
+                    add: (c) => classSet.add(c),
+                    remove: (c) => classSet.delete(c),
+                    toggle: (c, force) => {
+                        if (force === undefined) {
+                            if (classSet.has(c)) classSet.delete(c);
+                            else classSet.add(c);
+                        } else if (force) classSet.add(c);
+                        else classSet.delete(c);
+                    },
+                    contains: (c) => classSet.has(c)
+                },
+                attributes: {},
+                dataset: {},
+                children,
+                style: {},
+                textContent: '',
+                innerHTML: '',
+                disabled: false,
+                setAttribute: (k, v) => { el.attributes[k] = v; },
+                getAttribute: (k) => el.attributes[k] || null,
+                addEventListener: (event, fn) => {
+                    listeners[event] = listeners[event] || [];
+                    listeners[event].push(fn);
+                },
+                append: (...args) => children.push(...args),
+                appendChild: (child) => children.push(child),
+                remove: () => elements.delete(el.id),
+                querySelectorAll: () => [],
+                closest: () => null,
+                focus: () => {}
+            };
+            return el;
+        },
+        getElementById: (id) => elements.get(id) || null
+    };
+
+    const mockGame = {
+        funds: 800000,
+        customEngines: [],
+        inHouseEngines: [],
+        getHistoricalYear: () => 1984
+    };
+
+    // First open
+    const modal1 = EngineCreationModal.open({ game: mockGame });
+    assert.ok(elements.has('engine-creation-modal-backdrop'), 'Modal must exist in DOM');
+
+    // Second open: should destroy previous and open fresh instance
+    const modal2 = EngineCreationModal.open({ game: mockGame });
+    assert.ok(modal2 instanceof EngineCreationModal, 'Must return modal instance');
+    assert.ok(elements.has('engine-creation-modal-backdrop'), 'New modal must exist in DOM');
+
+    // Close: modal must be removed from DOM (Subagente 4: zero orphan elements)
+    modal2.close();
+    assert.equal(elements.has('engine-creation-modal-backdrop'), false, 'Closing must remove modal from DOM');
+});
+
+test('Subagente 3: Created engine data has clean minimal structure without AST or graph junk', () => {
+    const elements = new Map();
+
+    globalThis.document = {
+        body: {
+            append: (el) => elements.set(el.id || 'body-child', el)
+        },
+        createElement: (tag) => {
+            const listeners = {};
+            const children = [];
+            const classSet = new Set();
+            return {
+                tagName: tag.toUpperCase(),
+                id: '',
+                set className(val) {
+                    classSet.clear();
+                    val.split(/\s+/).filter(Boolean).forEach(c => classSet.add(c));
+                },
+                get className() { return Array.from(classSet).join(' '); },
+                classList: {
+                    add: (c) => classSet.add(c),
+                    remove: (c) => classSet.delete(c),
+                    toggle: (c, force) => {
+                        if (force === undefined) {
+                            if (classSet.has(c)) classSet.delete(c);
+                            else classSet.add(c);
+                        } else if (force) classSet.add(c);
+                        else classSet.delete(c);
+                    },
+                    contains: (c) => classSet.has(c)
+                },
+                attributes: {},
+                dataset: {},
+                children,
+                style: {},
+                textContent: '',
+                innerHTML: '',
+                setAttribute: () => {},
+                getAttribute: () => null,
+                addEventListener: (event, fn) => {
+                    listeners[event] = listeners[event] || [];
+                    listeners[event].push(fn);
+                },
+                append: (...args) => children.push(...args),
+                appendChild: (child) => children.push(child),
+                remove: () => {},
+                querySelectorAll: () => [],
+                closest: () => null,
+                focus: () => {}
+            };
+        },
+        getElementById: (id) => elements.get(id) || null
+    };
+
+    const mockGame = {
+        funds: 600000,
+        customEngines: [],
+        inHouseEngines: [],
+        getHistoricalYear: () => 1985
+    };
+
+    let createdEngine = null;
+    const modal = new EngineCreationModal({
+        game: mockGame,
+        onCreated: (eng) => { createdEngine = eng; }
+    });
+    modal.render();
+
+    modal.engineName = 'Apex Engine';
+    modal.selectedPartIds = new Set(['graphics_2d_v2', 'story_lineal', 'engine_physics_basic']);
+    modal.handleDevelopEngine();
+
+    assert.ok(createdEngine, 'Engine must have been created');
+    assert.ok(createdEngine.id.startsWith('engine_'), 'Engine id must start with engine_');
+    assert.equal(createdEngine.name, 'Apex Engine');
+    assert.equal(createdEngine.version, '1.0');
+    assert.deepEqual(createdEngine.features, ['graphics_2d_v2', 'story_lineal', 'engine_physics_basic']);
+    assert.equal(typeof createdEngine.cost, 'number');
+    assert.equal(createdEngine.createdAt, 1985);
+
+    // Verify absence of obsolete engine workshop AST / graph keys
+    assert.equal(createdEngine.ast, undefined, 'Must not contain AST property');
+    assert.equal(createdEngine.graph, undefined, 'Must not contain graph property');
+    assert.equal(createdEngine.blueprint, undefined, 'Must not contain blueprint property');
+    assert.equal(createdEngine.selectedModules, undefined, 'Must not contain selectedModules property');
+});
+
+test('Subagente 3: sanitizeEngineData strips obsolete structures and outputs standard metadata', () => {
+    const dirtyEngine = {
+        id: 'engine_old_99',
+        name: 'Legacy Core',
+        version: 2,
+        features: ['graphics_3d_v1', 'sound_stereo'],
+        cost: 80000,
+        createdAt: 1988,
+        // Junk properties from obsolete systems:
+        ast: { type: 'Program', body: [] },
+        graph: { nodes: [1, 2, 3], edges: [] },
+        blueprint: { bays: { bay1: 'mod_1' } },
+        tempBuffer: '0xDEADBEEF'
+    };
+
+    const sanitized = sanitizeEngineData(dirtyEngine);
+
+    assert.equal(sanitized.id, 'engine_old_99');
+    assert.equal(sanitized.name, 'Legacy Core');
+    assert.equal(sanitized.version, '2.0');
+    assert.deepEqual(sanitized.features, ['graphics_3d_v1', 'sound_stereo']);
+    assert.equal(sanitized.cost, 80000);
+    assert.equal(sanitized.createdAt, 1988);
+
+    // Assert stripped
+    assert.equal(sanitized.ast, undefined);
+    assert.equal(sanitized.graph, undefined);
+    assert.equal(sanitized.blueprint, undefined);
+    assert.equal(sanitized.tempBuffer, undefined);
+});
+
+

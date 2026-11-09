@@ -30,12 +30,48 @@ const INACTIVE_ICON_SVG = '<svg viewBox="0 0 16 16" width="9" height="9" fill="n
 const CLOSE_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>';
 
 export class EngineCreationModal {
+    /**
+     * Entry point unificado para instanciar y abrir el modal.
+     * Garantiza que no queden dos modales superpuestos en el DOM.
+     */
+    static open(options = {}) {
+        // Purgar cualquier modal previo u huérfano en el DOM
+        const existing = document.getElementById('engine-creation-modal-backdrop');
+        if (existing) {
+            existing.remove();
+        }
+
+        const activeGame = options.game || (typeof window !== 'undefined' ? window.game : null);
+        const modal = new EngineCreationModal({
+            game: activeGame,
+            onCreated: options.onCreated || ((newEngine) => {
+                if (typeof window !== 'undefined') {
+                    if (typeof window.showToast === 'function') {
+                        window.showToast(`[[DE_ICON_024]] ¡Motor "${newEngine.name}" creado con éxito!`, 'success');
+                    }
+                    if (typeof window.renderHUD === 'function' && window.game) {
+                        window.renderHUD(window.game);
+                    }
+                    if (typeof window.renderTechTree === 'function') {
+                        window.renderTechTree();
+                    }
+                }
+            }),
+            onClose: options.onClose,
+            container: options.container
+        });
+
+        modal.render();
+        return modal;
+    }
+
     constructor({ game, onCreated, onClose, container = null }) {
         this.game = game;
         this.onCreated = onCreated || (() => {});
         this.onClose = onClose || (() => {});
         this.container = container || (typeof document !== 'undefined' ? document.body : null);
         this.element = null;
+        this._keyListener = null;
 
         this.selectedPartIds = new Set(['graphics_2d_v1', 'engine_save_game']);
         this.activeCategory = 'all';
@@ -85,7 +121,7 @@ export class EngineCreationModal {
         closeBtn.className = 'engine-modal-close-btn';
         closeBtn.title = 'Cerrar ventana';
         closeBtn.innerHTML = CLOSE_ICON_SVG;
-        closeBtn.addEventListener('click', () => this.destroy());
+        closeBtn.addEventListener('click', () => this.close());
 
         headerTop.append(title, closeBtn);
 
@@ -225,7 +261,7 @@ export class EngineCreationModal {
         cancelBtn.type = 'button';
         cancelBtn.className = 'engine-btn-cancel';
         cancelBtn.textContent = 'Cancelar';
-        cancelBtn.addEventListener('click', () => this.destroy());
+        cancelBtn.addEventListener('click', () => this.close());
 
         const submitBtn = document.createElement('button');
         submitBtn.type = 'button';
@@ -242,6 +278,24 @@ export class EngineCreationModal {
         windowEl.append(footer);
 
         backdrop.append(windowEl);
+
+        // Cerrar al pulsar en el fondo fuera de la ventana modal
+        backdrop.addEventListener('click', (e) => {
+            if (e.target === backdrop) {
+                this.close();
+            }
+        });
+
+        // Cerrar accesible con tecla Escape (agentes/dialogos.md)
+        this._keyListener = (e) => {
+            if (e.key === 'Escape') {
+                this.close();
+            }
+        };
+        if (typeof window !== 'undefined') {
+            window.addEventListener('keydown', this._keyListener);
+        }
+
         this.container.append(backdrop);
         this.element = backdrop;
 
@@ -411,32 +465,35 @@ export class EngineCreationModal {
 
         // Deducción real de créditos del estudio
         if (this.game && Number.isFinite(this.game.funds)) {
-            this.game.funds -= totalCost;
+            this.game.funds = Math.max(0, this.game.funds - totalCost);
         }
 
-        const selectedParts = Array.from(this.selectedPartIds).map(id => getPartById(id)).filter(Boolean);
-
-        // Creación del objeto de Motor de Videojuegos
-        const engineId = 'engine_custom_' + Date.now();
-        const currentYear = this.game?.getHistoricalYear ? this.game.getHistoricalYear() : 1982;
+        // Creación limpia del objeto de Motor de Videojuegos (Subagente 3)
+        const engineCount = (this.game?.customEngines?.length || this.game?.inHouseEngines?.length || 0) + 1;
+        const currentYear = this.game?.getHistoricalYear ? this.game.getHistoricalYear() : (this.game?.year ? 1981 + this.game.year : 1982);
         const currentWeek = this.game?.week || 1;
+        const engineId = 'engine_' + Date.now();
+        const finalName = this.engineName.trim() || `Motor v${engineCount}.0`;
 
         const newEngine = {
             id: engineId,
-            name: this.engineName,
-            version: 1,
+            name: finalName,
+            version: `${engineCount}.0`,
+            features: Array.from(this.selectedPartIds),
             cost: totalCost,
-            parts: selectedParts,
-            partIds: Array.from(this.selectedPartIds),
+            createdAt: currentYear,
+            // Propiedades limpias de compatibilidad con pipelines y simulación
             createdYear: currentYear,
             createdWeek: currentWeek,
             isProprietary: true,
             isCustom: true,
             efficiency: 1.0,
-            appliedFeatures: Array.from(this.selectedPartIds)
+            getEfficiency: () => 1.0,
+            getFrictionMultiplier: () => 0.5,
+            bakedNodes: Array.from(this.selectedPartIds)
         };
 
-        // Registrar en los almacenes del juego
+        // Registrar en los almacenes del juego sin residuos de AST ni grafos antiguos
         if (this.game) {
             if (!Array.isArray(this.game.customEngines)) {
                 this.game.customEngines = [];
@@ -459,16 +516,64 @@ export class EngineCreationModal {
             this.onCreated(newEngine);
         }
 
+        this.close();
+    }
+
+    close() {
         this.destroy();
     }
 
     destroy() {
+        if (this._keyListener && typeof window !== 'undefined') {
+            window.removeEventListener('keydown', this._keyListener);
+            this._keyListener = null;
+        }
         if (this.element) {
             this.element.remove();
             this.element = null;
+        }
+        const existing = document.getElementById('engine-creation-modal-backdrop');
+        if (existing) {
+            existing.remove();
         }
         if (typeof this.onClose === 'function') {
             this.onClose();
         }
     }
 }
+
+/**
+ * Sanitiza cualquier estructura de motor para asegurar que cumple con los
+ * metadatos limpios y sin estructuras obsoletas (Subagente 3).
+ */
+export function sanitizeEngineData(engine) {
+    if (!engine) return null;
+    const features = Array.isArray(engine.features)
+        ? engine.features
+        : (Array.isArray(engine.appliedFeatures)
+            ? engine.appliedFeatures
+            : (Array.isArray(engine.partIds)
+                ? engine.partIds
+                : (Array.isArray(engine.bakedNodes) ? engine.bakedNodes : [])));
+    const currentYear = engine.createdAt || engine.createdYear || 1982;
+    return {
+        id: engine.id || 'engine_' + Date.now(),
+        name: engine.name || 'Motor Personalizado',
+        version: typeof engine.version === 'string' ? engine.version : `${engine.version || 1}.0`,
+        features: [...features],
+        cost: typeof engine.cost === 'number' ? engine.cost : 0,
+        createdAt: currentYear,
+        isProprietary: true,
+        isCustom: true,
+        efficiency: typeof engine.efficiency === 'number' ? engine.efficiency : 1.0,
+        getEfficiency: typeof engine.getEfficiency === 'function' ? engine.getEfficiency : () => 1.0,
+        getFrictionMultiplier: typeof engine.getFrictionMultiplier === 'function' ? engine.getFrictionMultiplier : () => 0.5,
+        bakedNodes: [...features]
+    };
+}
+
+if (typeof window !== 'undefined') {
+    window.EngineCreationModal = EngineCreationModal;
+}
+
+

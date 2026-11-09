@@ -1196,3 +1196,4 @@ export function resolveBranchReplacement(currentIds, incomingId) {
     next.add(incomingId);
     return { nextIds: next, replacedId };
 }
+
