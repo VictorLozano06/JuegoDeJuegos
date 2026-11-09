@@ -196,6 +196,15 @@ async function bootGameApp() {
         game.onStateChange((state) => {
             if (appState !== STATE_PLAYING) return;
             syncStudioScene(state);
+            for (const employee of state.employees || []) {
+                if (employee.id !== 'player' && [8, 4, 1].includes(employee.contractWeeksRemaining)) {
+                    const key = `${employee.id}:${employee.contractWeeksRemaining}:${state.year}:${state.month}:${state.week}`;
+                    if (window.__lastContractWarning !== key) {
+                        window.__lastContractWarning = key;
+                        showToast(`El contrato de ${employee.name} termina en ${employee.contractWeeksRemaining} semana(s). Puedes renovarlo en Personal.`, 'warn');
+                    }
+                }
+            }
             renderHUD(state);
             syncExpoInvitation();
             const officesPhoneView = document.getElementById('phone-view-offices');
@@ -3478,6 +3487,7 @@ function renderRecruitment() {
                 <div style="font-size: 12px; color: var(--text-secondary); margin: 3px 0;">
                     ${emp.role} · ${experience} • [[DE_ICON_018]] Tech: <strong>${emp.tech}</strong> | [[DE_ICON_019]] Design: <strong>${emp.design}</strong> | [[DE_ICON_022]] Vel: <strong>${speedRating}</strong>
                 </div>
+                ${emp.id !== 'player' ? `<div style="font-size:12px;color:#a9c9d3;margin:6px 0">Contrato: ${emp.contractWeeksRemaining ?? 48} semanas · Indemnización: $${game.getEmployeeSeverance(emp).toLocaleString()}</div>` : ''}
                 <div class="hr-employee-metrics"><span>[[DE_ICON_124]] Moral: ${Math.round(morale)}%</span><span>[[DE_ICON_022]] Estrés: ${Math.round(stress)}%</span><span>[[DE_ICON_021]] Resistencia: ${stressResistance}</span><span>[[DE_ICON_125]] Baja: ${emp.sickWeeksRemaining || 0} sem</span><span>[[DE_ICON_126]] Crunch: ${emp.continuousCrunchWeeks || 0} sem</span></div>
                 <div class="stamina-container">
                     <span style="font-size: 11px; color: var(--text-secondary);">Energía:</span>
@@ -3492,6 +3502,7 @@ function renderRecruitment() {
             <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
                 <span style="font-weight: 700; color: var(--accent-green); font-size: 13px;">$${emp.salary.toLocaleString()}/mes</span>
                 <div class="hr-salary-controls"><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 0.9)})">−10%</button><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 1.1)})">+10%</button>${emp.isLead ? '<b class="hr-lead-badge">[[DE_ICON_005]] Líder</b>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${emp.id}')">[[DE_ICON_005]] Liderazgo</button>`}</div>
+                ${emp.id !== 'player' ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="staff-action-btn" onclick="renewStaffContract('${emp.id}',0.05)">Renovar +5%</button><button type="button" class="staff-action-btn" onclick="renewStaffContract('${emp.id}',0.10)">Renovar +10%</button><button type="button" class="staff-action-btn hr-danger-btn" onclick="confirmStaffDismissal('${emp.id}')">Despedir</button></div>` : ''}
                 <div style="display: flex; gap: 6px;">
                     <button class="staff-action-btn" onclick="sendOnVacation('${emp.id}')" title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones ($2k)</button>
                     <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'tech')" title="+8 Tech permanentemente">[[DE_ICON_018]] +8 Tech</button>
@@ -3546,6 +3557,39 @@ function renderRecruitment() {
         candidatesList.appendChild(card);
     });
 }
+
+window.renewStaffContract = function(id, increase) {
+    const result = game.renewEmployeeContract(id, increase);
+    showToast(result.message, result.success ? 'success' : 'warn');
+    renderRecruitment();
+};
+
+window.confirmStaffDismissal = function(id) {
+    const employee = game.employees.find(item => item.id === id);
+    if (!employee || id === 'player') return;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'game-dialog dismissal-dialog';
+    dialog.setAttribute('aria-labelledby', 'dismiss-staff-title');
+    dialog.setAttribute('aria-describedby', 'dismiss-staff-description');
+    dialog.innerHTML = `<div class="dismissal-topline"><span>GESTIÓN DE PERSONAL</span><span class="dismissal-step">DECISIÓN DE PLANTILLA</span></div>
+        <div class="dismissal-heading"><div class="dismissal-symbol" aria-hidden="true"><svg viewBox="0 0 32 32" fill="none"><circle cx="13" cy="10" r="5"/><path d="M4 25v-2c0-4 4-7 9-7 2 0 4 .5 5.5 1.4M22 20l6 6m0-6-6 6"/></svg></div><div><h2 id="dismiss-staff-title">Confirmar despido</h2><p id="dismiss-staff-description">Esta decisión finaliza el contrato de <strong data-employee-name></strong>.</p></div></div>
+        <div class="dismissal-cost"><div><span>INDEMNIZACIÓN</span><small>Pago único al confirmar</small></div><strong data-severance></strong></div>
+        <div class="dismissal-effects"><span class="dismissal-effects-title">CONSECUENCIAS</span><p>El empleado dejará el estudio y se liberará su puesto.</p><p>La moral del resto del equipo disminuirá 5 puntos.</p></div>
+        <div class="dismissal-actions"><button type="button" class="dismissal-cancel">Mantener empleado</button><button type="button" class="dismissal-confirm">Pagar y despedir</button></div>`;
+    dialog.querySelector('[data-employee-name]').textContent = employee.name;
+    dialog.querySelector('[data-severance]').textContent = `$${game.getEmployeeSeverance(employee).toLocaleString()}`;
+    const cancel = dialog.querySelector('.dismissal-cancel');
+    const confirm = dialog.querySelector('.dismissal-confirm');
+    cancel.addEventListener('click', () => dialog.close());
+    confirm.addEventListener('click', () => {
+        const result = game.dismissEmployee(id);
+        showToast(result.message, result.success ? 'success' : 'warn');
+        if (result.success) world.syncEmployees(game.employees);
+        renderRecruitment(); dialog.close();
+    });
+    dialog.addEventListener('close', () => { dialog.remove(); document.querySelector(`[data-employee-id="${CSS.escape(id)}"] button`)?.focus(); });
+    document.body.appendChild(dialog); dialog.showModal(); cancel.focus();
+};
 
 window.refreshPersonnelPanel = renderRecruitment;
 
@@ -5297,15 +5341,62 @@ window.renderAdminConsole = () => {
 window.renderHUD = renderHUD;
 window.autosaveCurrentGame = autosaveCurrentGame;
 
+let currentLeaderboardLimit = 5;
+
+window.setLeaderboardLimit = function(limit) {
+    currentLeaderboardLimit = limit;
+    const btn5 = document.getElementById('btn-chart-top5');
+    const btn10 = document.getElementById('btn-chart-top10');
+    const title = document.getElementById('chart-section-title');
+    if (btn5) btn5.classList.toggle('active', limit === 5);
+    if (btn10) btn10.classList.toggle('active', limit === 10);
+    if (title) title.textContent = limit === 5 ? 'Top 5 de la semana' : 'Top 10 de la semana';
+    renderTop10Leaderboard();
+};
+
 function renderHistoryAndCharts() {
     renderTop10Leaderboard();
 
     const historyList = document.getElementById('games-history-list');
+    const studioStats = document.getElementById('studio-library-stats');
     if (!historyList) return;
     historyList.innerHTML = '';
 
+    if (studioStats) {
+        if (game.gamesHistory.length > 0) {
+            const totalCopies = game.gamesHistory.reduce((sum, g) => sum + (g.unitsSoldTotal || g.installationsTotal || 0), 0);
+            const totalProfit = game.gamesHistory.reduce((sum, g) => sum + (Number.isFinite(g.profit) ? g.profit : 0), 0);
+            studioStats.innerHTML = `
+                <div class="studio-stat-pill">Títulos: <strong>${game.gamesHistory.length}</strong></div>
+                <div class="studio-stat-pill">Ventas: <strong>${totalCopies.toLocaleString()}</strong></div>
+                <div class="studio-stat-pill">Balance: <strong style="color: ${totalProfit >= 0 ? '#34d399' : '#f87171'}">${totalProfit >= 0 ? '+' : ''}$${Math.round(totalProfit).toLocaleString()}</strong></div>
+            `;
+        } else {
+            studioStats.innerHTML = '';
+        }
+    }
+
     if (game.gamesHistory.length === 0) {
-        historyList.innerHTML = `<p style="color: var(--text-secondary); text-align: center; padding: 20px;">Aún no has publicado ningún videojuego.</p>`;
+        historyList.innerHTML = `
+            <div class="sales-studio-empty-state">
+                <div class="empty-state-icon-wrap" aria-hidden="true">
+                    <svg viewBox="0 0 64 64" width="38" height="38" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="18" y="10" width="28" height="24" rx="3" stroke="#00f3ff" fill="rgba(0, 243, 255, 0.08)"/>
+                        <line x1="24" y1="18" x2="40" y2="18" stroke="#00f3ff"/>
+                        <line x1="24" y1="24" x2="36" y2="24" stroke="#00f3ff"/>
+                        <rect x="12" y="44" width="40" height="12" rx="2" stroke="#64748b" fill="#1e293b"/>
+                        <line x1="8" y1="56" x2="56" y2="56" stroke="#475569"/>
+                        <path d="M26 34 L32 44 L38 34" stroke="#94a3b8" stroke-width="1.5"/>
+                    </svg>
+                </div>
+                <h4>Tu vitrina de ventas está esperando tu primer gran éxito</h4>
+                <p>Los rivales de la industria lideran el ranking semanal. Diseña y lanza tu primer videojuego en el garaje para irrumpir en el Top 10 y disputar el liderato de ventas.</p>
+                <button type="button" class="empty-state-cta-btn" onclick="openModal('modal-new-game');">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                    Comenzar nuevo proyecto
+                </button>
+            </div>
+        `;
         return;
     }
 
@@ -5372,53 +5463,130 @@ function renderTop10Leaderboard() {
     const container = document.getElementById('chart-leaderboard-container');
     if (!container) return;
 
-    let html = `
-        <table class="leaderboard-table">
-            <thead>
-                <tr>
-                    <th style="width: 50px;">Pos</th>
-                    <th>Título del Juego</th>
-                    <th>Estudio Desarrollador</th>
-                    <th style="text-align: right;">Ventas Semanales</th>
-                    <th style="text-align: right;">Ventas Totales</th>
-                    <th style="text-align: center; width: 60px;">Nota</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
+    if (!game.top10Chart?.length && typeof game.cycleRivalMarket === 'function') game.cycleRivalMarket();
+    const allEntries = game.top10Chart || [];
+    const entries = allEntries.slice(0, currentLeaderboardLimit);
 
-    if (!game.top10Chart || game.top10Chart.length === 0) {
-        if (typeof game.cycleRivalMarket === 'function') {
-            game.cycleRivalMarket();
+    // Actualizar barra KPI del mercado
+    const kpiLeader = document.getElementById('kpi-leader-name');
+    const kpiTotal = document.getElementById('kpi-total-sales');
+    const kpiPlayer = document.getElementById('kpi-player-rank');
+
+    if (kpiLeader) {
+        if (allEntries.length > 0) {
+            kpiLeader.textContent = `${allEntries[0].title} (${Number(allEntries[0].weeklySales || 0).toLocaleString()} uds)`;
+        } else {
+            kpiLeader.textContent = '—';
         }
     }
 
-    if (!game.top10Chart || game.top10Chart.length === 0) {
-        html += '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary); padding: 22px 14px; font-size: 13px;">La clasificación semanal se actualizará al cerrar el primer ciclo comercial.</td></tr>';
-    } else {
-        game.top10Chart.slice(0, 10).forEach(item => {
-        let trendIcon = '<span class="trend-arrow same" title="Sin cambios" aria-label="Sin cambios">—</span>';
-        if (item.trend === 'up') trendIcon = '<span class="trend-arrow up" title="Sube" aria-label="Sube">[[DE_ICON_151]]</span>';
-        if (item.trend === 'down') trendIcon = '<span class="trend-arrow down" title="Baja" aria-label="Baja">[[DE_ICON_152]]</span>';
-        if (item.trend === 'new') trendIcon = '<span class="trend-arrow new" title="Nuevo" aria-label="Nuevo">[[DE_ICON_148]]</span>';
-
-        const rowClass = `leaderboard-row rank-${item.rank}${item.isPlayer ? ' player-row' : ''}`;
-
-        html += `
-            <tr class="${rowClass}">
-                <td><div class="chart-rank"><strong>${String(item.rank).padStart(2, '0')}</strong>${trendIcon}</div></td>
-                <td><strong style="color: #fff;">${item.title}</strong></td>
-                <td style="color: var(--text-secondary); font-size: 13px;">${item.dev}</td>
-                <td style="text-align: right; font-weight: 700; color: var(--accent-cyan);">${item.weeklySales.toLocaleString()}</td>
-                <td style="text-align: right; color: #fff;">${item.totalSales.toLocaleString()}</td>
-                <td style="text-align: center;"><span class="score-badge ${item.score >= 8 ? 'high' : (item.score >= 6 ? 'med' : 'low')}" style="font-size: 11px; padding: 2px 6px;">${item.score}</span></td>
-            </tr>
-        `;
-    });
+    if (kpiTotal) {
+        const totalTopSales = allEntries.reduce((sum, item) => sum + (Number(item.weeklySales) || 0), 0);
+        kpiTotal.textContent = `${totalTopSales.toLocaleString()} uds`;
     }
 
-    html += `</tbody></table>`;
-    container.innerHTML = html;
+    if (kpiPlayer) {
+        const playerIdx = allEntries.findIndex(item => item.isPlayer);
+        kpiPlayer.textContent = playerIdx !== -1 ? `#${playerIdx + 1} (${allEntries[playerIdx].title})` : 'Sin clasificar';
+    }
+
+    container.replaceChildren();
+    if (!entries.length) {
+        const empty = document.createElement('p');
+        empty.className = 'sales-chart-empty';
+        empty.textContent = 'La clasificación aparecerá cuando termine el primer ciclo comercial.';
+        container.appendChild(empty);
+        return;
+    }
+
+    const list = document.createElement('ol');
+    list.className = 'sales-top-five';
+
+    const TREND_CONFIG = {
+        up: {
+            cls: 'trend-up',
+            text: 'SUBE',
+            svg: `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>`
+        },
+        down: {
+            cls: 'trend-down',
+            text: 'BAJA',
+            svg: `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`
+        },
+        new: {
+            cls: 'trend-new',
+            text: 'NUEVA ENTRADA',
+            svg: `<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+        },
+        same: {
+            cls: 'trend-same',
+            text: 'ESTABLE',
+            svg: `<svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>`
+        }
+    };
+
+    entries.forEach((item, index) => {
+        const row = document.createElement('li');
+        const rankNum = item.rank || index + 1;
+        const rankCls = rankNum === 1 ? 'is-leader rank-1' : (rankNum === 2 ? 'rank-2' : (rankNum === 3 ? 'rank-3' : `rank-${rankNum}`));
+        row.className = `sales-chart-entry ${rankCls}${item.isPlayer ? ' is-player' : ''}`;
+
+        let rankBadgeHeader = 'POSICIÓN';
+        let rankIcon = '';
+        if (rankNum === 1) {
+            rankBadgeHeader = 'LÍDER';
+            rankIcon = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>`;
+        } else if (rankNum === 2) {
+            rankIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`;
+        } else if (rankNum === 3) {
+            rankIcon = `<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#fb923c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 2px;"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></svg>`;
+        }
+
+        const scoreVal = typeof item.score === 'number' ? item.score.toFixed(1) : (item.score ?? '—');
+        const scoreClass = typeof item.score === 'number' ? (item.score >= 8.5 ? 'score-high' : (item.score >= 7.0 ? 'score-mid' : 'score-low')) : 'score-low';
+        const scoreHtml = `<span class="sales-score-pill ${scoreClass}"><svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> ${scoreVal}</span>`;
+
+        const trendCfg = TREND_CONFIG[item.trend] || TREND_CONFIG.same;
+        const trendHtml = `<span class="trend-pill ${trendCfg.cls}">${trendCfg.svg} ${trendCfg.text}</span>`;
+
+        const playerTag = item.isPlayer ? `<span class="player-studio-tag"><svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg> TU ESTUDIO</span>` : '';
+        const leaderBadge = rankNum === 1 ? `<span class="leader-badge-pill">CAMPEÓN SEMANAL</span>` : '';
+
+        row.innerHTML = `
+            <div class="sales-rank">
+                ${rankIcon}
+                <span>${rankBadgeHeader}</span>
+                <strong>${String(rankNum).padStart(2, '0')}</strong>
+            </div>
+            <div class="sales-entry-main">
+                <div class="sales-entry-title-row">
+                    <span class="sales-entry-name">${item.title}</span>
+                    ${leaderBadge}
+                    ${playerTag}
+                </div>
+                <div class="sales-entry-studio">${item.dev}</div>
+            </div>
+            <div class="sales-entry-stats">
+                <div class="sales-stat-col">
+                    <span>ESTA SEMANA</span>
+                    <strong class="sales-weekly">${Number(item.weeklySales || 0).toLocaleString()} <small style="font-size: 10px; font-weight: normal; color: #94a3b8;">uds</small></strong>
+                </div>
+                <div class="sales-stat-col">
+                    <span>TOTAL</span>
+                    <strong class="sales-total">${Number(item.totalSales || 0).toLocaleString()} <small style="font-size: 10px; font-weight: normal; color: #94a3b8;">uds</small></strong>
+                </div>
+                <div class="sales-stat-col">
+                    <span>NOTA</span>
+                    <div style="margin-top: 2px;">${scoreHtml}</div>
+                </div>
+            </div>
+            <div class="sales-entry-trend">
+                ${trendHtml}
+            </div>
+        `;
+        list.appendChild(row);
+    });
+    container.appendChild(list);
 }
 
 // --- POST-MORTEM GAME REPORT CONTROLLER ---

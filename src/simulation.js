@@ -3316,6 +3316,7 @@ class TycoonGame {
             this.notify();
             return;
         }
+        this.processEmployeeContracts();
         this.processEmployeeWeeklyWellbeing();
         if (this.currentProject) this.advanceDevTick();
         if (typeof this.processHeadhunters === 'function') this.processHeadhunters();
@@ -3583,6 +3584,51 @@ class TycoonGame {
         return this.getActiveOffice().maxEmployees;
     }
 
+    getEmployeeSeverance(employee) {
+        return Math.ceil((Number(employee.salary) || 0) * (1 + Math.floor((employee.tenureWeeks || 0) / 48) * 0.5));
+    }
+
+    dismissEmployee(id) {
+        const employee = this.employees.find(item => item.id === id);
+        if (!employee || id === 'player') return { success: false, message: 'No se puede despedir al fundador.' };
+        const cost = this.getEmployeeSeverance(employee);
+        if (this.funds < cost) return { success: false, message: `Necesitas $${cost.toLocaleString()} para la indemnización.` };
+        this.funds -= cost;
+        this.employees = this.employees.filter(item => item.id !== id);
+        this.pendingHeadhunts = (this.pendingHeadhunts || []).filter(offer => offer.employeeId !== id);
+        for (const colleague of this.employees) if (colleague.id !== 'player') colleague.morale = Math.max(0, (colleague.morale ?? 70) - 5);
+        this.notify();
+        return { success: true, message: `${employee.name} ha dejado el estudio. Indemnización: $${cost.toLocaleString()}.` };
+    }
+
+    renewEmployeeContract(id, increase) {
+        const employee = this.employees.find(item => item.id === id);
+        if (!employee || id === 'player') return { success: false, message: 'Contrato no disponible.' };
+        const minimum = (employee.morale ?? 70) < 50 ? 0.10 : 0.05;
+        if (increase < minimum) return { success: false, message: `${employee.name} pide al menos un ${minimum * 100}% de subida para renovar.` };
+        employee.salary = Math.round(employee.salary * (1 + increase));
+        employee.contractWeeksRemaining = 48;
+        employee.morale = Math.min(100, (employee.morale ?? 70) + 8);
+        this.notify();
+        return { success: true, message: `${employee.name} ha renovado por 48 semanas.` };
+    }
+
+    processEmployeeContracts() {
+        const departing = [];
+        for (const employee of this.employees) {
+            if (employee.id === 'player') continue;
+            employee.tenureWeeks = (employee.tenureWeeks || 0) + 1;
+            // Old saves receive a full initial term when first advanced.
+            employee.contractWeeksRemaining = (employee.contractWeeksRemaining ?? 49) - 1;
+            if (employee.contractWeeksRemaining <= 0) departing.push(employee);
+        }
+        for (const employee of departing) {
+            this.employees = this.employees.filter(item => item !== employee);
+            this.pendingHeadhunts = (this.pendingHeadhunts || []).filter(offer => offer.employeeId !== employee.id);
+            this.employeeEvents = [...(this.employeeEvents || []), { type: 'contract_expired', employeeId: employee.id, employeeName: employee.name, message: `${employee.name} se marchó al vencer su contrato.` }].slice(-30);
+        }
+    }
+
     hireEmployee(candidate) {
         if (this.employees.length >= this.getMaxStaffCapacity()) {
             return { success: false, message: '¡No hay escritorios libres en esta oficina! Amplía tu sede para contratar más personal.' };
@@ -3612,6 +3658,8 @@ class TycoonGame {
             sickWeeksRemaining: 0,
             burnoutState: 'none',
             salary: candidate.salary,
+            contractWeeksRemaining: 48,
+            tenureWeeks: 0,
             salaryExpectation: candidate.salaryExpectation || candidate.salary,
             trait: candidate.trait,
             traits: candidate.traits || [candidate.trait].filter(Boolean),

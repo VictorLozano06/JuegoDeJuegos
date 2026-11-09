@@ -325,3 +325,728 @@ body:has(.modal-backdrop.active) :is(.top-bar, .action-dock) { backdrop-filter: 
 @media (max-width: 420px) { .production-columns { gap:3px; } .production-area-name { font-size:11px; } .production-slider-wrap { height:110px; } .production-slider { height:100px; } }
 .profit-history-warning { color:#f5c98a; font-size:11px; line-height:1.35; margin:4px 0; max-width:32em; }
 .profit-history-warning[hidden] { display:none; }
+
+/* Personnel dismissal: clear cost and deliberate confirmation. */
+.game-dialog.dismissal-dialog { width:min(510px,calc(100% - 32px)); padding:28px; border:1px solid #365063; border-radius:16px; background:linear-gradient(145deg,#142533,#0c1725 68%); box-shadow:0 26px 80px #000b; box-sizing:border-box; }
+.dismissal-dialog::backdrop { background:rgba(3,9,17,.78); }
+.dismissal-topline { display:flex;justify-content:space-between;gap:12px;color:#80b7c7;font-size:10px;font-weight:800;letter-spacing:1.5px; }
+.dismissal-step { color:#778b9c; text-align:right; }
+.dismissal-heading { display:flex;gap:16px;align-items:flex-start;margin:26px 0; }
+.dismissal-symbol { display:grid;place-items:center;flex:0 0 48px;height:48px;border-radius:13px;background:#402c35;border:1px solid #a55d69; }
+.dismissal-symbol svg { width:28px;height:28px;stroke:#f0a2a6;stroke-width:1.7;stroke-linecap:round; }
+.game-dialog.dismissal-dialog h2 { margin:0 0 7px;font-size:23px;line-height:1.2; }
+.dismissal-heading p { margin:0;color:#aebfcb;font-size:13px;line-height:1.5;overflow-wrap:anywhere; }
+.dismissal-heading strong { color:#eef6f7; }
+.dismissal-cost { display:flex;justify-content:space-between;align-items:center;gap:15px;padding:17px 19px;border:1px solid #375365;border-radius:10px;background:#0b1a28; }
+.dismissal-cost span,.dismissal-effects-title { display:block;color:#8fa9b8;font-size:10px;font-weight:800;letter-spacing:1.2px; }
+.dismissal-cost small { display:block;margin-top:6px;color:#8b9fac;font-size:12px; }
+.dismissal-cost>strong { color:#f1c395;font-size:25px;white-space:nowrap;font-variant-numeric:tabular-nums; }
+.dismissal-effects { padding:20px 2px 8px; }
+.dismissal-effects p { position:relative;margin:9px 0;color:#bfccd4;font-size:13px;line-height:1.45;padding-left:14px; }
+.dismissal-effects p::before { content:'';position:absolute;left:1px;top:8px;width:5px;height:5px;background:#7ca9b5;border-radius:50%; }
+.dismissal-actions { display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #ffffff1a;padding-top:20px;margin-top:12px; }
+.dismissal-actions button { border-radius:8px;padding:12px 16px;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s; }
+.dismissal-cancel { border:1px solid #526371;background:#1b2a36;color:#e5eef2; }
+.dismissal-cancel:hover { background:#2b3d4b; }
+.dismissal-confirm { border:1px solid #b85c69;background:#9c4350;color:white; }
+.dismissal-confirm:hover { background:#bb5361; }
+@media(max-width:480px) { .game-dialog.dismissal-dialog { padding:21px; } .dismissal-step { display:none; } .dismissal-heading { margin:20px 0; } .dismissal-actions { flex-direction:column-reverse; } .dismissal-actions button { width:100%; } }
+
+/* =====================================================================
+   DEV EMPIRE 3D - PULSO DE VENTAS (MODAL HISTORY & LEADERBOARD)
+   Diseño de vanguardia, competitivo y con identidad retro-arcade
+   ===================================================================== */
+
+#modal-history .modal-window {
+    max-width: 1020px !important;
+    background: radial-gradient(ellipse at 85% 0%, rgba(245, 158, 11, 0.15), transparent 45%),
+                radial-gradient(ellipse at 15% 100%, rgba(0, 243, 255, 0.1), transparent 40%),
+                linear-gradient(180deg, #0d1422 0%, #080c14 100%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05);
+    border-radius: 18px;
+    padding: 24px 28px;
+    color: #f1f5f9;
+}
+
+.chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.chart-header-content .chart-eyebrow {
+    display: inline-block;
+    color: #f59e0b;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.chart-header .modal-title {
+    margin: 6px 0;
+    font-size: clamp(24px, 3.5vw, 32px);
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    color: #ffffff;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.chart-header .chart-subtitle {
+    color: #94a3b8;
+    font-size: 13px;
+    margin: 0;
+}
+
+/* Market Overview KPI Bar */
+.sales-market-kpi-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 16px 0 20px;
+}
+
+.kpi-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.65);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px 14px;
+    transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.kpi-card:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.kpi-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.kpi-label {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    color: #94a3b8;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+}
+
+.kpi-val {
+    display: block;
+    margin-top: 3px;
+    font-size: 13px;
+    font-weight: 800;
+    color: #ffffff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 170px;
+}
+
+.kpi-card.kpi-leader .kpi-val {
+    color: #fbbf24;
+}
+
+.kpi-pulse-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background-color: #10b981;
+    box-shadow: 0 0 10px #10b981;
+    animation: kpiPulse 2s infinite ease-in-out;
+}
+
+@keyframes kpiPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.45; transform: scale(0.8); }
+}
+
+.kpi-live-text {
+    color: #34d399 !important;
+}
+
+/* Section Headings & View Toggle */
+.sales-history-window .sales-modal-scroll {
+    padding-top: 10px;
+}
+
+.chart-section-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 16px;
+    padding-bottom: 12px;
+    margin-top: 8px;
+}
+
+.chart-section-heading span {
+    color: #f59e0b;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.5px;
+}
+
+.chart-section-heading h3 {
+    margin: 4px 0 0;
+    font-size: 19px;
+    font-weight: 800;
+    color: #ffffff;
+}
+
+.chart-controls {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.chart-view-toggle {
+    display: inline-flex;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+}
+
+.chart-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    font-family: 'Inter', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.chart-toggle-btn:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.chart-toggle-btn.active {
+    background: #0284c7;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(2, 132, 199, 0.4);
+}
+
+.chart-live {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #64748b;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+/* Leaderboard List & Entry Cards */
+#chart-leaderboard-container {
+    margin: 8px 0 32px;
+}
+
+.sales-top-five {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sales-chart-entry {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) auto 120px;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 20px;
+    background: linear-gradient(90deg, rgba(20, 32, 50, 0.75) 0%, rgba(15, 23, 42, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.sales-chart-entry:hover {
+    transform: translateX(4px);
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Leader (#1 Gold) */
+.sales-chart-entry.is-leader {
+    background: linear-gradient(90deg, rgba(245, 158, 11, 0.16) 0%, rgba(30, 41, 59, 0.8) 45%, rgba(15, 23, 42, 0.95) 100%);
+    border-color: #f59e0b;
+    box-shadow: 0 6px 24px rgba(245, 158, 11, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.sales-chart-entry.is-leader::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%);
+    box-shadow: 0 0 10px #fbbf24;
+}
+
+/* Rank 2 (Silver) */
+.sales-chart-entry.rank-2 {
+    border-color: rgba(203, 213, 225, 0.35);
+}
+
+.sales-chart-entry.rank-2::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #f8fafc 0%, #94a3b8 100%);
+}
+
+/* Rank 3 (Bronze) */
+.sales-chart-entry.rank-3 {
+    border-color: rgba(217, 119, 6, 0.35);
+}
+
+.sales-chart-entry.rank-3::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, #fb923c 0%, #b45309 100%);
+}
+
+/* Player's studio game */
+.sales-chart-entry.is-player {
+    border-color: #00f3ff;
+    background: linear-gradient(90deg, rgba(0, 243, 255, 0.14) 0%, rgba(16, 185, 129, 0.1) 40%, rgba(15, 23, 42, 0.95) 100%);
+    box-shadow: 0 6px 24px rgba(0, 243, 255, 0.22);
+}
+
+.sales-chart-entry.is-player::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 5px;
+    height: 100%;
+    background: linear-gradient(180deg, #00f3ff 0%, #10b981 100%);
+    box-shadow: 0 0 12px #00f3ff;
+}
+
+/* Rank Badge Box */
+.sales-rank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 66px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    text-align: center;
+}
+
+.sales-rank span {
+    display: block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #94a3b8;
+    margin-bottom: 2px;
+}
+
+.sales-rank strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 24px;
+    font-weight: 900;
+    color: #cbd5e1;
+    line-height: 1;
+}
+
+.is-leader .sales-rank {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.12);
+}
+
+.is-leader .sales-rank strong {
+    color: #fbbf24;
+    text-shadow: 0 0 12px rgba(251, 191, 36, 0.6);
+}
+
+.is-leader .sales-rank span {
+    color: #fde68a;
+}
+
+.rank-2 .sales-rank strong {
+    color: #f1f5f9;
+}
+
+.rank-3 .sales-rank strong {
+    color: #fdba74;
+}
+
+.is-player .sales-rank {
+    border-color: rgba(0, 243, 255, 0.4);
+    background: rgba(0, 243, 255, 0.1);
+}
+
+.is-player .sales-rank strong {
+    color: #00f3ff;
+}
+
+/* Main Title & Studio */
+.sales-entry-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.sales-entry-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sales-entry-name {
+    color: #ffffff;
+    font-weight: 800;
+    font-size: 15px;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.sales-entry-studio {
+    color: #94a3b8;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow-wrap: anywhere;
+}
+
+.player-studio-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(0, 243, 255, 0.16);
+    color: #00f3ff;
+    border: 1px solid rgba(0, 243, 255, 0.4);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.leader-badge-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(245, 158, 11, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.5);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+/* Entry Stats */
+.sales-entry-stats {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    text-align: right;
+}
+
+.sales-stat-col {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sales-stat-col span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px;
+    font-weight: 800;
+    color: #64748b;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.sales-stat-col strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 800;
+    color: #f1f5f9;
+}
+
+.sales-weekly {
+    color: #00f3ff !important;
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.35);
+}
+
+.is-leader .sales-weekly {
+    color: #fbbf24 !important;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.4);
+}
+
+/* Score Pill */
+.sales-score-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sales-score-pill.score-high {
+    background: rgba(245, 158, 11, 0.18);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.45);
+}
+
+.sales-score-pill.score-mid {
+    background: rgba(56, 189, 248, 0.16);
+    color: #38bdf8;
+    border: 1px solid rgba(56, 189, 248, 0.4);
+}
+
+.sales-score-pill.score-low {
+    background: rgba(148, 163, 184, 0.15);
+    color: #cbd5e1;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+/* Trend Badges */
+.sales-entry-trend {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.trend-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.6px;
+    white-space: nowrap;
+}
+
+.trend-pill.trend-up {
+    background: rgba(16, 185, 129, 0.18);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.trend-pill.trend-down {
+    background: rgba(244, 63, 94, 0.18);
+    color: #fb7185;
+    border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+.trend-pill.trend-new {
+    background: rgba(0, 243, 255, 0.18);
+    color: #00f3ff;
+    border: 1px solid rgba(0, 243, 255, 0.45);
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+.trend-pill.trend-same {
+    background: rgba(100, 116, 139, 0.18);
+    color: #94a3b8;
+    border: 1px solid rgba(100, 116, 139, 0.35);
+}
+
+/* Studio Catalog Section */
+.sales-history-window .chart-library {
+    padding-top: 24px;
+    margin-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.studio-library-stats {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.studio-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+}
+
+.studio-stat-pill strong {
+    color: #00f3ff;
+}
+
+/* Empty State */
+.sales-studio-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 36px 24px;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.5) 0%, rgba(10, 15, 26, 0.7) 100%);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: 14px;
+    margin: 12px 0 24px;
+}
+
+.empty-state-icon-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 16px;
+    background: rgba(0, 243, 255, 0.06);
+    border: 1px solid rgba(0, 243, 255, 0.2);
+    margin-bottom: 14px;
+    color: #00f3ff;
+}
+
+.sales-studio-empty-state h4 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    font-weight: 800;
+    color: #f1f5f9;
+}
+
+.sales-studio-empty-state p {
+    margin: 0 0 16px;
+    max-width: 520px;
+    color: #94a3b8;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.empty-state-cta-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 13px;
+    padding: 9px 20px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+    transition: transform 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.empty-state-cta-btn:hover {
+    background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 18px rgba(2, 132, 199, 0.6);
+}
+
+/* Studio Game Cards */
+.sales-history-window .history-card {
+    background: linear-gradient(90deg, rgba(15, 23, 42, 0.8) 0%, rgba(18, 30, 48, 0.75) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 10px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.15s ease, transform 0.15s ease;
+}
+
+.sales-history-window .history-card:hover {
+    border-color: rgba(0, 243, 255, 0.3);
+    transform: translateY(-1px);
+}
+
+.sales-chart-empty {
+    color: #9bb0bd;
+    padding: 25px 0;
+    text-align: center;
+}
+
+/* Responsiveness */
+@media(max-width: 820px) {
+    .sales-market-kpi-bar {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .sales-chart-entry {
+        grid-template-columns: 56px minmax(0, 1fr) auto;
+        gap: 12px;
+        padding: 12px 14px;
+    }
+    .sales-entry-trend {
+        grid-column: 2 / -1;
+        justify-content: flex-start;
+        margin-top: 4px;
+    }
+}
+
+@media(max-width: 580px) {
+    .sales-market-kpi-bar {
+        grid-template-columns: 1fr;
+    }
+    .sales-entry-stats {
+        gap: 12px;
+    }
+    .sales-entry-stats .sales-stat-col:nth-child(2) {
+        display: none;
+    }
+    .chart-controls .chart-live {
+        display: none;
+    }
+}

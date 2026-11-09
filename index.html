@@ -1473,29 +1473,89 @@
     <div id="modal-history" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="history-modal-title">
         <div class="modal-window sales-history-window">
             <div class="modal-header chart-header">
-                <div>
+                <div class="chart-header-content">
                     <span class="chart-eyebrow">DEV EMPIRE · PULSO DE LA INDUSTRIA</span>
-                    <h2 class="modal-title" id="history-modal-title"><span>[[DE_ICON_012]]</span> La lista de éxitos & Ranking de Ventas</h2>
-                    <p class="chart-subtitle">Top 10 global semanal de la industria y catálogo comercial de tu estudio.</p>
+                    <h2 class="modal-title" id="history-modal-title"><span>[[DE_ICON_012]]</span> Pulso de ventas</h2>
+                    <p class="chart-subtitle">Ranking oficial de los títulos más vendidos de la semana y rendimiento de tu catálogo.</p>
                 </div>
                 <button class="modal-close" type="button" onclick="closeAllModals()" aria-label="Cerrar ventas">&times;</button>
+            </div>
+
+            <!-- Market Overview KPI Bar -->
+            <div class="sales-market-kpi-bar" id="sales-market-kpi-bar">
+                <div class="kpi-card kpi-leader">
+                    <div class="kpi-icon-wrap" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/>
+                            <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+                            <path d="M4 22h16"/>
+                            <path d="M10 14.66V17c0 .55-.45 1-1 1H8v4h8v-4h-1c-.55 0-1-.45-1-1v-2.34"/>
+                            <path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="kpi-label">Líder de Ventas</span>
+                        <strong class="kpi-val" id="kpi-leader-name">—</strong>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrap" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#00f3ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="kpi-label">Volumen Top 10</span>
+                        <strong class="kpi-val" id="kpi-total-sales">—</strong>
+                    </div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-icon-wrap" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="8" r="6"/>
+                            <path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <span class="kpi-label">Tu Mejor Posición</span>
+                        <strong class="kpi-val" id="kpi-player-rank">—</strong>
+                    </div>
+                </div>
+                <div class="kpi-card kpi-status">
+                    <div class="kpi-icon-wrap" aria-hidden="true">
+                        <span class="kpi-pulse-dot"></span>
+                    </div>
+                    <div>
+                        <span class="kpi-label">Auditoría</span>
+                        <strong class="kpi-val kpi-live-text">SEMANAL EN VIVO</strong>
+                    </div>
+                </div>
             </div>
 
             <div class="sales-modal-scroll">
                 <div class="chart-section-heading">
                     <div>
                         <span>CLASIFICACIÓN GLOBAL</span>
-                        <h3>Top 10 semanal de la industria</h3>
+                        <h3 id="chart-section-title">Top 5 de la semana</h3>
                     </div>
-                    <span class="chart-live">ACTUALIZACIÓN SEMANAL</span>
+                    <div class="chart-controls">
+                        <div class="chart-view-toggle" role="group" aria-label="Límite del ranking">
+                            <button type="button" class="chart-toggle-btn active" id="btn-chart-top5" onclick="setLeaderboardLimit(5)">Top 5</button>
+                            <button type="button" class="chart-toggle-btn" id="btn-chart-top10" onclick="setLeaderboardLimit(10)">Top 10</button>
+                        </div>
+                        <span class="chart-live">ACTUALIZACIÓN SEMANAL</span>
+                    </div>
                 </div>
-                <div id="chart-leaderboard-container" style="margin-bottom: 24px; overflow-x: auto;"></div>
+                <div id="chart-leaderboard-container"></div>
 
                 <div class="chart-section-heading chart-library">
                     <div>
                         <span>TU ESTUDIO</span>
-                        <h3>Catálogo histórico de lanzamientos</h3>
+                        <h3>Catálogo de tus juegos</h3>
                     </div>
+                    <div id="studio-library-stats" class="studio-library-stats"></div>
                 </div>
                 <div id="games-history-list" class="cards-list sales-history-cards"></div>
             </div>
