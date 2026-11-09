@@ -178,8 +178,8 @@ export function buildGarageLayout(world, THREE) {
     });
 
     const bin = new THREE.Group();
-    bin.name = 'Papelera junto a la pata interior';
-    bin.position.set(-0.76, 0, 0.36);
+    bin.name = 'Papelera entre los escritorios';
+    bin.position.set(0, 0, 0.36);
     room.add(bin);
     const darkMetal = new THREE.MeshStandardMaterial({ color: 0x555751, metalness: 0.35, roughness: 0.58 });
     const wire = new THREE.MeshStandardMaterial({ color: 0x626961, metalness: 0.35, roughness: 0.65, wireframe: true });
