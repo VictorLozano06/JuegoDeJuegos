@@ -723,7 +723,7 @@ export class WorldEngine {
         if (style === 'retro') {
             const chair = this.createChair(index === 0 ? 0x8d624b : 0x536d62);
             const screenTexture = this.createAnimatedMonitorCanvas('retro');
-            const { group, screen } = createRetroWorkstation(THREE, { index, screenTexture, chair });
+            const { group, screen, monitorFallback, keyboardFallback, mouseFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
             this.registerDesk(group, index);
             const lamp = group.getObjectByName('flexo_bulb');
@@ -733,6 +733,64 @@ export class WorldEngine {
                 lamp,
                 lampIntensity: lamp?.intensity,
             });
+            if (THREE.GLTFLoader) {
+                const loadFittedModel = (url, fallback, options) => {
+                    new THREE.GLTFLoader().load(url, gltf => {
+                        if (!group.parent) return;
+                        const model = gltf.scene;
+                        if (options.rotation) model.rotation.y = options.rotation;
+                        if (options.removeName) {
+                            const extra = model.getObjectByName(options.removeName);
+                            if (extra?.parent) extra.parent.remove(extra);
+                        }
+                        const container = new THREE.Group();
+                        container.add(model);
+                        container.updateMatrixWorld(true);
+                        const bounds = new THREE.Box3().setFromObject(container);
+                        const size = bounds.getSize(new THREE.Vector3());
+                        if (!size.x || !size.y || !size.z) throw new Error(`El modelo ${options.name} no tiene dimensiones válidas.`);
+                        const center = bounds.getCenter(new THREE.Vector3());
+                        let sx = options.width / size.x, sy = options.height / size.y, sz = options.depth / size.z;
+                        if (options.uniform) sx = sy = sz = options.height / size.y;
+                        if (options.preserveHorizontal) sx = sz = options.width / Math.max(size.x, size.z);
+                        container.scale.set(sx, sy, sz);
+                        container.position.set(options.x - center.x * sx, options.bottom - bounds.min.y * sy, options.z - center.z * sz);
+                        container.name = options.name;
+                        let animatedScreenAssigned = false;
+                        model.traverse(object => {
+                            if (!object.isMesh) return;
+                            object.castShadow = true;
+                            object.receiveShadow = true;
+                            const materialName = object.material?.name || '';
+                            if (options.animatedScreen && /screen.?surface/i.test(materialName)) {
+                                object.visible = false;
+                            } else if (options.animatedScreen && /win.?98.?screen/i.test(materialName)) {
+                                // The downloaded screen uses an atlas. Project the animated canvas
+                                // onto its own curved surface so it stays inside the CRT bezel.
+                                object.geometry = object.geometry.clone();
+                                object.geometry.computeBoundingBox();
+                                const { min, max } = object.geometry.boundingBox;
+                                const position = object.geometry.getAttribute('position');
+                                const uv = new Float32Array(position.count * 2);
+                                for (let i = 0; i < position.count; i++) {
+                                    uv[i * 2] = (position.getY(i) - min.y) / (max.y - min.y);
+                                    uv[i * 2 + 1] = (position.getZ(i) - min.z) / (max.z - min.z);
+                                }
+                                object.geometry.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
+                                object.material = new THREE.MeshBasicMaterial({ map: screenTexture, side: THREE.DoubleSide });
+                                animatedScreenAssigned = true;
+                            }
+                        });
+                        group.add(container);
+                        fallback.visible = false;
+                        if (animatedScreenAssigned) screen.visible = false;
+                        this.nextShadowRefresh = 0;
+                    });
+                };
+                loadFittedModel('/models/retro-monitor.glb', monitorFallback, { name: 'Ordenador retro', width: 0.92, height: 0.78, depth: 0.58, x: 0, bottom: 1.40, z: -0.26, rotation: -Math.PI / 2, animatedScreen: true });
+                loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0.15, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
+                loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });
+            }
             return;
         }
 
