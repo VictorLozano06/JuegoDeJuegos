@@ -14,7 +14,7 @@ import { game } from './simulation.js';
 
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
-const SHADOW_REFRESH_INTERVAL = 1 / 20;
+const SHADOW_REFRESH_INTERVAL = 1 / 12;
 const OFFICE_SCENES = {
     garage: { build: buildGarageLayout, position: [11, 7.3, 8], target: [0, 1, 0] },
     modern: { build: buildModernOffice, position: [13, 14, 16], target: [0, 0.95, -0.45] },
@@ -295,6 +295,10 @@ export class WorldEngine {
 
         this.currentEra = 1;
         this.resolution = 'medium';
+        this.performanceScale = 1;
+        this.frameTimeAverage = 0;
+        this.performanceSampleTime = 0;
+        this.fastPerformanceSamples = 0;
         this.clock = new THREE.Clock();
 
         this.init();
@@ -738,7 +742,7 @@ export class WorldEngine {
         if (style === 'retro') {
             const chair = this.createChair(index === 0 ? 0x8d624b : 0x536d62);
             const screenTexture = this.createAnimatedMonitorCanvas('retro');
-            const { group, screen, monitorFallback, keyboardFallback, mouseFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
+            const { group, screen, tableFallback, monitorFallback, keyboardFallback, mouseFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
             this.registerDesk(group, index);
             const lamp = group.getObjectByName('flexo_bulb');
@@ -802,6 +806,8 @@ export class WorldEngine {
                         this.nextShadowRefresh = 0;
                     });
                 };
+                loadFittedModel('/models/garage-furniture/metal_office_desk/metal_office_desk_1k.gltf', tableFallback, { name: 'Mesa de oficina', width: 2.3, height: 1.4, depth: 1.2, x: 0, bottom: 0, z: 0, rotation: 0 });
+                loadFittedModel('/models/garage-furniture/painted_wooden_chair_01/painted_wooden_chair_01_1k.gltf', chair, { name: 'Silla de oficina', width: 0.68, height: 1.65, depth: 0.68, x: 0, bottom: 0, z: 0.85, rotation: Math.PI });
                 loadFittedModel('/models/retro-monitor.glb', monitorFallback, { name: 'Ordenador retro', width: 0.92, height: 0.78, depth: 0.58, x: 0, bottom: 1.40, z: -0.26, rotation: -Math.PI / 2, animatedScreen: true });
                 loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0.15, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });
@@ -1273,6 +1279,7 @@ export class WorldEngine {
 
         const delta = this.clock.getDelta();
         const time = this.clock.elapsedTime;
+        if (document.hidden) return;
 
         const menuShot = this.menuCamera.active;
         // Keep the last office frame while these menus are open. Redraw on demand
@@ -1286,6 +1293,7 @@ export class WorldEngine {
             return;
         }
         this.needsStaticFrame = false;
+        this.updateRenderPerformance(delta);
 
         if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
         else this.controls.update();
@@ -1565,13 +1573,38 @@ export class WorldEngine {
         this.needsStaticFrame = true;
     }
 
+    updateRenderPerformance(delta) {
+        // React to sustained slow frames, not a single loading spike or tab switch.
+        if (delta <= 0 || delta > 0.2) return;
+        this.frameTimeAverage = this.frameTimeAverage ? this.frameTimeAverage * 0.95 + delta * 0.05 : delta;
+        this.performanceSampleTime += delta;
+        if (this.performanceSampleTime < 2) return;
+        this.performanceSampleTime = 0;
+        let next = this.performanceScale;
+        if (this.frameTimeAverage > 1 / 38) {
+            next = Math.max(0.65, this.performanceScale - 0.1);
+            this.fastPerformanceSamples = 0;
+        } else if (this.frameTimeAverage < 1 / 53) {
+            if (++this.fastPerformanceSamples >= 4) {
+                next = Math.min(1, this.performanceScale + 0.1);
+                this.fastPerformanceSamples = 0;
+            }
+        } else {
+            this.fastPerformanceSamples = 0;
+        }
+        if (Math.abs(next - this.performanceScale) > 0.001) {
+            this.performanceScale = next;
+            this.resizeRenderer(this.container.clientWidth, this.container.clientHeight);
+        }
+    }
+
     resizeRenderer(width, height) {
         const { ratio, pixelBudget } = {
             low: { ratio: 0.65, pixelBudget: 750_000 },
             medium: { ratio: 1, pixelBudget: MAX_RENDER_PIXELS },
             high: { ratio: 1.5, pixelBudget: 2_750_000 },
         }[this.resolution] || { ratio: 1, pixelBudget: MAX_RENDER_PIXELS };
-        const pixelRatio = Math.min(ratio, window.devicePixelRatio, Math.sqrt(pixelBudget / Math.max(1, width * height)));
+        const pixelRatio = Math.min(ratio, window.devicePixelRatio || 1, Math.sqrt(pixelBudget / Math.max(1, width * height))) * (this.performanceScale ?? 1);
         this.renderer.setPixelRatio(pixelRatio);
         this.renderer.setSize(width, height);
         if (this.composer) {
@@ -2520,12 +2553,17 @@ export class WorldEngine {
         };
         let pendingPointer = null;
         let pointerFramePending = false;
+        let lastHoverCheck = 0;
         this.renderer.domElement.addEventListener('pointermove', event => {
+            // Dragging controls the camera; testing every mesh under the pointer
+            // at the same time makes orbit and pan needlessly expensive.
+            if (event.buttons) return;
             pendingPointer = { clientX: event.clientX, clientY: event.clientY };
-            if (pointerFramePending) return;
+            if (pointerFramePending || performance.now() - lastHoverCheck < 80) return;
             pointerFramePending = true;
             requestAnimationFrame(() => {
                 pointerFramePending = false;
+                lastHoverCheck = performance.now();
                 updatePointerHover(pendingPointer);
             });
         });

@@ -218,6 +218,7 @@ async function bootGameApp() {
         game.onStateChange((state) => {
             if (appState !== STATE_PLAYING) return;
             syncStudioScene(state);
+            queuePersonnelRefresh();
             for (const employee of state.employees || []) {
                 if (employee.id !== 'player' && [8, 4, 1].includes(employee.contractWeeksRemaining)) {
                     const key = `${employee.id}:${employee.contractWeeksRemaining}:${state.year}:${state.month}:${state.week}`;
@@ -1215,7 +1216,8 @@ function setupDeveloperContextMenu() {
             openPersonnelPanel();
             const selectedEmployeeId = game.employees[selectedDevIndex]?.id;
             const selectedCard = selectedEmployeeId ? document.querySelector(`#current-team-list [data-employee-id="${selectedEmployeeId}"]`) : null;
-            selectedCard?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            personnelEmployeeId = selectedEmployeeId; setPersonnelTab('staff'); renderRecruitment();
+            document.getElementById('personnel-employee-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             selectedCard?.classList.add('hr-selected-employee');
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
         });
@@ -3476,26 +3478,76 @@ function openArchitecturePanel() {
 
 window.refreshArchitecturePanel = refreshArchitecturePanel;
 
-function renderRecruitment() {
-    const currentList = document.getElementById('current-team-list');
-    currentList.innerHTML = '';
+let personnelRefreshTimer = null;
+let personnelLastSnapshot = '';
+function queuePersonnelRefresh() {
+    if (!document.querySelector('#modal-hire.active, #phone-view-personnel:not([hidden])')) return;
+    const snapshot = JSON.stringify([
+        game.employees.map(e => [e.id, e.salary, e.energy ?? e.stamina, e.morale, e.stress, e.tech, e.design, e.contractWeeksRemaining, e.sickWeeksRemaining, e.isLead, e.burnoutState]),
+        game.availableCandidates.map(c => [c.name, c.salary]),
+        game.workMode, game.funds, game.researchPoints, !!game.currentProject, game.pendingHeadhunts
+    ]);
+    if (snapshot === personnelLastSnapshot || personnelRefreshTimer) return;
+    personnelRefreshTimer = setTimeout(() => {
+        personnelRefreshTimer = null;
+        if (!document.querySelector('#modal-hire.active, #phone-view-personnel:not([hidden])')) return;
+        const focused = document.activeElement;
+        if (focused?.closest('.staff-window') && focused.matches('input, select, button')) return;
+        personnelLastSnapshot = JSON.stringify([
+            game.employees.map(e => [e.id, e.salary, e.energy ?? e.stamina, e.morale, e.stress, e.tech, e.design, e.contractWeeksRemaining, e.sickWeeksRemaining, e.isLead, e.burnoutState]),
+            game.availableCandidates.map(c => [c.name, c.salary]),
+            game.workMode, game.funds, game.researchPoints, !!game.currentProject, game.pendingHeadhunts
+        ]);
+        renderRecruitment();
+    }, 1000);
+}
 
-    const maxStaff = game.getMaxStaffCapacity();
-    document.getElementById('hire-capacity').innerText = `Capacidad del Estudio: ${game.employees.length}/${maxStaff} miembros`;
-    const modeStatus = document.getElementById('work-mode-status');
-    const workMode = game.workMode || 'normal';
-    const modeCopy = {
-        normal: 'Activo: Ritmo normal · 40 horas, recuperación equilibrada y desgaste mínimo.',
-        relaxed: 'Activo: Ritmo relajado · 30 horas, velocidad al 80% y recuperación de moral.',
-        crunch: 'Activo: Crunch · +40% de avance, desgaste acelerado y riesgo de burnout.'
-    };
-    if (modeStatus) modeStatus.innerHTML = `<span>${modeCopy[workMode] || modeCopy.normal}</span>`;
-    document.querySelectorAll('.hr-mode-buttons button').forEach(button => {
-        const selected = button.getAttribute('onclick')?.includes(`'${workMode}'`);
-        button.classList.toggle('active', Boolean(selected));
-        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+let personnelTab = 'staff';
+let personnelEmployeeId = null;
+let personnelCandidateName = null;
+
+window.setPersonnelTab = function(tab) {
+    const names = ['staff', 'recruitment', 'training', 'conditions', 'statistics'];
+    if (!names.includes(tab)) return;
+    personnelTab = tab;
+    document.querySelectorAll('[data-personnel-tab]').forEach(button => {
+        const active = button.dataset.personnelTab === tab;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-selected', String(active));
+        button.tabIndex = active ? 0 : -1;
     });
+    names.forEach(name => {
+        const panel = document.getElementById(`personnel-panel-${name}`);
+        if (panel) panel.hidden = name !== tab;
+    });
+};
 
+document.addEventListener('click', event => {
+    const button = event.target.closest('[data-personnel-tab]');
+    if (button) setPersonnelTab(button.dataset.personnelTab);
+});
+document.addEventListener('keydown', event => {
+    const button = event.target.closest?.('[data-personnel-tab]');
+    if (!button || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    const tabs = [...button.parentElement.querySelectorAll('[data-personnel-tab]')];
+    let index = tabs.indexOf(button);
+    if (event.key === 'Home') index = 0;
+    else if (event.key === 'End') index = tabs.length - 1;
+    else index = (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    event.preventDefault();
+    setPersonnelTab(tabs[index].dataset.personnelTab);
+    tabs[index].focus();
+});
+
+function renderRecruitment() {
+    const maxStaff = game.getMaxStaffCapacity();
+    const capacityEl = document.getElementById('hire-capacity');
+    if (capacityEl) capacityEl.textContent = `${game.employees.length} / ${maxStaff} puestos ocupados`;
+
+    const oldMentor = document.getElementById('mentor-select')?.value;
+    const oldMentee = document.getElementById('mentee-select')?.value;
+
+    // Headhunt notices
     const headhuntPanel = document.getElementById('headhunt-notices');
     const headhunts = game.pendingHeadhunts || [];
     if (headhuntPanel) {
@@ -3507,103 +3559,554 @@ function renderRecruitment() {
             const weeksRemaining = offer.deadlineWeeksRemaining;
             const deadlineLabel = weeksRemaining !== undefined ? `${weeksRemaining} semanas` : `${offer.deadlineDaysRemaining ?? offer.daysRemaining ?? 21} días`;
             const proposedSalary = offer.offeredSalary || offer.counterofferSalary || 0;
-            return `<article class="hr-headhunt-card"><div><b>[[DE_ICON_056]] Oferta rival por ${name}</b><small>Salario propuesto: $${Number(proposedSalary).toLocaleString()}/mes · ${deadlineLabel} para responder</small></div><div><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','match')">Igualar oferta</button><button class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','bonus')">Bonus puntual</button><button class="staff-action-btn hr-danger-btn" onclick="resolveHeadhuntAction('${employeeId}','let_go')">Dejar marchar</button></div></article>`;
+            return `<article class="hr-headhunt-card"><div><b>[[DE_ICON_056]] Oferta rival por ${name}</b><small>Salario propuesto: $${Number(proposedSalary).toLocaleString()}/mes · ${deadlineLabel} para responder</small></div><div><button type="button" class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','match')">Igualar oferta</button><button type="button" class="staff-action-btn" onclick="resolveHeadhuntAction('${employeeId}','bonus')">Bonus puntual ($1.500)</button><button type="button" class="staff-action-btn hr-danger-btn" onclick="resolveHeadhuntAction('${employeeId}','let_go')">Dejar marchar</button></div></article>`;
         }).join('');
     }
 
-    // 1. Current Active Team with live Stamina bars
-    game.employees.forEach(emp => {
-        const energy = emp.energy ?? emp.stamina ?? 100;
-        const staminaPct = Math.round((energy / (emp.maxStamina || 100)) * 100);
-        const staminaClass = staminaPct > 50 ? '' : (staminaPct > 25 ? 'warn' : 'crit');
-        const statusLabel = emp.burnoutState === 'total' ? 'Burnout total' : (emp.burnoutState === 'risk' ? 'Riesgo burnout' : (staminaPct > 50 ? 'Óptimo' : (staminaPct > 25 ? 'Cansado' : 'Fatigado')));
-        const experience = emp.experience || emp.level || 'Mid';
-        const stressResistance = emp.stressResistance ?? 50;
-        const morale = emp.morale ?? 70;
-        const stress = emp.stress ?? 0;
-        const statusIcon = emp.burnoutState === 'total' ? '[[DE_ICON_003]]' : (emp.burnoutState === 'risk' ? '[[DE_ICON_022]]' : (staminaPct < 40 ? '[[DE_ICON_029]]' : (morale >= 80 ? '[[DE_ICON_028]]' : '')));
-        const speedRating = emp.speedRating ?? Math.round((emp.speed || 1) * 75);
-
-        const card = document.createElement('div');
-        card.className = 'candidate-card';
-        card.dataset.employeeId = emp.id;
-        card.innerHTML = `
-            <div style="flex-grow: 1;">
-                <strong style="font-size: 15px; color: #fff;">${emp.name}</strong> 
-                <span style="font-size: 11px; color: var(--accent-cyan);">[${emp.trait}]</span>
-                <span class="hr-status-icon">${statusIcon}</span>
-                <div style="font-size: 12px; color: var(--text-secondary); margin: 3px 0;">
-                    ${emp.role} · ${experience} • [[DE_ICON_018]] Tech: <strong>${emp.tech}</strong> | [[DE_ICON_019]] Design: <strong>${emp.design}</strong> | [[DE_ICON_022]] Vel: <strong>${speedRating}</strong>
-                </div>
-                ${emp.id !== 'player' ? `<div style="font-size:12px;color:#a9c9d3;margin:6px 0">Contrato: ${emp.contractWeeksRemaining ?? 48} semanas · Indemnización: $${game.getEmployeeSeverance(emp).toLocaleString()}</div>` : ''}
-                <div class="hr-employee-metrics"><span>[[DE_ICON_124]] Moral: ${Math.round(morale)}%</span><span>[[DE_ICON_022]] Estrés: ${Math.round(stress)}%</span><span>[[DE_ICON_021]] Resistencia: ${stressResistance}</span><span>[[DE_ICON_125]] Baja: ${emp.sickWeeksRemaining || 0} sem</span><span>[[DE_ICON_126]] Crunch: ${emp.continuousCrunchWeeks || 0} sem</span></div>
-                <div class="stamina-container">
-                    <span style="font-size: 11px; color: var(--text-secondary);">Energía:</span>
-                    <div class="stamina-bar">
-                        <div class="stamina-fill ${staminaClass}" style="width: ${staminaPct}%;"></div>
-                    </div>
-                    <span style="font-size: 11px; font-weight: 700; color: ${staminaPct > 25 ? '#fff' : 'var(--accent-red)'};">
-                        ${staminaPct}% (${statusLabel})
-                    </span>
-                </div>
-            </div>
-            <div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-end;">
-                <span style="font-weight: 700; color: var(--accent-green); font-size: 13px;">$${emp.salary.toLocaleString()}/mes</span>
-                <div class="hr-salary-controls"><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 0.9)})">−10%</button><button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${emp.id}',${Math.round(emp.salary * 1.1)})">+10%</button>${emp.isLead ? '<b class="hr-lead-badge">[[DE_ICON_005]] Líder</b>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${emp.id}')">[[DE_ICON_005]] Liderazgo</button>`}</div>
-                ${emp.id !== 'player' ? `<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end"><button type="button" class="staff-action-btn" onclick="renewStaffContract('${emp.id}',0.05)">Renovar +5%</button><button type="button" class="staff-action-btn" onclick="renewStaffContract('${emp.id}',0.10)">Renovar +10%</button><button type="button" class="staff-action-btn hr-danger-btn" onclick="confirmStaffDismissal('${emp.id}')">Despedir</button></div>` : ''}
-                <div style="display: flex; gap: 6px;">
-                    <button class="staff-action-btn" onclick="sendOnVacation('${emp.id}')" title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones ($2k)</button>
-                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'tech')" title="+8 Tech permanentemente">[[DE_ICON_018]] +8 Tech</button>
-                    <button class="staff-action-btn" onclick="trainEmployee('${emp.id}', 'design')" title="+8 Design permanentemente">[[DE_ICON_019]] +8 Des</button>
-                </div>
-            </div>
-        `;
-        currentList.appendChild(card);
-    });
-
-    const mentorSelect = document.getElementById('mentor-select');
-    const menteeSelect = document.getElementById('mentee-select');
-    const seniorStaff = game.employees.filter(emp => ['senior', 'lead'].includes(String(emp.experience || emp.level || '').toLowerCase()));
-    const juniorStaff = game.employees.filter(emp => ['junior', 'entry'].includes(String(emp.experience || emp.level || '').toLowerCase()));
-    if (mentorSelect) mentorSelect.innerHTML = (seniorStaff.length ? seniorStaff : []).map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role}</option>`).join('') || '<option value="">No hay mentor senior disponible</option>';
-    if (menteeSelect) menteeSelect.innerHTML = (juniorStaff.length ? juniorStaff : []).map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role}</option>`).join('') || '<option value="">No hay aprendiz junior disponible</option>';
-    const trainingButton = document.querySelector('.hr-training-panel button[onclick="startEmployeeMentoring()"]');
-    if (trainingButton) trainingButton.disabled = !seniorStaff.length || !juniorStaff.length || game.currentProject !== null;
-    const trainingHint = document.querySelector('.hr-training-panel small');
-    if (trainingHint) trainingHint.textContent = game.currentProject
-        ? 'Disponible cuando el estudio esté inactivo, sin un juego en producción.'
-        : 'Asigna un mentor senior a un junior durante el tiempo inactivo del estudio.';
-
-    // 2. Available Candidates Pool
-    const candidatesList = document.getElementById('candidates-list');
-    candidatesList.innerHTML = '';
-
-    if (game.availableCandidates.length === 0) {
-        candidatesList.innerHTML = `<p style="color: var(--text-secondary); padding: 10px;">No hay candidatos disponibles en este momento. Haz clic en "Buscar Nuevos Talentos".</p>`;
-        return;
+    if (personnelEmployeeId && !game.employees.some(emp => emp.id === personnelEmployeeId)) {
+        personnelEmployeeId = null;
+    }
+    if (personnelCandidateName && !game.availableCandidates.some(c => c.name === personnelCandidateName)) {
+        personnelCandidateName = null;
     }
 
-    game.availableCandidates.forEach(c => {
-        const card = document.createElement('div');
-        card.className = 'candidate-card';
-        card.innerHTML = `
-            <div>
-                <strong style="font-size: 15px; color: #fff;">${c.name}</strong> 
-                <span style="font-size: 12px; color: var(--accent-cyan);">[${c.trait}]</span>
-                <div style="font-size: 13px; color: var(--text-secondary); margin-top: 3px;">
-                    ${c.role} · ${c.experience || c.level || 'Mid'} • [[DE_ICON_018]] Tech: <strong>${c.tech}</strong> | [[DE_ICON_019]] Design: <strong>${c.design}</strong> | [[DE_ICON_022]] Vel: <strong>${c.speedRating ?? Math.round((c.speed || 1) * 75)}</strong> | [[DE_ICON_021]] Estrés: <strong>${c.stressResistance ?? 50}</strong>
+    // --- 1. DETAILED EMPLOYEE PROFILE ---
+    const employeeDetail = document.getElementById('personnel-employee-detail');
+    if (employeeDetail) {
+        employeeDetail.replaceChildren();
+        const selectedEmp = game.employees.find(e => e.id === personnelEmployeeId);
+        if (selectedEmp) {
+            employeeDetail.hidden = false;
+            const energy = selectedEmp.energy ?? selectedEmp.stamina ?? 100;
+            const staminaPct = Math.round((energy / (selectedEmp.maxStamina || 100)) * 100);
+            const staminaClass = staminaPct > 50 ? '' : (staminaPct > 25 ? 'warn' : 'crit');
+            const statusLabel = selectedEmp.burnoutState === 'total' ? 'Burnout total' : (selectedEmp.burnoutState === 'risk' ? 'Riesgo burnout' : (staminaPct > 50 ? 'Óptimo' : (staminaPct > 25 ? 'Cansado' : 'Fatigado')));
+            const experience = selectedEmp.experience || selectedEmp.level || 'Mid';
+            const stressResistance = selectedEmp.stressResistance ?? 50;
+            const morale = selectedEmp.morale ?? 70;
+            const stress = selectedEmp.stress ?? 0;
+            const speedRating = selectedEmp.speedRating ?? Math.round((selectedEmp.speed || 1) * 75);
+            const isFounder = selectedEmp.id === 'player';
+            const isLead = !!selectedEmp.isLead;
+
+            let currentStateText = 'Disponible en el estudio';
+            if (selectedEmp.sickWeeksRemaining > 0) currentStateText = `Baja médica (${selectedEmp.sickWeeksRemaining} sem)`;
+            else if (selectedEmp.burnoutState === 'total') currentStateText = 'Agotamiento extremo (Burnout)';
+            else if (selectedEmp.burnoutState === 'risk') currentStateText = 'En riesgo severo de burnout';
+            else if (game.currentProject) currentStateText = `En desarrollo: ${game.currentProject.name}`;
+
+            const contractText = isFounder ? 'Socio fundador (Vitalicio)' : `${selectedEmp.contractWeeksRemaining ?? 48} semanas restantes`;
+            const severanceText = isFounder ? 'No aplicable' : `$${game.getEmployeeSeverance(selectedEmp).toLocaleString()}`;
+
+            employeeDetail.innerHTML = `
+                <div class="hr-profile-header">
+                    <div>
+                        <h3>[[DE_ICON_031]] Ficha de Empleado · ${selectedEmp.name}</h3>
+                        <div class="hr-person-name-row" style="margin-top:4px;">
+                            ${isFounder ? '<span class="hr-badge hr-badge-founder">Fundador</span>' : ''}
+                            ${isLead ? '<span class="hr-badge hr-badge-lead">[[DE_ICON_005]] Líder</span>' : ''}
+                            <span class="hr-badge hr-badge-trait">[${selectedEmp.trait || 'Estándar'}]</span>
+                        </div>
+                    </div>
+                    <button type="button" class="staff-action-btn" id="close-employee-profile-btn">Cerrar ficha</button>
                 </div>
-                <div style="font-size: 11px; color: var(--text-secondary); font-style: italic; margin-top: 2px;">
-                    ${c.desc || ''}
+                <div class="hr-profile-grid">
+                    <div class="hr-profile-section">
+                        <h4>Información general</h4>
+                        <div class="hr-profile-row"><span>Especialidad:</span><strong>${selectedEmp.role}</strong></div>
+                        <div class="hr-profile-row"><span>Nivel:</span><strong>${experience}</strong></div>
+                        <div class="hr-profile-row"><span>Salario:</span><strong style="color:var(--accent-green, #94dbc4);">$${selectedEmp.salary.toLocaleString()}/mes</strong></div>
+                        <div class="hr-profile-row"><span>Estado actual:</span><strong>${currentStateText}</strong></div>
+                        <div class="hr-profile-row"><span>Contrato:</span><strong>${contractText}</strong></div>
+                        <div class="hr-profile-row"><span>Indemnización:</span><strong>${severanceText}</strong></div>
+                    </div>
+                    <div class="hr-profile-section">
+                        <h4>Habilidades</h4>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_018]] Tecnología</span><strong>${selectedEmp.tech} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, selectedEmp.tech)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_019]] Diseño</span><strong>${selectedEmp.design} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, selectedEmp.design)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_022]] Velocidad</span><strong>${speedRating} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, speedRating)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_021]] Resistencia al estrés</span><strong>${stressResistance} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, stressResistance)}%"></span></div>
+                        </div>
+                    </div>
+                    <div class="hr-profile-section">
+                        <h4>Bienestar y salud</h4>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_029]] Energía</span><strong>${staminaPct}%</strong></div>
+                            <div class="hr-meter"><span class="${staminaClass}" style="width:${staminaPct}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_124]] Moral</span><strong>${Math.round(morale)}%</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, Math.round(morale))}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_022]] Estrés acumulado</span><strong>${Math.round(stress)}%</strong></div>
+                            <div class="hr-meter"><span class="${stress > 60 ? 'crit' : (stress > 30 ? 'warn' : '')}" style="width:${Math.min(100, Math.round(stress))}%"></span></div>
+                        </div>
+                        <div class="hr-profile-row" style="margin-top:4px;"><span>Diagnóstico:</span><strong>${statusLabel}</strong></div>
+                        <div class="hr-profile-row"><span>Semanas crunch:</span><strong>${selectedEmp.continuousCrunchWeeks || 0} sem</strong></div>
+                    </div>
+                </div>
+                <div class="hr-profile-actions">
+                    <span class="hr-profile-actions-label">Acciones de gestión</span>
+                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 0.9)})">−10% Salario ($${Math.round(selectedEmp.salary * 0.9).toLocaleString()})</button>
+                    <button type="button" class="staff-action-btn" onclick="adjustEmployeeSalary('${selectedEmp.id}', ${Math.round(selectedEmp.salary * 1.1)})">+10% Salario ($${Math.round(selectedEmp.salary * 1.1).toLocaleString()})</button>
+                    <button type="button" class="staff-action-btn" onclick="sendOnVacation('${selectedEmp.id}')" ${game.funds < 2000 || staminaPct >= 100 ? 'disabled' : ''} title="Restaura 100% de energía">[[DE_ICON_108]] Vacaciones ($2.000)</button>
+                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'tech')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Tech permanente">[[DE_ICON_018]] Curso Tech +8 ($3.500, 20 RP)</button>
+                    <button type="button" class="staff-action-btn" onclick="trainEmployee('${selectedEmp.id}', 'design')" ${game.funds < 3500 || game.researchPoints < 20 ? 'disabled' : ''} title="+8 Diseño permanente">[[DE_ICON_019]] Curso Des +8 ($3.500, 20 RP)</button>
+                    ${isLead ? '<button type="button" class="staff-action-btn" disabled>[[DE_ICON_005]] Líder Asignado</button>' : `<button type="button" class="staff-action-btn" onclick="assignEmployeeLead('${selectedEmp.id}')">[[DE_ICON_005]] Asignar Líder</button>`}
+                    ${!isFounder ? `
+                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.05)">Renovar +5% ($${Math.round(selectedEmp.salary * 1.05).toLocaleString()})</button>
+                        <button type="button" class="staff-action-btn" onclick="renewStaffContract('${selectedEmp.id}', 0.10)">Renovar +10% ($${Math.round(selectedEmp.salary * 1.10).toLocaleString()})</button>
+                        <button type="button" class="staff-action-btn hr-danger-btn" onclick="confirmStaffDismissal('${selectedEmp.id}')">[[DE_ICON_015]] Despedir</button>
+                    ` : ''}
+                </div>
+            `;
+            employeeDetail.querySelector('#close-employee-profile-btn')?.addEventListener('click', () => {
+                personnelEmployeeId = null;
+                renderRecruitment();
+            });
+        } else {
+            employeeDetail.hidden = true;
+        }
+    }
+
+    // --- COMPACT EMPLOYEE LIST ---
+    const currentList = document.getElementById('current-team-list');
+    if (currentList) {
+        currentList.replaceChildren();
+        game.employees.forEach(emp => {
+            const energy = emp.energy ?? emp.stamina ?? 100;
+            const staminaPct = Math.round((energy / (emp.maxStamina || 100)) * 100);
+            const staminaClass = staminaPct > 50 ? '' : (staminaPct > 25 ? 'warn' : 'crit');
+            const experience = emp.experience || emp.level || 'Mid';
+            const morale = emp.morale ?? 70;
+            const stress = emp.stress ?? 0;
+            const speedRating = emp.speedRating ?? Math.round((emp.speed || 1) * 75);
+            const isFounder = emp.id === 'player';
+            const isLead = !!emp.isLead;
+            const isSelected = personnelEmployeeId === emp.id;
+
+            let stateBadgeClass = '';
+            let stateBadgeText = 'Disponible';
+            if (emp.sickWeeksRemaining > 0) {
+                stateBadgeClass = 'is-sick';
+                stateBadgeText = `Baja médica (${emp.sickWeeksRemaining} sem)`;
+            } else if (emp.burnoutState === 'total') {
+                stateBadgeClass = 'is-burnout';
+                stateBadgeText = 'Burnout total';
+            } else if (emp.burnoutState === 'risk') {
+                stateBadgeClass = 'is-burnout';
+                stateBadgeText = 'Riesgo burnout';
+            } else if (game.currentProject) {
+                stateBadgeText = `Trabajando en ${game.currentProject.name}`;
+            }
+
+            const card = document.createElement('article');
+            card.className = `hr-person-card${isSelected ? ' is-selected' : ''}`;
+            card.dataset.employeeId = emp.id;
+            card.innerHTML = `
+                <div class="hr-person-top">
+                    <div class="hr-person-identity">
+                        <div class="hr-person-name-row">
+                            <strong>${emp.name}</strong>
+                            ${isFounder ? '<span class="hr-badge hr-badge-founder">Fundador</span>' : ''}
+                            ${isLead ? '<span class="hr-badge hr-badge-lead">[[DE_ICON_005]] Líder</span>' : ''}
+                            <span class="hr-badge hr-badge-trait">[${emp.trait || 'Estándar'}]</span>
+                        </div>
+                        <span class="hr-person-role">${emp.role} · ${experience}</span>
+                    </div>
+                    <div class="hr-person-salary">$${emp.salary.toLocaleString()}/mes</div>
+                </div>
+                <div class="hr-metrics">
+                    <div class="hr-metric is-energy">
+                        <span>Energía <b>${staminaPct}%</b></span>
+                        <div class="hr-meter"><span class="${staminaClass}" style="width:${staminaPct}%"></span></div>
+                    </div>
+                    <div class="hr-metric">
+                        <span>Moral <b>${Math.round(morale)}%</b></span>
+                        <div class="hr-meter"><span style="width:${Math.min(100, Math.round(morale))}%"></span></div>
+                    </div>
+                    <div class="hr-metric is-stress">
+                        <span>Estrés <b>${Math.round(stress)}%</b></span>
+                        <div class="hr-meter"><span class="${stress > 60 ? 'crit' : (stress > 30 ? 'warn' : '')}" style="width:${Math.min(100, Math.round(stress))}%"></span></div>
+                    </div>
+                </div>
+                <div class="hr-person-bottom">
+                    <div class="hr-person-skills-summary">
+                        <span>[[DE_ICON_018]] Tech: <b>${emp.tech}</b></span>
+                        <span>[[DE_ICON_019]] Des: <b>${emp.design}</b></span>
+                        <span>[[DE_ICON_022]] Vel: <b>${speedRating}</b></span>
+                        <span class="hr-status-badge ${stateBadgeClass}">${stateBadgeText}</span>
+                    </div>
+                    <button type="button" class="staff-action-btn ${isSelected ? 'staff-action-highlight' : ''}" data-action="toggle-profile">
+                        ${isSelected ? 'Ficha abierta' : 'Ver perfil y gestionar'}
+                    </button>
+                </div>
+            `;
+            card.querySelector('[data-action="toggle-profile"]').addEventListener('click', () => {
+                personnelEmployeeId = isSelected ? null : emp.id;
+                renderRecruitment();
+                if (personnelEmployeeId) {
+                    document.getElementById('personnel-employee-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            });
+            currentList.appendChild(card);
+        });
+    }
+
+    // --- 2. CANDIDATE DETAILED PROFILE & POOL ---
+    const candidateDetail = document.getElementById('personnel-candidate-detail');
+    if (candidateDetail) {
+        candidateDetail.replaceChildren();
+        const selectedCand = game.availableCandidates.find(c => c.name === personnelCandidateName);
+        if (selectedCand) {
+            candidateDetail.hidden = false;
+            const speedRating = selectedCand.speedRating ?? Math.round((selectedCand.speed || 1) * 75);
+            const stressResistance = selectedCand.stressResistance ?? 50;
+            const canAfford = game.funds >= selectedCand.salary;
+            const hasDesk = game.employees.length < maxStaff;
+            candidateDetail.innerHTML = `
+                <div class="hr-profile-header">
+                    <div>
+                        <h3>[[DE_ICON_062]] Ficha de Candidato · ${selectedCand.name}</h3>
+                        <div class="hr-person-name-row" style="margin-top:4px;">
+                            <span class="hr-badge hr-badge-trait">[${selectedCand.trait || 'Estándar'}]</span>
+                            <span class="hr-badge hr-badge-lead">${selectedCand.experience || selectedCand.level || 'Mid'}</span>
+                        </div>
+                    </div>
+                    <button type="button" class="staff-action-btn" id="close-candidate-profile-btn">Cerrar ficha</button>
+                </div>
+                <div class="hr-profile-grid">
+                    <div class="hr-profile-section">
+                        <h4>Datos del candidato</h4>
+                        <div class="hr-profile-row"><span>Especialidad:</span><strong>${selectedCand.role}</strong></div>
+                        <div class="hr-profile-row"><span>Nivel:</span><strong>${selectedCand.experience || selectedCand.level || 'Mid'}</strong></div>
+                        <div class="hr-profile-row"><span>Salario solicitado:</span><strong style="color:var(--accent-green, #94dbc4);">$${selectedCand.salary.toLocaleString()}/mes</strong></div>
+                        <p style="font-size:12px;color:#a8bdc7;line-height:1.45;margin-top:6px;">${selectedCand.desc || 'Profesional motivado para incorporarse al equipo de desarrollo.'}</p>
+                    </div>
+                    <div class="hr-profile-section">
+                        <h4>Habilidades</h4>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_018]] Tecnología</span><strong>${selectedCand.tech} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, selectedCand.tech)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_019]] Diseño</span><strong>${selectedCand.design} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, selectedCand.design)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_022]] Velocidad</span><strong>${speedRating} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, speedRating)}%"></span></div>
+                        </div>
+                        <div class="hr-profile-meter-row">
+                            <div class="hr-profile-meter-header"><span>[[DE_ICON_021]] Resistencia al estrés</span><strong>${stressResistance} / 100</strong></div>
+                            <div class="hr-meter"><span style="width:${Math.min(100, stressResistance)}%"></span></div>
+                        </div>
+                    </div>
+                    <div class="hr-profile-section">
+                        <h4>Viabilidad financiera</h4>
+                        <div class="hr-profile-row"><span>Fondos disponibles:</span><strong>$${game.funds.toLocaleString()}</strong></div>
+                        <div class="hr-profile-row"><span>Espacio en oficina:</span><strong>${hasDesk ? `${game.employees.length}/${maxStaff} escritorios` : 'Oficina llena (0 escritorios)'}</strong></div>
+                        <div style="margin-top:8px;">
+                            ${canAfford ? '<span class="hr-candidate-affordability is-affordable">Fondos disponibles para contratar</span>' : '<span class="hr-candidate-affordability not-affordable">Fondos insuficientes para el salario</span>'}
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-profile-actions">
+                    <button type="button" class="staff-action-btn staff-action-highlight" id="hire-from-detail-btn" ${!canAfford || !hasDesk ? 'disabled' : ''}>
+                        [[DE_ICON_073]] Contratar a ${selectedCand.name} ($${selectedCand.salary.toLocaleString()}/mes)
+                    </button>
+                </div>
+            `;
+            candidateDetail.querySelector('#close-candidate-profile-btn')?.addEventListener('click', () => {
+                personnelCandidateName = null;
+                renderRecruitment();
+            });
+            candidateDetail.querySelector('#hire-from-detail-btn')?.addEventListener('click', () => {
+                const candName = selectedCand.name;
+                personnelCandidateName = null;
+                hireCandidate(candName);
+            });
+        } else {
+            candidateDetail.hidden = true;
+        }
+    }
+
+    const candidatesList = document.getElementById('candidates-list');
+    if (candidatesList) {
+        candidatesList.replaceChildren();
+        if (game.availableCandidates.length === 0) {
+            candidatesList.innerHTML = `<p style="color:var(--text-secondary,#a8bdc7);padding:14px;">No hay candidatos disponibles en este momento. Utiliza el botón "Buscar nuevos talentos" para sondear el mercado de trabajo.</p>`;
+        } else {
+            game.availableCandidates.forEach(c => {
+                const canAfford = game.funds >= c.salary;
+                const hasDesk = game.employees.length < maxStaff;
+                const speedRating = c.speedRating ?? Math.round((c.speed || 1) * 75);
+                const stressResistance = c.stressResistance ?? 50;
+                const experience = c.experience || c.level || 'Mid';
+
+                const card = document.createElement('article');
+                card.className = 'hr-candidate-card';
+                card.innerHTML = `
+                    <div class="hr-person-top">
+                        <div class="hr-person-identity">
+                            <div class="hr-person-name-row">
+                                <strong>${c.name}</strong>
+                                <span class="hr-badge hr-badge-trait">[${c.trait || 'Estándar'}]</span>
+                            </div>
+                            <span class="hr-person-role">${c.role} · ${experience}</span>
+                        </div>
+                        <div class="hr-person-salary">$${c.salary.toLocaleString()}/mes</div>
+                    </div>
+                    <div class="hr-person-skills-summary">
+                        <span>[[DE_ICON_018]] Tech: <b>${c.tech}</b></span>
+                        <span>[[DE_ICON_019]] Des: <b>${c.design}</b></span>
+                        <span>[[DE_ICON_022]] Vel: <b>${speedRating}</b></span>
+                        <span>[[DE_ICON_021]] Res: <b>${stressResistance}</b></span>
+                    </div>
+                    <div class="hr-person-bottom">
+                        <span class="hr-candidate-affordability ${canAfford ? 'is-affordable' : 'not-affordable'}">
+                            ${canAfford ? 'Fondos disponibles' : 'Fondos insuficientes'}
+                        </span>
+                        <div style="display:flex;gap:8px;">
+                            <button type="button" class="staff-action-btn" data-action="inspect">Ver ficha</button>
+                            <button type="button" class="staff-action-btn staff-action-highlight" data-action="hire" ${!canAfford || !hasDesk ? 'disabled' : ''}>Contratar</button>
+                        </div>
+                    </div>
+                `;
+                card.querySelector('[data-action="inspect"]').addEventListener('click', () => {
+                    personnelCandidateName = (personnelCandidateName === c.name ? null : c.name);
+                    renderRecruitment();
+                    if (personnelCandidateName) {
+                        document.getElementById('personnel-candidate-detail')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }
+                });
+                card.querySelector('[data-action="hire"]').addEventListener('click', () => {
+                    hireCandidate(c.name);
+                });
+                candidatesList.appendChild(card);
+            });
+        }
+    }
+
+    // --- 3. TRAINING & MENTORING TAB ---
+    const seniorStaff = game.employees.filter(emp => (['Senior', 'Lead'].includes(emp.experience) || (emp.tech || 0) >= 55 || (emp.design || 0) >= 55));
+    const juniorStaff = game.employees.filter(emp => emp.experience === 'Junior');
+    const banner = document.getElementById('training-status-banner');
+    if (banner) {
+        if (game.currentProject) {
+            banner.className = 'hr-training-alert is-warning';
+            banner.innerHTML = `<span>[[DE_ICON_022]]</span><div><strong>Formación pausada:</strong> El estudio está desarrollando actualmente "${game.currentProject.name}". El mentoring requiere dedicación exclusiva y solo está disponible cuando no hay videojuegos en producción.</div>`;
+        } else if (!seniorStaff.length) {
+            banner.className = 'hr-training-alert is-warning';
+            banner.innerHTML = `<span>[[DE_ICON_022]]</span><div><strong>Mentor no disponible:</strong> Necesitas al menos un empleado Sénior, Líder o con habilidad 55+ en Tecnología o Diseño para ejercer de mentor.</div>`;
+        } else if (!juniorStaff.length) {
+            banner.className = 'hr-training-alert is-warning';
+            banner.innerHTML = `<span>[[DE_ICON_022]]</span><div><strong>Aprendiz no disponible:</strong> Necesitas al menos un empleado Júnior en plantilla para recibir formación.</div>`;
+        } else {
+            banner.className = 'hr-training-alert is-success';
+            banner.innerHTML = `<span>[[DE_ICON_028]]</span><div><strong>Condiciones óptimas:</strong> Selecciona un mentor y un aprendiz para iniciar la sesión de formación interna.</div>`;
+        }
+    }
+    const mentorSelect = document.getElementById('mentor-select');
+    const menteeSelect = document.getElementById('mentee-select');
+    if (mentorSelect) {
+        mentorSelect.innerHTML = seniorStaff.length
+            ? seniorStaff.map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role} (Tech ${emp.tech}, Des ${emp.design})</option>`).join('')
+            : '<option value="">No hay mentor sénior disponible</option>';
+        if (oldMentor && [...mentorSelect.options].some(o => o.value === oldMentor)) mentorSelect.value = oldMentor;
+    }
+    if (menteeSelect) {
+        menteeSelect.innerHTML = juniorStaff.length
+            ? juniorStaff.map(emp => `<option value="${emp.id}">${emp.name} · ${emp.role} (Tech ${emp.tech}, Des ${emp.design})</option>`).join('')
+            : '<option value="">No hay aprendiz júnior disponible</option>';
+        if (oldMentee && [...menteeSelect.options].some(o => o.value === oldMentee)) menteeSelect.value = oldMentee;
+    }
+    const trainingBtn = document.querySelector('#personnel-panel-training button[onclick="startEmployeeMentoring()"]');
+    if (trainingBtn) {
+        trainingBtn.disabled = !seniorStaff.length || !juniorStaff.length || !!game.currentProject;
+    }
+
+    // --- 4. WORK CONDITIONS TAB ---
+    const workMode = game.workMode || 'normal';
+    const modeStatus = document.getElementById('work-mode-status');
+    const modeCopy = {
+        normal: 'Modo activo: Ritmo Normal · Jornada de 40 horas, balance entre productividad y fatiga.',
+        relaxed: 'Modo activo: Ritmo Relajado · Jornada de 30 horas, mayor descanso, recuperación de energía y alivio de estrés.',
+        crunch: 'Modo activo: Horas Extra / Crunch · Máxima aceleración del desarrollo (+40%), con severo desgaste, estrés y acumulación de bugs.'
+    };
+    if (modeStatus) modeStatus.innerHTML = `<span>${modeCopy[workMode] || modeCopy.normal}</span>`;
+    document.querySelectorAll('.hr-mode-buttons button').forEach(button => {
+        const selected = button.getAttribute('onclick')?.includes(`'${workMode}'`);
+        button.classList.toggle('active', Boolean(selected));
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+
+    const modeComparison = document.getElementById('work-mode-comparison');
+    if (modeComparison) {
+        modeComparison.innerHTML = `
+            <div class="hr-mode-card${workMode === 'relaxed' ? ' is-active' : ''}">
+                <div class="hr-mode-card-header">
+                    <strong>[[DE_ICON_064]] Relajado</strong>
+                    <span class="hr-mode-card-badge">30 h/semana</span>
+                </div>
+                <div class="hr-mode-card-effects">
+                    <div class="hr-mode-effect-row"><span>Productividad:</span><b>80% (ritmo suave)</b></div>
+                    <div class="hr-mode-effect-row"><span>Energía:</span><b style="color:#8ee3be">+0.18 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Estrés:</span><b style="color:#8ee3be">−0.35 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Moral:</span><b style="color:#8ee3be">+0.24 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Riesgo burnout:</span><b>Muy bajo</b></div>
+                    <div class="hr-mode-effect-row"><span>Deuda técnica:</span><b>Mínima</b></div>
                 </div>
             </div>
-            <div>
-                <span style="font-weight: 700; color: var(--accent-green); margin-right: 12px;">$${c.salary.toLocaleString()}/mes</span>
-                <button class="release-btn" onclick="hireCandidate('${c.name}')">Contratar</button>
+            <div class="hr-mode-card${workMode === 'normal' ? ' is-active' : ''}">
+                <div class="hr-mode-card-header">
+                    <strong>[[DE_ICON_063]] Normal</strong>
+                    <span class="hr-mode-card-badge">40 h/semana</span>
+                </div>
+                <div class="hr-mode-card-effects">
+                    <div class="hr-mode-effect-row"><span>Productividad:</span><b>100% estándar</b></div>
+                    <div class="hr-mode-effect-row"><span>Energía:</span><b>Desgaste moderado</b></div>
+                    <div class="hr-mode-effect-row"><span>Estrés:</span><b>Equilibrado</b></div>
+                    <div class="hr-mode-effect-row"><span>Moral:</span><b>Estable</b></div>
+                    <div class="hr-mode-effect-row"><span>Riesgo burnout:</span><b>Bajo</b></div>
+                    <div class="hr-mode-effect-row"><span>Deuda técnica:</span><b>Tasa estándar</b></div>
+                </div>
+            </div>
+            <div class="hr-mode-card${workMode === 'crunch' ? ' is-active' : ''}">
+                <div class="hr-mode-card-header">
+                    <strong>[[DE_ICON_022]] Crunch</strong>
+                    <span class="hr-mode-card-badge" style="background:rgba(240,100,80,0.2);color:#ff9e9e;">Horas extra</span>
+                </div>
+                <div class="hr-mode-card-effects">
+                    <div class="hr-mode-effect-row"><span>Productividad:</span><b style="color:#ffd86b">+40% avance</b></div>
+                    <div class="hr-mode-effect-row"><span>Energía:</span><b style="color:#ff8e8e">−0.72 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Estrés:</span><b style="color:#ff8e8e">+0.42 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Moral:</span><b style="color:#ff8e8e">−0.16 / semana</b></div>
+                    <div class="hr-mode-effect-row"><span>Riesgo burnout:</span><b style="color:#ff8e8e">Crítico</b></div>
+                    <div class="hr-mode-effect-row"><span>Deuda técnica:</span><b style="color:#ff8e8e">Muy alta</b></div>
+                </div>
             </div>
         `;
-        candidatesList.appendChild(card);
-    });
+    }
+    const coffeeAffordability = document.getElementById('coffee-affordability');
+    if (coffeeAffordability) {
+        coffeeAffordability.textContent = game.funds >= 500 ? `Fondos disponibles ($${game.funds.toLocaleString()})` : `Fondos insuficientes (requiere $500)`;
+    }
+    const coffeeBtn = document.querySelector('#personnel-panel-conditions button[onclick="orderTeamCoffee()"]');
+    if (coffeeBtn) coffeeBtn.disabled = game.funds < 500;
+
+    // --- 5. TEAM STATISTICS TAB ---
+    const statsContainer = document.getElementById('personnel-statistics');
+    if (statsContainer) {
+        const team = game.employees;
+        const average = fn => team.length ? Math.round(team.reduce((total, emp) => total + fn(emp), 0) / team.length) : 0;
+        const totalPayroll = team.reduce((sum, emp) => sum + Number(emp.salary || 0), 0);
+        const avgMorale = average(emp => emp.morale ?? 70);
+        const avgStress = average(emp => emp.stress ?? 0);
+        const avgEnergy = average(emp => emp.energy ?? emp.stamina ?? 100);
+        const avgTech = average(emp => Number(emp.tech) || 0);
+        const avgDesign = average(emp => Number(emp.design) || 0);
+        const burnoutCases = team.filter(emp => emp.burnoutState === 'risk' || emp.burnoutState === 'total' || (emp.stress ?? 0) >= 70).length;
+
+        const roleCounts = new Map();
+        team.forEach(emp => {
+            const role = emp.role || 'Sin rol';
+            roleCounts.set(role, (roleCounts.get(role) || 0) + 1);
+        });
+
+        const expCounts = new Map([['Junior', 0], ['Mid', 0], ['Senior', 0], ['Lead', 0]]);
+        team.forEach(emp => {
+            const exp = emp.experience || emp.level || 'Mid';
+            expCounts.set(exp, (expCounts.get(exp) || 0) + 1);
+        });
+
+        statsContainer.innerHTML = `
+            <div class="hr-stats-grid">
+                <div class="hr-stat-card">
+                    <span>Plantilla activa</span>
+                    <strong>${team.length} / ${maxStaff}</strong>
+                    <small>Escritorios ocupados</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Nómina mensual</span>
+                    <strong style="color:var(--accent-green, #94dbc4);">$${totalPayroll.toLocaleString()}</strong>
+                    <small>Gasto recurrente</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Moral media</span>
+                    <strong>${avgMorale}%</strong>
+                    <small>${avgMorale >= 75 ? 'Excelente ambiente' : (avgMorale >= 50 ? 'Ambiente normal' : 'Moral deprimida')}</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Estrés medio</span>
+                    <strong style="${avgStress > 50 ? 'color:#f28b82;' : ''}">${avgStress}%</strong>
+                    <small>${avgStress > 50 ? 'Alerta por fatiga' : 'Estrés controlado'}</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Energía media</span>
+                    <strong>${avgEnergy}%</strong>
+                    <small>${avgEnergy > 50 ? 'Equipo descansado' : 'Equipo fatigado'}</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Nivel tecnológico</span>
+                    <strong>${avgTech} pts</strong>
+                    <small>Capacidad técnica media</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Nivel de diseño</span>
+                    <strong>${avgDesign} pts</strong>
+                    <small>Creatividad media</small>
+                </div>
+                <div class="hr-stat-card">
+                    <span>Riesgo de burnout</span>
+                    <strong style="${burnoutCases > 0 ? 'color:#f28b82;' : ''}">${burnoutCases} ${burnoutCases === 1 ? 'caso' : 'casos'}</strong>
+                    <small>${burnoutCases === 0 ? 'Sin incidencias' : 'Requiere descanso'}</small>
+                </div>
+            </div>
+            <div class="hr-stat-breakdowns">
+                <div class="hr-stat-list">
+                    <h4>Distribución por especialidad</h4>
+                    ${[...roleCounts.entries()].map(([role, count]) => {
+                        const pct = Math.round((count / (team.length || 1)) * 100);
+                        return `
+                            <div class="hr-stat-list-row">
+                                <span>${role}</span>
+                                <b>${count} (${pct}%)</b>
+                                <div class="hr-stat-list-meter"><span style="width:${pct}%"></span></div>
+                            </div>
+                        `;
+                    }).join('') || '<p style="color:#a8bdc7;font-size:13px;">No hay miembros en plantilla.</p>'}
+                </div>
+                <div class="hr-stat-list">
+                    <h4>Nivel de experiencia</h4>
+                    ${[...expCounts.entries()].map(([exp, count]) => {
+                        const pct = Math.round((count / (team.length || 1)) * 100);
+                        return `
+                            <div class="hr-stat-list-row">
+                                <span>${exp}</span>
+                                <b>${count} (${pct}%)</b>
+                                <div class="hr-stat-list-meter"><span style="width:${pct}%"></span></div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    setPersonnelTab(personnelTab);
 }
 
 window.renewStaffContract = function(id, increase) {

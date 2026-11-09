@@ -34,6 +34,7 @@
     <link rel="stylesheet" href="preproduction-wizard.css">
     <link rel="stylesheet" href="research-lab.css">
     <link rel="stylesheet" href="/src/loading-screen.css">
+    <link rel="stylesheet" href="/src/personnel-redesign.css">
     <link rel="stylesheet" href="/src/game-dev-flow.css">
     <link rel="stylesheet" href="/src/engine-creation.css">
 </head>
@@ -1280,85 +1281,82 @@
         </section>
     </div>
 
-    <!-- MODAL: GESTIÓN DE EQUIPO, FATIGA Y CONTRATACIÓN -->
-    <!-- MODAL: GESTIÓN DE EQUIPO, FATIGA Y CONTRATACIÓN -->
+    <!-- GESTIÓN DE PERSONAL -->
     <div id="modal-hire" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="staff-modal-title">
         <div class="modal-window staff-window">
             <div class="modal-header staff-modal-header">
                 <div>
                     <span class="staff-eyebrow">DEV EMPIRE · CAPITAL HUMANO</span>
-                    <h2 class="modal-title" id="staff-modal-title"><span>[[DE_ICON_031]]</span> Gestión de Equipo & Reclutamiento</h2>
-                    <p class="staff-subtitle">Supervisa la plantilla del estudio, fatiga, ritmo laboral y contratación de nuevos talentos.</p>
+                    <h2 class="modal-title" id="staff-modal-title"><span>[[DE_ICON_031]]</span> Gestión de personal</h2>
+                    <p class="staff-subtitle">Cuida a tu equipo y construye el estudio que imaginas.</p>
                 </div>
                 <button class="modal-close" type="button" onclick="closeAllModals()" aria-label="Cerrar personal">&times;</button>
             </div>
-
+            <div class="hr-tabs" role="tablist" aria-label="Secciones de personal">
+                <button type="button" class="hr-tab active" role="tab" id="personnel-tab-staff" data-personnel-tab="staff" aria-controls="personnel-panel-staff" aria-selected="true">Plantilla</button>
+                <button type="button" class="hr-tab" role="tab" id="personnel-tab-recruitment" data-personnel-tab="recruitment" aria-controls="personnel-panel-recruitment" aria-selected="false" tabindex="-1">Contratación</button>
+                <button type="button" class="hr-tab" role="tab" id="personnel-tab-training" data-personnel-tab="training" aria-controls="personnel-panel-training" aria-selected="false" tabindex="-1">Formación</button>
+                <button type="button" class="hr-tab" role="tab" id="personnel-tab-conditions" data-personnel-tab="conditions" aria-controls="personnel-panel-conditions" aria-selected="false" tabindex="-1">Condiciones</button>
+                <button type="button" class="hr-tab" role="tab" id="personnel-tab-statistics" data-personnel-tab="statistics" aria-controls="personnel-panel-statistics" aria-selected="false" tabindex="-1">Estadísticas</button>
+            </div>
             <div class="staff-modal-scroll">
-                <!-- Quick Team Actions Bar -->
-                <div class="staff-strip">
-                    <div class="staff-capacity-box">
-                        <span class="staff-strip-label">Capacidad de Estudio</span>
-                        <div id="hire-capacity" class="staff-capacity-val">1/2 miembros</div>
+                <section id="personnel-panel-staff" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-staff" tabindex="0">
+                    <div class="staff-section-heading"><span class="heading-tag">TU EQUIPO</span><h3>Plantilla actual</h3><p>Consulta el bienestar de cada persona y gestiona su desarrollo.</p></div>
+                    <div class="staff-capacity-box"><span class="staff-strip-label">Capacidad del estudio</span><div id="hire-capacity" class="staff-capacity-val">—</div></div>
+                    <section id="headhunt-notices" class="hr-headhunt-list" style="display:none" aria-label="Ofertas de estudios rivales"></section>
+                    <div id="current-team-list" class="cards-list staff-cards-list"></div>
+                    <div id="personnel-employee-detail" class="hr-profile" hidden></div>
+                </section>
+                <section id="personnel-panel-recruitment" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-recruitment" tabindex="0" hidden>
+                    <div class="staff-section-heading"><span class="heading-tag">MERCADO LABORAL</span><h3>Encuentra talento</h3><p>Conoce a los candidatos antes de incorporarlos al equipo.</p></div>
+                    <div class="staff-strip staff-recruitment-controls">
+                        <div class="staff-budget-field"><label for="recruitment-budget">Presupuesto de búsqueda</label><div class="budget-input-wrap"><span class="budget-sym">$</span><input id="recruitment-budget" type="number" min="500" step="500" value="2500"></div></div>
+                        <button class="staff-action-pill staff-action-highlight" type="button" onclick="refreshCandidates()" title="Genera candidatos según reputación y presupuesto"><span class="pill-icon">[[DE_ICON_062]]</span><span>Buscar nuevos talentos</span></button>
                     </div>
-                    <div class="staff-strip-actions">
-                        <button class="staff-action-pill" type="button" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante">
-                            <span class="pill-icon">[[DE_ICON_029]]</span>
-                            <span>Café Express</span>
-                            <span class="pill-price">($500)</span>
-                        </button>
-                        <div class="staff-budget-field">
-                            <label for="recruitment-budget">Presupuesto</label>
-                            <div class="budget-input-wrap">
-                                <span class="budget-sym">$</span>
-                                <input id="recruitment-budget" type="number" min="500" step="500" value="2500">
-                            </div>
+                    <div id="candidates-list" class="cards-list staff-cards-list"></div>
+                    <div id="personnel-candidate-detail" class="hr-profile" hidden></div>
+                </section>
+                <section id="personnel-panel-training" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-training" tabindex="0" hidden>
+                    <div class="staff-section-heading"><span class="heading-tag">DESARROLLO PROFESIONAL</span><h3>Formación interna</h3><p>Comparte la experiencia del equipo para impulsar sus habilidades.</p></div>
+                    <div id="training-status-banner" class="hr-training-alert"></div>
+                    <section class="hr-control-panel hr-training-panel">
+                        <div class="hr-panel-header"><strong>[[DE_ICON_065]] Mentoring y Capacitación</strong><small>Asigna un mentor sénior a un aprendiz júnior durante periodos inactivos del estudio.</small></div>
+                        <div class="hr-training-grid">
+                            <label>Mentor sénior <select id="mentor-select" class="form-select"></select></label>
+                            <label>Aprendiz júnior <select id="mentee-select" class="form-select"></select></label>
+                            <label>Inversión <select id="mentoring-currency" class="form-select"><option value="funds">$4.000 (Fondos)</option><option value="researchPoints">18 puntos I+D</option></select></label>
+                            <button type="button" class="staff-action-btn staff-action-highlight" onclick="startEmployeeMentoring()">Iniciar formación</button>
                         </div>
-                        <button class="staff-action-pill staff-action-highlight" type="button" onclick="refreshCandidates()" title="Genera candidatos según reputación y presupuesto">
-                            <span class="pill-icon">[[DE_ICON_062]]</span>
-                            <span>Buscar Nuevos Talentos</span>
-                        </button>
-                    </div>
-                </div>
-
-                <section class="hr-control-panel">
-                    <div class="hr-panel-header">
-                        <strong>Ritmo de trabajo</strong>
-                        <small>El modo afecta el avance semanal, el desgaste de energía y la moral del equipo.</small>
-                    </div>
-                    <div class="hr-mode-buttons" role="group" aria-label="Ritmo de trabajo">
-                        <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('normal')">[[DE_ICON_063]] Normal · 40 h</button>
-                        <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('relaxed')">[[DE_ICON_064]] Relajado · 30 h</button>
-                        <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('crunch')">[[DE_ICON_022]] Crunch · +40%</button>
-                    </div>
-                    <div id="work-mode-status" class="hr-mode-status"></div>
+                        <div class="hr-training-info">
+                            <p>La formación se completa al instante: mejora permanentemente +6 a +9 en Tecnología y Diseño para el aprendiz y +8 de moral. Requiere que el estudio no tenga un proyecto activo en desarrollo.</p>
+                        </div>
+                    </section>
                 </section>
-
-                <section id="headhunt-notices" class="hr-headhunt-list" style="display:none"></section>
-
-                <section class="hr-control-panel hr-training-panel">
-                    <div class="hr-panel-header">
-                        <strong>[[DE_ICON_065]] Formación y Mentoring Interno</strong>
-                        <small>Asigna un mentor senior a un aprendiz junior durante periodos inactivos del estudio.</small>
-                    </div>
-                    <div class="hr-training-grid">
-                        <label>Mentor senior <select id="mentor-select" class="form-select"></select></label>
-                        <label>Aprendiz junior <select id="mentee-select" class="form-select"></select></label>
-                        <label>Inversión <select id="mentoring-currency" class="form-select"><option value="funds">$4.000</option><option value="researchPoints">18 puntos I+D</option></select></label>
-                        <button type="button" class="staff-action-btn staff-action-highlight" onclick="startEmployeeMentoring()">Iniciar formación</button>
-                    </div>
+                <section id="personnel-panel-conditions" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-conditions" tabindex="0" hidden>
+                    <div class="staff-section-heading"><span class="heading-tag">BIENESTAR DEL EQUIPO</span><h3>Condiciones laborales</h3><p>Elige cómo trabaja el estudio y cuida la energía de tu equipo.</p></div>
+                    <section class="hr-control-panel">
+                        <div class="hr-panel-header"><strong>Ritmo de trabajo</strong><small>El modo afecta el avance semanal, el desgaste de energía y la moral del equipo.</small></div>
+                        <div class="hr-mode-buttons" role="group" aria-label="Ritmo de trabajo">
+                            <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('normal')">[[DE_ICON_063]] Normal · 40 h</button>
+                            <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('relaxed')">[[DE_ICON_064]] Relajado · 30 h</button>
+                            <button type="button" class="staff-action-btn" onclick="setTeamWorkMode('crunch')">[[DE_ICON_022]] Crunch · horas extra</button>
+                        </div>
+                        <div id="work-mode-status" class="hr-mode-status"></div>
+                    </section>
+                    <div id="work-mode-comparison" class="hr-mode-comparison"></div>
+                    <section class="hr-control-panel hr-benefits-panel">
+                        <div class="hr-panel-header"><strong>Beneficios del equipo</strong><small>Un descanso compartido ayuda a recuperar energía.</small></div>
+                        <div class="hr-benefits-row">
+                            <button class="staff-action-pill" type="button" onclick="orderTeamCoffee()" title="Restaura +35 de energía al instante"><span class="pill-icon">[[DE_ICON_029]]</span><span>Café Express</span><span class="pill-price">($500)</span></button>
+                            <span id="coffee-affordability" class="hr-benefits-status"></span>
+                        </div>
+                        <p>Las vacaciones individuales y los cursos intensivos están disponibles desde el perfil de cada empleado en la pestaña Plantilla.</p>
+                    </section>
                 </section>
-
-                <div class="staff-section-heading">
-                    <span class="heading-tag">PLANTILLA ACTUAL</span>
-                    <h3>Desarrolladores en Nómina Activa</h3>
-                </div>
-                <div id="current-team-list" class="cards-list staff-cards-list"></div>
-
-                <div class="staff-section-heading" style="margin-top: 24px;">
-                    <span class="heading-tag">MERCADO LABORAL</span>
-                    <h3>Candidatos Disponibles para Contratar</h3>
-                </div>
-                <div id="candidates-list" class="cards-list staff-cards-list"></div>
+                <section id="personnel-panel-statistics" class="hr-tab-panel" role="tabpanel" aria-labelledby="personnel-tab-statistics" tabindex="0" hidden>
+                    <div class="staff-section-heading"><span class="heading-tag">PULSO DEL ESTUDIO</span><h3>Estadísticas del equipo</h3><p>Una visión general basada en la situación actual de tu plantilla.</p></div>
+                    <div id="personnel-statistics" class="hr-stats-container" aria-live="polite"></div>
+                </section>
             </div>
         </div>
     </div>

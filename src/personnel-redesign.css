@@ -1,0 +1,1020 @@
+/* ==========================================================================
+   DEV EMPIRE 3D · GESTIÓN DE PERSONAL, RECLUTAMIENTO Y FORMACIÓN (REDISEÑO)
+   Estética: Dark Glassmorphism profesional de simulador de gestión
+   ========================================================================== */
+
+:is(#modal-hire, #phone-view-personnel) .staff-window {
+    width: min(1080px, 95vw) !important;
+    max-width: 1080px !important;
+    max-height: min(880px, 92dvh) !important;
+    color: #edf4f7;
+    background: linear-gradient(155deg, #132533 0%, #0b1725 58%, #0a1420 100%) !important;
+    border: 1px solid #345668 !important;
+    border-radius: 14px !important;
+    box-shadow: 0 24px 80px rgba(3, 10, 16, 0.85), 0 0 45px rgba(13, 82, 102, 0.2) !important;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-modal-header {
+    padding: 22px 28px 18px;
+    background: rgba(19, 38, 51, 0.85);
+    border-bottom: 1px solid rgba(180, 213, 219, 0.12);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-modal-header .modal-title {
+    font-size: clamp(22px, 2.2vw, 26px);
+    line-height: 1.2;
+    letter-spacing: -0.025em;
+    color: #f5fcfa;
+    margin: 4px 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-eyebrow {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    color: #8acfc1;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-subtitle {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #a9bdc7;
+    margin: 4px 0 0 0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .modal-close {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #d1e2e6;
+    font-size: 24px;
+    line-height: 1;
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* --- TABS BAR --- */
+:is(#modal-hire, #phone-view-personnel) .hr-tabs {
+    display: flex;
+    gap: 6px;
+    padding: 6px;
+    margin: 16px 28px 0;
+    flex: 0 0 auto;
+    border: 1px solid rgba(61, 88, 102, 0.4);
+    border-radius: 11px;
+    background: rgba(8, 24, 37, 0.72);
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scrollbar-color: #52717b transparent;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-tab {
+    flex: 1 0 auto;
+    min-height: 40px;
+    padding: 9px 14px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    color: #a6bbc5;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-tab:hover {
+    background: rgba(41, 70, 87, 0.53);
+    color: #eff9f7;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-tab.active,
+:is(#modal-hire, #phone-view-personnel) .hr-tab[aria-selected='true'] {
+    color: #e4fff9;
+    border-color: #599689;
+    background: rgba(37, 83, 78, 0.67);
+    box-shadow: inset 0 -2px 0 #86d7bd;
+}
+
+/* --- SCROLL CONTENT --- */
+:is(#modal-hire, #phone-view-personnel) .staff-modal-scroll {
+    padding: 20px 28px 26px;
+    overflow-y: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-tab-panel {
+    min-width: 0;
+    color: #dbe8eb;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-tab-panel[hidden] {
+    display: none !important;
+}
+
+/* --- SECTION HEADINGS --- */
+:is(#modal-hire, #phone-view-personnel) .staff-section-heading {
+    margin: 0 0 4px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-section-heading .heading-tag {
+    color: #83c5bd;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 3px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-section-heading h3 {
+    color: #f0f7f7;
+    font-size: 20px;
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    margin: 0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-section-heading p {
+    color: #a8bdc7;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 4px 0 0;
+}
+
+/* --- CAPACITY BOX --- */
+:is(#modal-hire, #phone-view-personnel) .staff-capacity-box {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    background: rgba(19, 43, 56, 0.6);
+    border: 1px solid #365864;
+    border-radius: 9px;
+    font-size: 13px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-strip-label {
+    color: #a0b6bf;
+    font-weight: 600;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-capacity-val {
+    color: #9de3cf;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+/* --- HEADHUNT NOTICES --- */
+:is(#modal-hire, #phone-view-personnel) .hr-headhunt-list {
+    display: grid;
+    gap: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-headhunt-card {
+    padding: 14px 18px;
+    background: rgba(66, 44, 50, 0.7);
+    border: 1px solid #9a6666;
+    border-left: 4px solid #f28b82;
+    border-radius: 9px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-headhunt-card b {
+    color: #ffd5d4;
+    font-size: 14px;
+    display: block;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-headhunt-card small {
+    color: #dfb6b9;
+    font-size: 12px;
+    display: block;
+    margin-top: 3px;
+}
+
+/* --- COMPACT CARDS (PLANTILLA) --- */
+:is(#modal-hire, #phone-view-personnel) .cards-list {
+    display: grid;
+    gap: 12px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-card {
+    min-width: 0;
+    padding: 16px 18px;
+    display: grid;
+    gap: 12px;
+    border: 1px solid #35515e;
+    border-radius: 11px;
+    background: rgba(20, 40, 55, 0.85);
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-card:hover {
+    border-color: #6a9c9b;
+    background: rgba(25, 48, 62, 0.9);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-card.is-selected {
+    border-color: #62bfac;
+    background: rgba(24, 54, 66, 0.95);
+    box-shadow: 0 0 16px rgba(98, 191, 172, 0.2);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+    min-width: 0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-identity {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-name-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-identity strong {
+    font-size: 16px;
+    font-weight: 700;
+    color: #f5fbfa;
+    overflow-wrap: anywhere;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-role {
+    font-size: 13px;
+    color: #b0c4ca;
+    overflow-wrap: anywhere;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-salary {
+    text-align: right;
+    color: #94dbc4;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Badges */
+:is(#modal-hire, #phone-view-personnel) .hr-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.2;
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-badge-founder {
+    background: rgba(245, 197, 24, 0.2);
+    color: #ffd86b;
+    border: 1px solid rgba(245, 197, 24, 0.4);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-badge-lead {
+    background: rgba(64, 196, 255, 0.2);
+    color: #80d8ff;
+    border: 1px solid rgba(64, 196, 255, 0.4);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-badge-trait {
+    background: rgba(142, 222, 203, 0.15);
+    color: #a4ebd8;
+    border: 1px solid rgba(142, 222, 203, 0.3);
+}
+
+/* Metrics (Bienestar: Energía, Moral, Estrés) */
+:is(#modal-hire, #phone-view-personnel) .hr-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    color: #a6bbc5;
+    font-size: 12px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric strong {
+    color: #edf5f3;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-meter {
+    grid-column: 1 / -1;
+    height: 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #2b3e49;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-meter > span,
+:is(#modal-hire, #phone-view-personnel) .hr-meter > i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: #62bfac;
+    transition: width 0.3s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric.is-energy .hr-meter > span.warn {
+    background: #e6b35e;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric.is-energy .hr-meter > span.crit {
+    background: #f2726f;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric.is-stress .hr-meter > span {
+    background: #81c2ad;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric.is-stress .hr-meter > span.warn {
+    background: #e6b35e;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-metric.is-stress .hr-meter > span.crit {
+    background: #f2726f;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-person-skills-summary {
+    color: #b5c7ce;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-status-badge {
+    padding: 3px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(35, 60, 75, 0.6);
+    color: #a8cfc5;
+    border: 1px solid rgba(75, 120, 140, 0.3);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-status-badge.is-sick {
+    background: rgba(220, 80, 80, 0.2);
+    color: #f7a0a0;
+    border-color: rgba(220, 80, 80, 0.4);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-status-badge.is-burnout {
+    background: rgba(240, 130, 40, 0.2);
+    color: #ffb47d;
+    border-color: rgba(240, 130, 40, 0.4);
+}
+
+/* --- FICHA DETALLADA (EXPANDIDA) --- */
+:is(#modal-hire, #phone-view-personnel) .hr-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 4px 0 16px;
+    padding: 20px;
+    border: 1px solid #52807c;
+    border-radius: 12px;
+    background: linear-gradient(150deg, #173742 0%, #0d222e 100%);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-header h3 {
+    font-size: 19px;
+    line-height: 1.25;
+    margin: 0;
+    color: #f6fcf9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-section {
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid #365563;
+    border-radius: 9px;
+    background: rgba(14, 30, 41, 0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-section h4 {
+    margin: 0 0 4px;
+    color: #8edecb;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #afc4cb;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-row strong {
+    color: #f0f7f6;
+    font-weight: 600;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-meter-row {
+    display: grid;
+    gap: 4px;
+    font-size: 12px;
+    color: #afc4cb;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-meter-header {
+    display: flex;
+    justify-content: space-between;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    align-items: center;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-profile-actions-label {
+    width: 100%;
+    color: #8edecb;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+}
+
+/* --- BUTTONS --- */
+:is(#modal-hire, #phone-view-personnel) .staff-action-btn,
+:is(#modal-hire, #phone-view-personnel) .staff-action-pill {
+    min-height: 38px;
+    padding: 8px 14px;
+    border: 1px solid #446473;
+    border-radius: 8px;
+    color: #e2f0f1;
+    background: #223c4a;
+    font-size: 13px;
+    line-height: 1.25;
+    font-weight: 700;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-action-btn:hover,
+:is(#modal-hire, #phone-view-personnel) .staff-action-pill:hover {
+    background: #2e5163;
+    border-color: #79b7ae;
+    color: #ffffff;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-action-highlight {
+    background: #245851;
+    border-color: #6bb9a8;
+    color: #e6fff8;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-action-highlight:hover {
+    background: #2e6d64;
+    border-color: #92e0ce;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-danger-btn {
+    color: #ffd5d4;
+    background: #472f39;
+    border-color: #86515b;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-danger-btn:hover {
+    background: #6f3c47;
+    border-color: #e69299;
+    color: #ffffff;
+}
+
+:is(#modal-hire, #phone-view-personnel) button:focus-visible,
+:is(#modal-hire, #phone-view-personnel) select:focus-visible,
+:is(#modal-hire, #phone-view-personnel) input:focus-visible {
+    outline: 2px solid #8fe7ce;
+    outline-offset: 2px;
+}
+
+:is(#modal-hire, #phone-view-personnel) button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed !important;
+    border-color: #3d5059 !important;
+    background: #1c2b33 !important;
+    color: #7c929a !important;
+}
+
+/* --- RECRUITMENT TAB --- */
+:is(#modal-hire, #phone-view-personnel) .staff-recruitment-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 14px 18px;
+    background: rgba(18, 42, 55, 0.65);
+    border: 1px solid #365664;
+    border-radius: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .staff-budget-field {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #a8bec7;
+}
+
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap {
+    display: flex;
+    align-items: center;
+    border: 1px solid #446473;
+    border-radius: 7px;
+    background: #0d202e;
+    padding: 0 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .budget-sym {
+    color: #78cfb7;
+    font-weight: 700;
+}
+
+:is(#modal-hire, #phone-view-personnel) .budget-input-wrap input {
+    border: none;
+    background: transparent;
+    color: #edf5f3;
+    font-size: 14px;
+    padding: 8px 6px;
+    width: 90px;
+    font-weight: 700;
+    outline: none;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-candidate-card {
+    min-width: 0;
+    padding: 16px 18px;
+    display: grid;
+    gap: 12px;
+    border: 1px solid #365360;
+    border-radius: 11px;
+    background: rgba(20, 40, 55, 0.85);
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-candidate-card:hover {
+    border-color: #6a9c9b;
+    background: rgba(25, 48, 62, 0.9);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-candidate-affordability {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 5px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-candidate-affordability.is-affordable {
+    background: rgba(46, 125, 95, 0.2);
+    color: #8ee3be;
+    border: 1px solid rgba(46, 125, 95, 0.4);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-candidate-affordability.not-affordable {
+    background: rgba(198, 60, 60, 0.2);
+    color: #f79c9c;
+    border: 1px solid rgba(198, 60, 60, 0.4);
+}
+
+/* --- TRAINING TAB --- */
+:is(#modal-hire, #phone-view-personnel) .hr-training-alert {
+    padding: 14px 18px;
+    border-radius: 9px;
+    font-size: 13px;
+    line-height: 1.45;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-alert.is-warning {
+    background: rgba(84, 60, 24, 0.7);
+    border: 1px solid #a37837;
+    border-left: 4px solid #f6b244;
+    color: #ffe6ba;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-alert.is-success {
+    background: rgba(23, 64, 52, 0.7);
+    border: 1px solid #3e8874;
+    border-left: 4px solid #6dd9b8;
+    color: #dcfff4;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-control-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px;
+    background: rgba(17, 41, 55, 0.75);
+    border: 1px solid #355963;
+    border-left: 4px solid #7bc6b0;
+    border-radius: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-panel-header strong {
+    font-size: 16px;
+    color: #f0f7f6;
+    display: block;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-panel-header small {
+    font-size: 13px;
+    color: #a8bdc7;
+    display: block;
+    margin-top: 3px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)) auto;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: #b5c7ce;
+}
+
+:is(#modal-hire, #phone-view-personnel) select,
+:is(#modal-hire, #phone-view-personnel) input[type='number'] {
+    min-height: 40px;
+    padding: 6px 10px;
+    border: 1px solid #446473;
+    border-radius: 7px;
+    background-color: #0e202e;
+    color: #edf5f3;
+    font-size: 13px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-info {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #b0c5cb;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-training-info p {
+    margin: 0;
+}
+
+/* --- CONDITIONS TAB --- */
+:is(#modal-hire, #phone-view-personnel) .hr-mode-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-buttons .active {
+    background: #255850;
+    border-color: #7cd5bc;
+    color: #f0fffa;
+    box-shadow: inset 0 0 10px rgba(124, 213, 188, 0.3);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-status {
+    color: #9adcca;
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 8px 12px;
+    background: rgba(14, 30, 40, 0.6);
+    border-radius: 7px;
+    border-left: 3px solid #82cfb2;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-comparison {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card {
+    padding: 16px;
+    border: 1px solid #365360;
+    border-radius: 10px;
+    background: rgba(17, 36, 48, 0.7);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card.is-active {
+    border-color: #69c4af;
+    background: rgba(22, 50, 64, 0.85);
+    box-shadow: 0 0 18px rgba(105, 196, 175, 0.2);
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card-header strong {
+    font-size: 15px;
+    color: #f2f8f7;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card-badge {
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #94d1c4;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-card-effects {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 12px;
+    color: #b0c5cb;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-effect-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-effect-row span {
+    color: #92a8b0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-mode-effect-row b {
+    color: #e5f2f0;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-benefits-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-benefits-status {
+    font-size: 13px;
+    color: #8edecb;
+}
+
+/* --- STATISTICS TAB --- */
+:is(#modal-hire, #phone-view-personnel) .hr-stats-container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-card {
+    min-width: 0;
+    padding: 14px 16px;
+    border: 1px solid #355360;
+    border-radius: 10px;
+    background: rgba(20, 42, 56, 0.75);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-card span {
+    display: block;
+    color: #a3bbc4;
+    font-size: 12px;
+    line-height: 1.3;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-card strong {
+    display: block;
+    color: #e7f8f2;
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-card small {
+    display: block;
+    color: #79a69e;
+    font-size: 11px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-breakdowns {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px;
+    background: rgba(16, 36, 48, 0.7);
+    border: 1px solid #355562;
+    border-radius: 10px;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-list h4 {
+    margin: 0 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8edecb;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-list-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #c6d8db;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-list-meter {
+    grid-column: 1 / -1;
+    height: 5px;
+    border-radius: 3px;
+    background: #2b3e49;
+    overflow: hidden;
+}
+
+:is(#modal-hire, #phone-view-personnel) .hr-stat-list-meter > span {
+    display: block;
+    height: 100%;
+    background: #5dbba6;
+}
+
+/* --- RESPONSIVE DESIGN --- */
+@media (max-width: 900px) {
+    :is(#modal-hire, #phone-view-personnel) .hr-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-mode-comparison {
+        grid-template-columns: 1fr;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-profile-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    :is(#modal-hire, #phone-view-personnel) .staff-window {
+        width: calc(100vw - 16px) !important;
+        max-height: 94dvh !important;
+    }
+    :is(#modal-hire, #phone-view-personnel) .staff-modal-header {
+        padding: 16px 18px 12px;
+    }
+    :is(#modal-hire, #phone-view-personnel) .staff-modal-scroll {
+        padding: 14px 18px 20px;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-tabs {
+        margin: 12px 18px 0;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-tab {
+        flex: 0 0 auto;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-stat-breakdowns {
+        grid-template-columns: 1fr;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-training-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    :is(#modal-hire, #phone-view-personnel) .hr-person-top {
+        flex-direction: column;
+        gap: 6px;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-person-salary {
+        text-align: left;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-metrics {
+        grid-template-columns: 1fr;
+    }
+    :is(#modal-hire, #phone-view-personnel) .hr-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

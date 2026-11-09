@@ -33,6 +33,8 @@ export const preloadedModels = new Map();
 
 export const ASSET_CATALOG = {
     models: [
+        '/models/garage-furniture/metal_office_desk/metal_office_desk_1k.gltf',
+        '/models/garage-furniture/painted_wooden_chair_01/painted_wooden_chair_01_1k.gltf',
         '/models/retro-monitor.glb',
         '/models/retro-keyboard.glb',
         '/models/retro-mouse.glb',
