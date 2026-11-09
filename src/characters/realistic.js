@@ -65,7 +65,6 @@ export function installRealisticEmployee(THREE, character, gltf, seed = characte
     }
     model.traverse(child => {
         if (child.isMesh) {
-            if (isWoman && child.material.name === 'Hair') shortenHair(child);
             child.castShadow = true;
             child.receiveShadow = true;
         }
@@ -77,25 +76,6 @@ export function installRealisticEmployee(THREE, character, gltf, seed = characte
         rest: bones.map(bone => [bone, bone.quaternion.clone()]),
         wrists: [],
     };
-}
-
-function shortenHair(mesh) {
-    // Keep the scalp shape and shorten the loose strands to shoulder length.
-    // GLB primitives share vertex attributes, so edit a copy of the hair only.
-    mesh.geometry = mesh.geometry.clone();
-    const positions = mesh.geometry.getAttribute('position');
-    const shoulder = 1.49;
-    for (let i = 0; i < positions.count; i++) {
-        const y = positions.getY(i);
-        if (y < shoulder) {
-            const length = shoulder - y;
-            positions.setY(i, shoulder - length * 0.20);
-            const z = positions.getZ(i);
-            if (z < -0.028) positions.setZ(i, z + (-0.028 - z) * Math.min(0.9, length * 6));
-        }
-    }
-    mesh.geometry.computeVertexNormals();
-    mesh.geometry.computeBoundingSphere();
 }
 
 function setWorldRotation(bone, rotation) {
@@ -152,7 +132,7 @@ export function fitRealisticEmployee(THREE, character, desk) {
 
     // 2. Position hips cleanly on the seat cushion with front clearance from backrest
     const cushionOffset = (npc.isWoman ? 0.115 : 0.112) * model.scale.y;
-    const forwardClearance = npc.isWoman ? -0.045 : -0.040;
+    const forwardClearance = npc.isWoman ? -0.070 : -0.075;
     const contact = point(0, seatTop + cushionOffset, chairZ + forwardClearance);
     const hips = npc.hips.getWorldPosition(new THREE.Vector3());
     model.position.copy(character.group.worldToLocal(contact).sub(character.group.worldToLocal(hips)));
