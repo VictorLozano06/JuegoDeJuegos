@@ -151,8 +151,8 @@ export function fitRealisticEmployee(THREE, character, desk) {
     const deskRotation = desk.group.getWorldQuaternion(new THREE.Quaternion());
     npc.wrists = npc.arms.map((arm, i) => {
         const side = i === 0 ? -1 : 1;
-        const wristY = keysTop + (npc.isWoman ? 0.052 : 0.055);
-        const wristZ = keysZ + (npc.isWoman ? 0.090 : 0.085);
+        const wristY = keysTop + (npc.isWoman ? 0.048 : 0.054);
+        const wristZ = keysZ + (npc.isWoman ? 0.205 : 0.238);
         const wristX = side * (npc.isWoman ? 0.095 : 0.105);
         const elbowX = side * (npc.isWoman ? 0.23 : 0.24);
         const elbowY = seatTop + 0.32;
@@ -161,7 +161,7 @@ export function fitRealisticEmployee(THREE, character, desk) {
         reach(THREE, arm, point(wristX, wristY, wristZ), point(elbowX, elbowY, elbowZ));
 
         const hand = arm[2];
-        const forwardDir = new THREE.Vector3(-side * 0.12, -0.04, -0.98).normalize();
+        const forwardDir = new THREE.Vector3(-side * 0.08, -0.11, -0.98).normalize();
         const boneX = (side === -1 ? new THREE.Vector3(0, -1, 0) : new THREE.Vector3(0, 1, 0));
         const boneY = forwardDir;
         const boneZ = new THREE.Vector3().crossVectors(boneX, boneY).normalize();
@@ -170,8 +170,26 @@ export function fitRealisticEmployee(THREE, character, desk) {
         const quat = new THREE.Quaternion().setFromRotationMatrix(basis).premultiply(deskRotation);
         setWorldRotation(hand, quat);
 
-        const indexBone = model.getObjectByName((i === 0 ? 'Left' : 'Right') + 'HandIndex1');
-        const middleBone = model.getObjectByName((i === 0 ? 'Left' : 'Right') + 'HandMiddle1');
+        // Curl fingers into natural ergonomic typing arch directly over the home row
+        const prefix = (i === 0 ? 'Left' : 'Right') + 'Hand';
+        const curlSign = side === -1 ? -1 : 1;
+
+        ['Index', 'Middle', 'Ring', 'Pinky'].forEach((finger) => {
+            const b1 = model.getObjectByName(prefix + finger + '1');
+            const b2 = model.getObjectByName(prefix + finger + '2');
+            const b3 = model.getObjectByName(prefix + finger + '3');
+            if (b1) b1.rotation.z = curlSign * 0.42;
+            if (b2) b2.rotation.z = curlSign * 0.52;
+            if (b3) b3.rotation.z = curlSign * 0.28;
+        });
+
+        const t1 = model.getObjectByName(prefix + 'Thumb1');
+        const t2 = model.getObjectByName(prefix + 'Thumb2');
+        if (t1) t1.rotation.y = curlSign * 0.18;
+        if (t2) t2.rotation.z = curlSign * 0.30;
+
+        const indexBone = model.getObjectByName(prefix + 'Index1');
+        const middleBone = model.getObjectByName(prefix + 'Middle1');
 
         return {
             hand,
