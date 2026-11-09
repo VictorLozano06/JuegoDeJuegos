@@ -126,13 +126,13 @@ export function fitRealisticEmployee(THREE, character, desk) {
     const spine = model.getObjectByName('Spine');
     const spine1 = model.getObjectByName('Spine1');
     const spine2 = model.getObjectByName('Spine2');
-    if (spine) spine.rotateX(-0.16);
-    if (spine1) spine1.rotateX(-0.10);
+    if (spine) spine.rotateX(-0.19);
+    if (spine1) spine1.rotateX(-0.11);
     if (spine2) spine2.rotateX(-0.06);
 
     // 2. Position hips cleanly on the seat cushion with front clearance from backrest
     const cushionOffset = (npc.isWoman ? 0.115 : 0.112) * model.scale.y;
-    const forwardClearance = npc.isWoman ? -0.070 : -0.075;
+    const forwardClearance = npc.isWoman ? -0.095 : -0.110;
     const contact = point(0, seatTop + cushionOffset, chairZ + forwardClearance);
     const hips = npc.hips.getWorldPosition(new THREE.Vector3());
     model.position.copy(character.group.worldToLocal(contact).sub(character.group.worldToLocal(hips)));

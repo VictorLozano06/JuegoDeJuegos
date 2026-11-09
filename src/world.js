@@ -515,7 +515,7 @@ export class WorldEngine {
         };
 
         // Retro CRT syntax lines
-        const colors = type === 'retro' 
+        const colors = type === 'retro'
             ? ['#34d399', '#10b981', '#059669', '#a7f3d0'] // Monochromatic green phosphor
             : ['#00d2ff', '#a855f7', '#10b981', '#f59e0b', '#ec4899'];
 
@@ -602,14 +602,14 @@ export class WorldEngine {
         // Pixel Invader Graphic
         ctx.fillStyle = '#00ff66';
         const invader = [
-            [0,0,1,0,0,0,0,0,1,0,0],
-            [0,0,0,1,0,0,0,1,0,0,0],
-            [0,0,1,1,1,1,1,1,1,0,0],
-            [0,1,1,0,1,1,1,0,1,1,0],
-            [1,1,1,1,1,1,1,1,1,1,1],
-            [1,0,1,1,1,1,1,1,1,0,1],
-            [1,0,1,0,0,0,0,0,1,0,1],
-            [0,0,0,1,1,0,1,1,0,0,0]
+            [0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1],
+            [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1],
+            [0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0]
         ];
         const sz = 14;
         const startX = 50;
@@ -697,7 +697,7 @@ export class WorldEngine {
         });
         // The caller may wait after the current frame; prevent an early rejection
         // from becoming an unhandled promise while preserving it for Promise.all.
-        task.catch(() => {});
+        task.catch(() => { });
         this.officeLoadTasks.push(task);
         return task;
     }
@@ -753,7 +753,7 @@ export class WorldEngine {
             const screenTexture = this.createAnimatedMonitorCanvas('retro');
             const { group, screen, deskFallback, monitorFallback, keyboardFallback, mouseFallback, lampFallback } = createRetroWorkstation(THREE, { index, screenTexture, chair });
             group.position.set(x, y, z);
-            this.registerDesk(group, index, { posture: { seatTop: 0.763, chairZ: 0.85, keysTop: 1.45, keysZ: 0.42 } });
+            this.registerDesk(group, index, { posture: { seatTop: 0.763, chairZ: 0.89, keysTop: 1.45, keysZ: 0.42 } });
             const lamp = group.getObjectByName('flexo_bulb');
             this.monitors.push({
                 mesh: screen,
@@ -819,7 +819,7 @@ export class WorldEngine {
                 loadFittedModel('/models/retro-keyboard.glb', keyboardFallback, { name: 'Teclado retro', width: 0.76, height: 0.05, depth: 0.30, x: 0.15, bottom: 1.40, z: 0.42, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/retro-mouse.glb', mouseFallback, { name: 'Ratón retro', width: 0.09, height: 0.05, depth: 0.13, x: 0.61, bottom: 1.405, z: 0.39, rotation: -Math.PI / 2 });
                 loadFittedModel('/models/desk-lamp.glb', lampFallback, { name: 'Flexo', width: 0.4, height: 0.62, depth: 0.4, x: 0.86, bottom: 1.40, z: -0.35, uniform: true, removeName: 'Carc' });
-                loadFittedModel('/models/silla.glb?v=3', chair, { name: 'Silla de oficina', width: 0.64, height: 1.31, depth: 0.64, x: 0, bottom: 0.02, z: 0.85, rotation: -Math.PI / 2, preserveHorizontal: true });
+                loadFittedModel('/models/silla.glb?v=3', chair, { name: 'Silla de oficina', width: 0.64, height: 1.31, depth: 0.64, x: 0, bottom: 0.02, z: 0.89, rotation: -Math.PI / 2, preserveHorizontal: true });
                 this.loadOfficeAsset('/models/office-table.glb', gltf => {
                     if (!group.parent) return;
                     const model = gltf.scene;
@@ -907,8 +907,8 @@ export class WorldEngine {
         parent.add(group);
 
         // Find CRT or monitor screen mesh
-        let screen = group.getObjectByName('curved_crt_screen') || 
-                     group.getObjectByName('Pantalla de desarrollo');
+        let screen = group.getObjectByName('curved_crt_screen') ||
+            group.getObjectByName('Pantalla de desarrollo');
         if (!screen) {
             group.traverse(child => {
                 if (!screen && child.isMesh && (child.name?.includes('screen') || child.name?.includes('Pantalla') || child.geometry?.type === 'PlaneGeometry')) {
@@ -1742,7 +1742,7 @@ export class WorldEngine {
             const activeSet = dagInstance.selectedNodeIds || new Set(dagInstance.nodes ? dagInstance.nodes.keys() : []);
             const nodeStates = dagInstance.nodeStates || new Map();
             const catalog = typeof SCOPE_NODES_CATALOG !== 'undefined' ? SCOPE_NODES_CATALOG : SCOPE_ARCHITECTURE_NODES;
-            
+
             // Filter strictly to unlocked technologies
             const eligibleCatalog = (techMgr && typeof techMgr.isUnlocked === 'function')
                 ? catalog.filter(n => techMgr.isUnlocked(n.id))
@@ -2083,7 +2083,7 @@ export class WorldEngine {
         }
 
         if (!ctx.roundRect) {
-            ctx.roundRect = function(rx, ry, rw, rh, rr) {
+            ctx.roundRect = function (rx, ry, rw, rh, rr) {
                 this.beginPath();
                 this.moveTo(rx + rr, ry);
                 this.arcTo(rx + rw, ry, rx + rw, ry + rh, rr);
@@ -2730,7 +2730,7 @@ export class WorldEngine {
         this.previousControlsTarget = this.controls.target.clone();
         const deskWorldPos = new THREE.Vector3();
         desk.group.getWorldPosition(deskWorldPos);
-        
+
         // Smooth camera lerp towards the computer monitor
         this.targetCamPos = new THREE.Vector3(deskWorldPos.x, deskWorldPos.y + 1.85, deskWorldPos.z + 1.35);
         this.targetLookAt = new THREE.Vector3(deskWorldPos.x, deskWorldPos.y + 1.82, deskWorldPos.z - 0.25);

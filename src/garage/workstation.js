@@ -229,7 +229,7 @@ export function createRetroWorkstation(THREE, { index, screenTexture, chair }) {
     group.add(deskFallback, monitorFallback, keyboardFallback, mouseFallback, lampFallback);
 
     chair.name = 'workstation_chair';
-    chair.position.set(0, 0, 0.85);
+    chair.position.set(0, 0, 0.89);
     chair.traverse(object => {
         if (object.isMesh) object.receiveShadow = true;
     });
