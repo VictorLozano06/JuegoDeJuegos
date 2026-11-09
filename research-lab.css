@@ -551,13 +551,22 @@
 }
 
 /* Branch color accents */
-.branch-render .rd-progress-fill, .branch-render { --branch-color: #00d2ff; }
-.branch-physics .rd-progress-fill, .branch-physics { --branch-color: #f59e0b; }
-.branch-netcode .rd-progress-fill, .branch-netcode { --branch-color: #10b981; }
-.branch-ai .rd-progress-fill, .branch-ai { --branch-color: #c084fc; }
-.branch-audio .rd-progress-fill, .branch-audio { --branch-color: #ec4899; }
-.branch-content .rd-progress-fill, .branch-content { --branch-color: #06b6d4; }
-.branch-systems .rd-progress-fill, .branch-systems { --branch-color: #3b82f6; }
+.branch-graphics .rd-progress-fill, .branch-graphics { --branch-color: #0284c7; }
+.branch-story .rd-progress-fill, .branch-story { --branch-color: #8b5cf6; }
+.branch-engine .rd-progress-fill, .branch-engine { --branch-color: #f97316; }
+.branch-gameplay .rd-progress-fill, .branch-gameplay { --branch-color: #10b981; }
+.branch-dialogues .rd-progress-fill, .branch-dialogues { --branch-color: #ec4899; }
+.branch-level_design .rd-progress-fill, .branch-level_design { --branch-color: #06b6d4; }
+.branch-ai .rd-progress-fill, .branch-ai { --branch-color: #6366f1; }
+.branch-world_design .rd-progress-fill, .branch-world_design { --branch-color: #14b8a6; }
+.branch-sound .rd-progress-fill, .branch-sound { --branch-color: #3b82f6; }
+
+.branch-render .rd-progress-fill, .branch-render { --branch-color: #0284c7; }
+.branch-physics .rd-progress-fill, .branch-physics { --branch-color: #10b981; }
+.branch-netcode .rd-progress-fill, .branch-netcode { --branch-color: #f97316; }
+.branch-audio .rd-progress-fill, .branch-audio { --branch-color: #3b82f6; }
+.branch-content .rd-progress-fill, .branch-content { --branch-color: #8b5cf6; }
+.branch-systems .rd-progress-fill, .branch-systems { --branch-color: #f97316; }
 
 .rd-progress-fill {
     background: var(--branch-color, #38bdf8);

@@ -3923,9 +3923,11 @@ function renderResearchSummary(mgr, historicalYear) {
             : '<span class="rd-unlock-chip">Módulo de producción de alta calidad</span>';
 
         const branchNames = {
-            render: 'Render & Gráficos', physics: 'Físicas & Dinámica', netcode: 'Netcode & Red', net: 'Netcode & Red',
-            ai: 'Inteligencia Artificial', audio: 'Audio & Sonido', content: 'Contenido & Narrativa',
-            systems: 'Sistemas & Motor'
+            graphics: 'Gráfico', story: 'Historia / Misiones', engine: 'Motor', gameplay: 'Jugabilidad',
+            dialogues: 'Diálogos', level_design: 'Diseño de Nivel', ai: 'Inteligencia Artificial',
+            world_design: 'Diseño de Mundo', sound: 'Sonido',
+            render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
+            audio: 'Sonido', content: 'Historia / Misiones', systems: 'Motor'
         };
         const branchLabel = branchNames[heroNode.category] || heroNode.category;
         const canAfford = game.researchPoints >= (heroNode.costRP || 30);
@@ -3966,8 +3968,8 @@ function renderResearchSummary(mgr, historicalYear) {
                             ${heroUnlocksHtml}
                         </div>
                         <div class="rd-hero-meta-row">
-                            <div class="rd-hero-meta-item">Coste: <strong>${heroNode.costRP || 30} RP</strong></div>
-                            <div class="rd-hero-meta-item">Riesgo deuda: <strong>Base ${heroNode.baseDebt ?? 2}</strong></div>
+                            <div class="rd-hero-meta-item">Coste I+D: <strong>${heroNode.costRP || 30} RP</strong></div>
+                            <div class="rd-hero-meta-item">Coste en Motor: <strong>${heroNode.costK || 10}K Cr.</strong></div>
                             <div class="rd-hero-meta-item">Aparición histórica: <strong>Año ${heroNode.minYear || 1982}</strong></div>
                         </div>
                     </div>
@@ -4013,8 +4015,11 @@ function renderResearchSummary(mgr, historicalYear) {
             const canAfford = game.researchPoints >= (node.costRP || 30);
             const isBusy = !!game.activeResearch;
             const branchNames = {
-                render: 'Render', physics: 'Físicas', netcode: 'Netcode', net: 'Netcode',
-                ai: 'IA', audio: 'Audio', content: 'Contenido', systems: 'Sistemas'
+                graphics: 'Gráfico', story: 'Historia', engine: 'Motor', gameplay: 'Jugabilidad',
+                dialogues: 'Diálogos', level_design: 'Nivel', ai: 'IA',
+                world_design: 'Mundo', sound: 'Sonido',
+                render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
+                audio: 'Sonido', content: 'Historia', systems: 'Motor'
             };
             const branch = branchNames[node.category] || node.category;
 
@@ -4030,7 +4035,7 @@ function renderResearchSummary(mgr, historicalYear) {
                         ${unlocksSnippet}
                     </div>
                     <div class="rd-card-footer">
-                        <span class="rd-card-debt">Deuda: <span>+${node.baseDebt ?? 2}</span></span>
+                        <span class="rd-card-debt">Motor: <span>${node.costK || 10}K Cr.</span></span>
                         <button type="button" class="rd-btn-investigate" ${!canAfford || isBusy ? 'disabled' : ''} onclick="window.startTechResearch('${node.id}')">
                             ${isBusy ? 'Ocupado' : !canAfford ? 'Faltan RP' : 'Investigar'}
                         </button>
@@ -4040,15 +4045,17 @@ function renderResearchSummary(mgr, historicalYear) {
         }).join('');
     }
 
-    // 6. Studio Technology Progression
+    // 6. Studio Technology Progression (9 Categorías del Motor de Videojuegos)
     const branches = [
-        { id: 'render', name: 'Render & Gráficos', icon: '[[DE_ICON_054]]', match: ['render', 'Graphics'] },
-        { id: 'physics', name: 'Físicas & Dinámica', icon: '[[DE_ICON_055]]', match: ['physics', 'Physics'] },
-        { id: 'netcode', name: 'Netcode & Red', icon: '[[DE_ICON_020]]', match: ['net', 'netcode', 'Network'] },
+        { id: 'graphics', name: 'Gráfico', icon: '[[DE_ICON_054]]', match: ['graphics', 'render', 'Graphics'] },
+        { id: 'story', name: 'Historia / Misiones', icon: '[[DE_ICON_057]]', match: ['story', 'content'] },
+        { id: 'engine', name: 'Motor', icon: '[[DE_ICON_049]]', match: ['engine', 'systems', 'Engine'] },
+        { id: 'gameplay', name: 'Jugabilidad', icon: '[[DE_ICON_070]]', match: ['gameplay', 'physics', 'Physics'] },
+        { id: 'dialogues', name: 'Diálogos', icon: '[[DE_ICON_024]]', match: ['dialogues'] },
+        { id: 'level_design', name: 'Diseño de Nivel', icon: '[[DE_ICON_055]]', match: ['level_design'] },
         { id: 'ai', name: 'Inteligencia Artificial', icon: '[[DE_ICON_056]]', match: ['ai', 'AI'] },
-        { id: 'audio', name: 'Audio & Sonido', icon: '[[DE_ICON_045]]', match: ['audio', 'Audio'] },
-        { id: 'content', name: 'Contenido & Diseño', icon: '[[DE_ICON_057]]', match: ['content'] },
-        { id: 'systems', name: 'Sistemas & Motor', icon: '[[DE_ICON_049]]', match: ['systems', 'Engine'] }
+        { id: 'world_design', name: 'Diseño de Mundo', icon: '[[DE_ICON_066]]', match: ['world_design'] },
+        { id: 'sound', name: 'Sonido', icon: '[[DE_ICON_045]]', match: ['sound', 'audio', 'Audio'] }
     ];
 
     let leadingBranch = null;
@@ -4537,14 +4544,40 @@ function renderResearchMap(mgr, year, centerSelection = false) {
     const host = document.getElementById('tech-tree-branches-container');
     if (!host) return;
     const priorSearch = host.querySelector('#research-map-search')?.value || '';
-    const categoryFilter = {render:['render','Graphics'],physics:['physics','Physics'],netcode:['net','netcode','Network'],ai:['ai','AI'],audio:['audio','Audio'],content:['content'],systems:['systems','Engine']};
-    const historical = mgr.catalog.filter(n => activeTechBranchFilter === 'all' || (categoryFilter[activeTechBranchFilter] || []).includes(n.category));
+    const categoryFilter = {
+        graphics: ['graphics', 'render', 'Graphics'],
+        story: ['story', 'content'],
+        engine: ['engine', 'systems', 'Engine'],
+        gameplay: ['gameplay'],
+        dialogues: ['dialogues'],
+        level_design: ['level_design'],
+        ai: ['ai', 'AI'],
+        world_design: ['world_design', 'physics', 'Physics'],
+        sound: ['sound', 'audio', 'Audio']
+    };
+    const historical = mgr.catalog.filter(n => {
+        if (activeTechBranchFilter === 'all') return true;
+        const valid = categoryFilter[activeTechBranchFilter] || [activeTechBranchFilter];
+        return valid.includes(n.category);
+    });
     const selected = historical.find(n => n.id === researchSelectedId) || historical.find(n => mgr.getNodeState(n.id, year).canResearch) || historical[0];
     if (!selected) return;
     const selectionChanged = selected.id !== researchSelectedId;
     researchSelectedId = selected.id;
     const categories = [...new Set(historical.map(n => n.category))];
     const state = mgr.getNodeState(selected.id, year);
+    const CATEGORY_NAMES = {
+        graphics: 'Gráficos',
+        story: 'Historia / Misiones',
+        engine: 'Motor',
+        gameplay: 'Jugabilidad',
+        dialogues: 'Diálogos',
+        level_design: 'Diseño de Nivel',
+        ai: 'I.A.',
+        world_design: 'Diseño de Mundo',
+        sound: 'Sonido'
+    };
+    const categoryLabel = CATEGORY_NAMES[selected.category] || selected.category;
     const safe = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
     const positions = new Map();
     historical.forEach((node, i) => { const lane = categories.indexOf(node.category); const same = historical.slice(0, i).filter(n => n.category === node.category && n.minYear === node.minYear).length; positions.set(node.id, {x: 30 + ((node.minYear || 1982) - 1982) * 165, y: 35 + lane * 150 + same * 60}); });
@@ -4619,13 +4652,14 @@ function renderResearchMap(mgr, year, centerSelection = false) {
             </div>
             <aside class="research-detail">
                 <div>
-                    <span class="research-detail-kicker">${safe(selected.category)} · Año ${selected.minYear || 1982}</span>
+                    <span class="research-detail-kicker">${safe(categoryLabel)} · Año ${selected.minYear || 1982}</span>
                     <h3>${state.isHistoricalLock ? 'Tecnología futura' : safe(selected.name)}</h3>
                     <div class="research-detail-status ${statusClass}">${statusText}</div>
                     ${state.isHistoricalLock ? `<p style="color:#94a3b8;font-size:12px;">${safe(state.reason)}</p>` : `
                         <p style="font-size:12px;color:#cbd5e1;line-height:1.4;">${safe(selected.desc || 'Módulo técnico para videojuegos y motores de juego.')}</p>
                         <div class="research-detail-section-title">Parámetros de I+D</div>
-                        <p style="font-size:12px;margin:4px 0;"><b>Coste:</b> ${selected.costRP ?? 0} RP · <b>Disponibles:</b> ${game.researchPoints} RP</p>
+                        <p style="font-size:12px;margin:4px 0;"><b>Coste de investigación:</b> ${selected.costRP ?? 0} RP · <b>Disponibles:</b> ${game.researchPoints} RP</p>
+                        ${selected.costK ? `<p style="font-size:12px;margin:4px 0;"><b>Coste en motor:</b> <span style="color:#ef4444;font-weight:700;">${selected.costK}K Cr.</span></p>` : ''}
                         <p style="font-size:12px;margin:4px 0;"><b>Deuda técnica base:</b> ${selected.baseDebt ?? 2}</p>
                         
                         <div class="research-detail-section-title">Prerrequisitos</div>

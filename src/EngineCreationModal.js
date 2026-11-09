@@ -28,6 +28,7 @@ const CATEGORY_SVGS = {
 const CHECK_ICON_SVG = '<svg viewBox="0 0 16 16" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-6"/></svg>';
 const INACTIVE_ICON_SVG = '<svg viewBox="0 0 16 16" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>';
 const CLOSE_ICON_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg>';
+const LOCK_ICON_SVG = '<svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor" aria-hidden="true"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>';
 
 export class EngineCreationModal {
     /**
@@ -73,7 +74,8 @@ export class EngineCreationModal {
         this.element = null;
         this._keyListener = null;
 
-        this.selectedPartIds = new Set(['graphics_2d_v1', 'engine_save_game']);
+        const defaultParts = ['graphics_2d_v1', 'engine_save_game'].filter(id => !this.game?.techTreeManager || this.game.techTreeManager.isUnlocked(id));
+        this.selectedPartIds = new Set(defaultParts);
         this.activeCategory = 'all';
         this.engineName = '';
         this.cardElements = new Map();
@@ -314,11 +316,23 @@ export class EngineCreationModal {
      */
     createPartCard(part, category) {
         const card = document.createElement('div');
-        const isSelected = this.selectedPartIds.has(part.id);
-        card.className = `engine-part-card ${isSelected ? 'is-selected' : ''}`;
+        const isUnlocked = !this.game?.techTreeManager || this.game.techTreeManager.isUnlocked(part.id);
+        const isSelected = isUnlocked && this.selectedPartIds.has(part.id);
+
+        let cardClasses = 'engine-part-card';
+        if (!isUnlocked) {
+            cardClasses += ' is-locked';
+        } else if (isSelected) {
+            cardClasses += ' is-selected';
+        }
+        card.className = cardClasses;
         card.dataset.partId = part.id;
         card.setAttribute('role', 'checkbox');
         card.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        if (!isUnlocked) {
+            card.setAttribute('aria-disabled', 'true');
+            card.title = 'Requiere investigar en Laboratorio de I+D';
+        }
         card.tabIndex = 0;
 
         const left = document.createElement('div');
@@ -344,13 +358,20 @@ export class EngineCreationModal {
 
         const indicator = document.createElement('span');
         indicator.className = 'engine-status-indicator';
-        indicator.innerHTML = isSelected ? CHECK_ICON_SVG : INACTIVE_ICON_SVG;
+        indicator.innerHTML = !isUnlocked ? LOCK_ICON_SVG : (isSelected ? CHECK_ICON_SVG : INACTIVE_ICON_SVG);
 
         right.append(costEl, indicator);
         card.append(left, right);
 
         // Al hacer clic, conmuta y aplica sustitución progresiva si corresponde
         const handleToggle = () => {
+            const currentlyUnlocked = !this.game?.techTreeManager || this.game.techTreeManager.isUnlocked(part.id);
+            if (!currentlyUnlocked) {
+                if (typeof window !== 'undefined' && typeof window.showToast === 'function') {
+                    window.showToast(`[[DE_ICON_093]] Debes investigar "${part.name}" en el Laboratorio de I+D antes de incluirla en tu motor.`, 'warn');
+                }
+                return;
+            }
             this.togglePart(part.id);
         };
 
@@ -386,7 +407,17 @@ export class EngineCreationModal {
         const item = this.cardElements.get(partId);
         if (!item) return;
 
+        const isUnlocked = !this.game?.techTreeManager || this.game.techTreeManager.isUnlocked(partId);
+        if (!isUnlocked) {
+            item.card.classList.add('is-locked');
+            item.card.classList.remove('is-selected');
+            item.card.setAttribute('aria-checked', 'false');
+            item.indicator.innerHTML = LOCK_ICON_SVG;
+            return;
+        }
+
         const isSelected = this.selectedPartIds.has(partId);
+        item.card.classList.remove('is-locked');
         item.card.classList.toggle('is-selected', isSelected);
         item.card.setAttribute('aria-checked', isSelected ? 'true' : 'false');
         item.indicator.innerHTML = isSelected ? CHECK_ICON_SVG : INACTIVE_ICON_SVG;

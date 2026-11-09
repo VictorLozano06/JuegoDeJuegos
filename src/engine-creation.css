@@ -265,6 +265,33 @@
     box-shadow: 0 2px 8px rgba(2, 132, 199, 0.15);
 }
 
+.engine-part-card.is-locked {
+    opacity: 0.6;
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    cursor: not-allowed;
+}
+
+.engine-part-card.is-locked:hover {
+    background: #f8fafc;
+    border-color: #e2e8f0;
+    transform: none;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.engine-part-card.is-locked .engine-card-name {
+    color: #64748b;
+}
+
+.engine-part-card.is-locked .engine-card-cost {
+    color: #94a3b8;
+}
+
+.engine-part-card.is-locked .engine-status-indicator {
+    background: #e2e8f0;
+    color: #94a3b8;
+}
+
 .engine-card-left {
     display: flex;
     align-items: center;
