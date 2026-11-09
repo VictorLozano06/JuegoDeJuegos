@@ -216,10 +216,9 @@ function replaceGame(game, savedState) {
 
     const mergedUnlocked = new Set(freshManager.unlockedTechs);
     for (const id of savedUnlocked) {
+        mergedUnlocked.add(id);
         if (LEGACY_TECH_MAP[id]) {
             mergedUnlocked.add(LEGACY_TECH_MAP[id]);
-        } else if (freshManager.catalogMap.has(id)) {
-            mergedUnlocked.add(id);
         }
     }
     liveManager.unlockedTechs = mergedUnlocked;
