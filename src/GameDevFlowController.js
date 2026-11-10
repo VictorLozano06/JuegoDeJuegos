@@ -667,7 +667,7 @@ export class GameDevFlowController {
         if (this.pendingBubble) return;
 
         const empCount = (this.game?.employees?.length) || 1;
-        const targetEmp = Math.floor(Math.random() * Math.max(1, Math.min(4, empCount)));
+        const targetEmp = Math.floor(Math.random() * Math.max(1, empCount));
 
         const changed = [['tech', techDelta], ['design', designDelta], ['bug', bugDelta]]
             .filter(([, delta]) => delta > 0);

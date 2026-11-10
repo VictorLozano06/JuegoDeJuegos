@@ -22,6 +22,7 @@ import { prepareCompanyLogo, renderCompanyLogo } from './company-logo.js';
 import { ensureBasicEngine } from './basic-engine.js';
 import { CALENDAR_WEEK_MS, DEVELOPMENT_TICK_MS, updateExpoSchedule, hasExpoInvitation, resolveExpoInvitation } from './expo-schedule.js';
 import { renderOfficeManager } from './office-ui.js';
+import { PARK_BUILDINGS } from './office/pera-park.js';
 import { resetGame, saveSystem } from './SaveSystem.js';
 import { version } from '../package.json';
 import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeData.js';
@@ -159,6 +160,7 @@ async function bootGameApp() {
 
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
+        world.onParkDestination = visitParkBuilding;
         world.loadingScreenActive = Boolean(loadingScreenInstance);
         world.onNodeClick(on3DNodeClicked);
 
@@ -364,6 +366,45 @@ function syncStudioScene(state) {
         world.syncEmployees(state.employees);
         lastRenderedEmployeeCount = state.employees.length;
     }
+    syncParkNavigation();
+}
+
+function syncParkNavigation() {
+    const nav = document.getElementById('park-navigation');
+    const location = appState === STATE_PLAYING ? world?.parkLocation : null;
+    nav.hidden = !location;
+    if (!location || nav.dataset.location === location) return;
+    nav.dataset.location = location;
+    const building = PARK_BUILDINGS[location];
+    document.getElementById('park-location-title').textContent = building?.name ?? 'Paseo del campus';
+    document.getElementById('park-location-detail').textContent = building?.detail ?? 'Elige un edificio o pulsa su entrada en el anillo.';
+    const routes = location === 'grounds'
+        ? Object.entries(PARK_BUILDINGS)
+        : [['grounds', { name: 'Volver al exterior', color: 0x74d6b2 }]];
+    document.getElementById('park-routes').replaceChildren(...routes.map(([id, destination]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = destination.name;
+        button.style.setProperty('--route-color', '#' + destination.color.toString(16).padStart(6, '0'));
+        if (destination.detail === 'Próximamente') {
+            const tag = document.createElement('small');
+            tag.textContent = destination.detail;
+            button.append(tag);
+        }
+        button.addEventListener('click', () => visitParkBuilding(id));
+        return button;
+    }));
+}
+
+function visitParkBuilding(destination) {
+    if (appState !== STATE_PLAYING || !world?.parkLocation || world.viewMode !== 'office') return;
+    if (destination !== 'grounds' && !Object.hasOwn(PARK_BUILDINGS, destination)) return;
+    if (destination === world.parkLocation) return;
+    closeStudioRadio();
+    world.buildOffice(world.currentEra, destination);
+    soundEngine.playClick();
+    syncParkNavigation();
+    document.getElementById('park-location-title')?.focus();
 }
 
 async function enterGameplay({ checkpoint = false } = {}) {
@@ -408,6 +449,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
     }
     appState = STATE_PLAYING;
     document.getElementById('ui-overlay')?.removeAttribute('inert');
+    syncParkNavigation();
     if (gameDevFlow) {
         gameDevFlow.showTopHUD();
     }
@@ -428,6 +470,7 @@ function returnToMainMenu() {
     if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
     appState = STATE_MAIN_MENU;
     document.getElementById('ui-overlay')?.setAttribute('inert', '');
+    syncParkNavigation();
     if (gameDevFlow) {
         gameDevFlow.hideTopHUD();
     }
@@ -545,6 +588,7 @@ function setupKeyboardShortcuts() {
 
         const key = typeof e.key === 'string' ? e.key.toLowerCase() : '';
 
+        if (e.code === 'Space' && document.activeElement.closest('.park-routes')) return;
         if (e.code === 'Space') {
             e.preventDefault();
             // Toggle pause / 1x speed

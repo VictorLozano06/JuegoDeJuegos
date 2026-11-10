@@ -3599,7 +3599,7 @@ class TycoonGame {
             const isActive = this.activeOfficeId === office.id;
             const fitsStaff = this.employees.length <= office.maxEmployees;
             const requiredFunds = Math.max(office.cost, office.minFunds ?? 0);
-            const meetsFunds = Number.isFinite(this.funds) && this.funds >= requiredFunds;
+            const meetsFunds = requiredFunds === 0 || (Number.isFinite(this.funds) && this.funds >= requiredFunds);
             const meetsGames = this.gamesHistory.length >= (office.minGames ?? 0);
             const meetsScore = !office.minScore || this.gamesHistory.some(game => game.score >= office.minScore);
             const prerequisite = findOffice(office.requiresOffice);
@@ -3646,7 +3646,7 @@ class TycoonGame {
 
     #moveToOffice(office) {
         this.activeOfficeId = office.id;
-        this.era = office.tier;
+        this.era = office.simulationEra ?? office.tier;
         soundEngine.playLevelUp();
         this.notify();
         return {
@@ -3659,7 +3659,7 @@ class TycoonGame {
     }
 
     canUpgradeOffice() {
-        const target = this.getOffices().find(office => office.requiresOffice === this.activeOfficeId);
+        const target = this.getOffices().find(office => office.tier === this.getActiveOffice().tier + 1);
         if (!target) return { canUpgrade: false, message: 'Ya posees el complejo tecnológico más avanzado.' };
         return {
             ...target,

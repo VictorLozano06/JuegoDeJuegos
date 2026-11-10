@@ -1,6 +1,6 @@
 import { ensureProduction } from './production.js';
 import { InHouseEngine, ScopeDAG, ScopeNode, TechnicalDebtModel, TechTreeManager } from './dag_engine.js';
-import { migrateOfficeState } from './data/offices.js';
+import { findOffice, migrateOfficeState } from './data/offices.js';
 import { ensureBasicEngine } from './basic-engine.js';
 
 const VERSION = 1;
@@ -255,7 +255,7 @@ function readSlot(storage, id) {
 
 function slotSummary({ state, version, ...summary }, officeState = summary) {
     const { activeOfficeId, unlockedOfficeIds, era } = officeState;
-    return { ...summary, activeOfficeId, unlockedOfficeIds, currentOffice: era ?? summary.currentOffice };
+    return { ...summary, activeOfficeId, unlockedOfficeIds, currentOffice: findOffice(activeOfficeId)?.tier ?? era ?? summary.currentOffice };
 }
 
 function writeSlot(storage, slot, officeState) {
@@ -316,7 +316,7 @@ export class SaveSystem {
             reputation: game.reputation ?? 50,
             founderData: { ...game.founder, customization: { ...game.characterCustomization } },
             gamesHistory: game.gamesHistory.map(({ id: gameId, name, score }) => ({ id: gameId, name, score })),
-            currentOffice: state.era,
+            currentOffice: game.getActiveOffice().tier,
             activeOfficeId: state.activeOfficeId,
             unlockedOfficeIds: state.unlockedOfficeIds,
             lastGame: game.gamesHistory[0]?.name ?? null,

@@ -3,6 +3,7 @@ import { applyOfficeLighting } from './garage/lighting.js';
 import { createRetroWorkstation } from './garage/workstation.js';
 import { buildModernOffice } from './office/modern.js';
 import { createModernPeripherals } from './office/peripherals.js';
+import { buildPeraPark, buildParkReception, PARK_BUILDINGS } from './office/pera-park.js';
 import { OFFICE_CATALOG, STARTING_OFFICE } from './data/offices.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
 import { createEmployeeFace } from './characters/face.js';
@@ -19,8 +20,19 @@ const SHADOW_REFRESH_INTERVAL = 1 / 12;
 const OFFICE_SCENES = {
     garage: { build: buildGarageLayout, position: [11, 7.3, 8], target: [0, 1, 0] },
     modern: { build: buildModernOffice, position: [13, 14, 16], target: [0, 0.95, -0.45] },
-    campus: { build: world => world.buildCyberCampusEra(), position: [16, 9, -7], target: [0, 1, 0] }
+    campus: { build: world => world.buildCyberCampusEra(), position: [20, 18, 20], target: [0, 1, -0.5] },
+    'pera-park': { build: buildPeraPark, position: [33, 49, 43], target: [0, 0, 0], maxDistance: 130 }
 };
+const PARK_RECEPTION = { position: [9, 9, 13], target: [0, 0.7, -0.45] };
+function officeCameraPosition(framing, aspect = 1.6) {
+    const position = new THREE.Vector3(...framing.position);
+    if (framing === OFFICE_SCENES['pera-park']) {
+        const target = new THREE.Vector3(...framing.target);
+        const scale = Math.min(1.65, Math.max(1, 1.5 / aspect));
+        position.sub(target).multiplyScalar(scale).add(target);
+    }
+    return position;
+}
 const officeAtTier = tier => OFFICE_CATALOG.find(office => office.tier === tier) ?? STARTING_OFFICE;
 const CRT_CODE = [
     '> RUN DEV_EMPIRE.BAS', '10 GOSUB INIT', '20 IF KEY$="" THEN 40',
@@ -410,9 +422,11 @@ export class WorldEngine {
         this.targetCamPos = null;
         this.targetLookAt = null;
         this.isTransitioningCamera = false;
-        const framing = OFFICE_SCENES[officeAtTier(era).sceneId];
+        const framing = era === this.currentEra
+            ? { position: this.cameraOfficePos.toArray(), target: this.cameraOfficeTarget.toArray() }
+            : OFFICE_SCENES[officeAtTier(era).sceneId];
         return this.menuCamera.play(
-            new THREE.Vector3(...framing.position), new THREE.Vector3(...framing.target), revealOffice
+            officeCameraPosition(framing, this.camera.aspect), new THREE.Vector3(...framing.target), revealOffice
         );
     }
 
@@ -668,10 +682,18 @@ export class WorldEngine {
 
     // --- PROCEDURAL 3D ARCHITECTURE & STORYTELLING PROPS ---
 
-    buildOffice(era) {
+    buildOffice(era, destination = 'grounds') {
         const office = officeAtTier(era);
-        const eraChanged = office.tier !== this.currentEra;
+        const location = office.sceneId === 'pera-park'
+            ? (Object.hasOwn(PARK_BUILDINGS, destination) ? destination : 'grounds')
+            : null;
+        const sceneChanged = office.tier !== this.currentEra || location !== this.parkLocation;
         this.currentEra = office.tier;
+        this.parkLocation = location;
+        if (sceneChanged) {
+            this.previousCameraPos = null;
+            this.previousControlsTarget = null;
+        }
 
         // All props and maps in this group belong to the previous office.
         const resources = new Set();
@@ -695,14 +717,30 @@ export class WorldEngine {
         this.serverLeds = [];
         this.interactiveComputers = [];
         this.interactiveRadios = [];
+        this.interactiveParkEntrances = [];
+        this.coffeeMugPos = null;
         this.clearComputerHover();
 
-        const framing = OFFICE_SCENES[office.sceneId];
-        framing.build(this, THREE);
+        let framing = OFFICE_SCENES[office.sceneId];
+        if (location === 'studio') {
+            framing = OFFICE_SCENES.campus;
+            framing.build(this, THREE);
+        } else if (location && location !== 'grounds') {
+            framing = PARK_RECEPTION;
+            buildParkReception(this, THREE, location);
+        } else {
+            framing.build(this, THREE);
+        }
         applyOfficeLighting(this);
-        this.cameraOfficePos.set(...framing.position);
+        if (this.scene?.fog) this.scene.fog.density = location === 'grounds' ? 0.004 : 0.02;
+        if (this.controls) this.controls.maxDistance = framing.maxDistance ?? 35;
+        if (this.camera) {
+            this.camera.far = location === 'grounds' ? 210 : 100;
+            this.camera.updateProjectionMatrix();
+        }
+        this.cameraOfficePos.copy(officeCameraPosition(framing, this.camera?.aspect));
         this.cameraOfficeTarget.set(...framing.target);
-        if (eraChanged && this.viewMode === 'office' && !this.menuCamera.active) {
+        if (sceneChanged && this.viewMode === 'office' && !this.menuCamera.active) {
             this.isTransitioningCamera = true;
             this.targetCamPos = this.cameraOfficePos.clone();
             this.targetLookAt = this.cameraOfficeTarget.clone();
@@ -711,8 +749,8 @@ export class WorldEngine {
     }
 
     buildCyberCampusEra() {
-        const roomW = 16;
-        const roomD = 16;
+        const roomW = 19;
+        const roomD = 18;
 
         // High-tech reflective carbon cyber floor
         const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
@@ -727,7 +765,8 @@ export class WorldEngine {
         this.officeGroup.add(floor);
 
         // Cyber Grid Lines on floor
-        const grid = new THREE.GridHelper(roomW, 16, 0x00f3ff, 0x1e293b);
+        const grid = new THREE.GridHelper(roomW, 19, 0x285d68, 0x1e293b);
+        grid.scale.z = roomD / roomW;
         grid.position.y = 0.01;
         this.officeGroup.add(grid);
 
@@ -739,17 +778,37 @@ export class WorldEngine {
         backWall.position.set(0, 3.5, -roomD / 2);
         this.officeGroup.add(backWall);
 
-        // 6 Cyber Workstations arranged symmetrically
-        this.createDesk(-3.2, 0, -3.0, 'cyber', 0);
-        this.createDesk(0.0, 0, -3.8, 'cyber', 1);
-        this.createDesk(3.2, 0, -3.0, 'cyber', 2);
-        this.createDesk(-3.2, 0, 2.2, 'cyber', 3);
-        this.createDesk(0.0, 0, 2.8, 'cyber', 4);
-        this.createDesk(3.2, 0, 2.2, 'cyber', 5);
+        const trim = new THREE.MeshStandardMaterial({ color: 0x304755, metalness: 0.55, roughness: 0.45 });
+        const accent = new THREE.MeshBasicMaterial({ color: 0x35c3c4 });
+        const panel = new THREE.MeshStandardMaterial({ color: 0x183c4b, metalness: 0.35, roughness: 0.55 });
+        const box = (name, material, size, position) => {
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+            mesh.name = name;
+            mesh.position.set(...position);
+            mesh.receiveShadow = true;
+            this.officeGroup.add(mesh);
+            return mesh;
+        };
+        box('Panel del puesto del fundador', panel, [4.4, 2.4, 0.12], [0, 2.8, -8.72]);
+        box('Luz del fundador', accent, [4.4, 0.055, 0.06], [0, 4.05, -8.62]);
+        for (const x of [-8.5, -4.8, 4.8, 8.5]) {
+            box('Columna del campus', trim, [0.14, 5.2, 0.16], [x, 2.6, -8.70]);
+            box('Línea luminosa', accent, [0.025, 4.5, 0.035], [x, 2.65, -8.60]);
+        }
+        for (const x of [-5.1, 0, 5.1]) {
+            box('Alfombra del equipo', panel, [3.15, 0.02, 10.1], [x, 0.02, 0.3]);
+        }
 
-        this.createCoffeeStation(6.0, 0, -5.0);
-        this.addRadio(this.officeGroup, 5.45, 1.2, -5.0, true, Math.PI);
-        this.coffeeMugPos = new THREE.Vector3(6.4, 1.35, -4.9);
+        // One founder and nine team stations, with a clear aisle between rows.
+        this.createDesk(0, 0, -6.6, 'cyber', 0);
+        let index = 1;
+        for (const z of [-3.1, 0.35, 3.8]) {
+            for (const x of [-5.1, 0, 5.1]) this.createDesk(x, 0, z, 'cyber', index++);
+        }
+
+        this.createCoffeeStation(7.75, 0, -6.9);
+        this.addRadio(this.officeGroup, 7.2, 1.2, -6.9, true, Math.PI);
+        this.coffeeMugPos = new THREE.Vector3(8.15, 1.35, -6.8);
     }
 
     addRadio(parent, x, y, z, createModel = false, rotation = 0) {
@@ -2539,6 +2598,11 @@ export class WorldEngine {
 
             raycaster.setFromCamera(mouse, this.camera);
 
+            if (this.viewMode === 'office' && raycaster.intersectObjects(this.interactiveParkEntrances, false).length) {
+                this.container.style.cursor = 'pointer';
+                return;
+            }
+
             if (this.viewMode === 'office' && raycaster.intersectObjects(this.interactiveRadios, false).length) {
                 this.clearComputerHover();
                 if (this.hoveredCharacter) { this.unhighlightCharacter(this.hoveredCharacter); this.hoveredCharacter = null; }
@@ -2681,6 +2745,14 @@ export class WorldEngine {
             mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(mouse, this.camera);
+
+            if (this.viewMode === 'office') {
+                const entry = raycaster.intersectObjects(this.interactiveParkEntrances, false)[0];
+                if (entry) {
+                    this.onParkDestination?.(entry.object.userData.parkDestination);
+                    return;
+                }
+            }
 
             if (this.viewMode === 'office' && raycaster.intersectObjects(this.interactiveRadios, false).length) {
                 window.dispatchEvent(new CustomEvent('studio-radio-open'));
