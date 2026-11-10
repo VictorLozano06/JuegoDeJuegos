@@ -1171,13 +1171,13 @@ class TycoonGame {
 
     getBusinessModelOptions(selectedNodeIds = []) {
         const year = this.getHistoricalYear();
-        const onlineNode = selectedNodeIds.some(id => ['net_p2p', 'net_dedicated'].includes(id)) &&
-            selectedNodeIds.some(id => ['net_p2p', 'net_dedicated'].includes(id) && this.techTreeManager.isUnlocked(id));
+        const hasOnline = selectedNodeIds.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id)) ||
+            (this.techTreeManager && (this.techTreeManager.isUnlocked('engine_online_play') || this.techTreeManager.isUnlocked('engine_dedicated_servers') || this.techTreeManager.isUnlocked('net_dedicated')));
         return [
             { id: 'premium', label: year < 1995 ? 'Premium físico (cartucho, casete o disquete)' : 'Premium tradicional', available: true, year: 1982, detail: 'Precio fijo y venta tradicional; soporte post lanzamiento opcional.' },
             { id: 'early_access', label: 'Acceso Anticipado', available: year >= 2013, year: 2013, detail: 'Beta de 8 semanas con precio reducido; lanzamiento 1.0 posterior.' },
-            { id: 'f2p', label: 'Free-to-Play', available: year >= 2005 && onlineNode, year: 2005, requirement: onlineNode ? '' : 'Requiere un nodo online investigado y seleccionado', detail: 'Gratis; ingresos por compras dentro del juego y costes de servidores.' },
-            { id: 'live_service', label: 'Juego como Servicio', available: year >= 2013 && onlineNode, year: 2013, requirement: onlineNode ? '' : 'Requiere un nodo online investigado y seleccionado', detail: 'Temporadas trimestrales, pase de batalla y operación continua.' }
+            { id: 'f2p', label: 'Free-to-Play', available: year >= 2005 && hasOnline, year: 2005, requirement: hasOnline ? '' : 'Requiere tecnología de juego online investigada', detail: 'Gratis; ingresos por compras dentro del juego y costes de servidores.' },
+            { id: 'live_service', label: 'Juego como Servicio', available: year >= 2013 && hasOnline, year: 2013, requirement: hasOnline ? '' : 'Requiere tecnología de juego online investigada', detail: 'Temporadas trimestrales, pase de batalla y operación continua.' }
         ].map(option => ({ ...option, lockedYear: year < option.year }));
     }
 
@@ -1668,7 +1668,7 @@ class TycoonGame {
                 valid: false,
                 missing,
                 missingTech,
-                message: `[[DE_ICON_016]] El género "${genre.name}" requiere infraestructura técnica avanzada: ${missing.join(' y ')}. Selecciona un motor o arquitectura compatible antes de comenzar.`
+                message: `[[DE_ICON_016]] El género "${genre.name}" requiere características técnicas avanzadas: ${missing.join(' y ')}. Selecciona o desarrolla un motor compatible antes de comenzar.`
             };
         }
 
@@ -1762,8 +1762,8 @@ class TycoonGame {
 
         const businessModel = config.businessModel || 'premium';
         const selectedNodesForBusiness = config.selectedNodeIds || (config.dagConfig && config.dagConfig.selectedNodeIds) || [];
-        if (this.getHistoricalYear() < 1995 && selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated'].includes(id))) {
-            return { success: false, message: 'El juego online todavía no está disponible antes de 1995; elimina los nodos de red avanzada del alcance.' };
+        if (this.getHistoricalYear() < 1995 && selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id))) {
+            return { success: false, message: 'El juego online todavía no está disponible antes de 1995; elimina las funciones de red del proyecto.' };
         }
         const businessOption = this.getBusinessModelOptions(selectedNodesForBusiness).find(option => option.id === businessModel);
         if (!businessOption || !businessOption.available) {
@@ -1779,8 +1779,10 @@ class TycoonGame {
         if (['dlc', 'season_pass'].includes(postLaunchContent) && this.getHistoricalYear() < 2005) {
             return { success: false, message: 'DLC y Season Pass estarán disponibles a partir de 2005.' };
         }
-        if (businessModel === 'live_service' && !selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated'].includes(id))) {
-            return { success: false, message: 'Live-Service necesita un nodo de red online dentro del alcance del juego.' };
+        const hasOnlineForLive = selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id)) ||
+            (this.techTreeManager && (this.techTreeManager.isUnlocked('engine_online_play') || this.techTreeManager.isUnlocked('engine_dedicated_servers') || this.techTreeManager.isUnlocked('net_dedicated')));
+        if (businessModel === 'live_service' && !hasOnlineForLive) {
+            return { success: false, message: 'Live-Service necesita funciones online investigadas en el estudio.' };
         }
 
         const historicalTechIds = [...new Set([...(config.historicalTechIds || []), ...((engine && engine.historicalTechIds) || [])])];

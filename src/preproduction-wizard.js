@@ -1,9 +1,9 @@
-const stepTitles = ['Identidad', 'Concepto', 'Plataformas', 'Tecnología', 'Financiación', 'Confirmación'];
+const stepTitles = ['Identidad', 'Concepto', 'Plataformas', 'Motor', 'Financiación', 'Confirmación'];
 const descriptions = [
     'Define el juego y la franquicia a la que pertenecerá.',
     'Elige la idea, el género y a quién quieres llegar.',
     'Escoge el hardware en el que debutará el juego.',
-    'Configura el motor y la arquitectura de producción.',
+    'Elige el motor con el que desarrollarás el proyecto.',
     'Decide cómo se financiará y venderá el proyecto.',
     'Autoriza la producción con todos los costes y riesgos a la vista.'
 ];
@@ -193,12 +193,8 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         platformEmpty.hidden = visibleCount !== 0;
     }
     platformSearch.addEventListener('input', renderPlatforms);
-    const architecture = document.createElement('details');
-    architecture.className = 'preprod-architecture';
-    const architectureSummary = document.createElement('summary');
-    architectureSummary.textContent = 'Configurar arquitectura y tecnologías';
-    architecture.append(architectureSummary, dagSection);
-    steps[3].section.append(pipelineSection, architecture);
+    steps[3].section.append(pipelineSection);
+    if (dagSection) dagSection.style.display = 'none';
     pipelineSection.querySelector('h3').textContent = 'Motor de desarrollo';
     steps[4].section.append(financeSection);
     financeSection.querySelector('h3').textContent = 'Acuerdo de publicación';
@@ -234,7 +230,6 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         if (index === 2 && !selectedOption('select-platform')) return 'Selecciona una plataforma disponible.';
         if (index === 3) {
             if (!getPipeline()) return 'Necesitas un motor disponible. Desarróllalo en I+D si aún no tienes uno.';
-            if (getScope().selectedNodeIds.size < 3) return 'Selecciona al menos tres nodos de arquitectura.';
             const genreCheck = game.validateGenreTechRequirements(document.getElementById('select-genre').value, {
                 selectedNodeIds: [...getScope().selectedNodeIds], dagConfig: { pipeline: getPipeline() }
             });
@@ -278,14 +273,14 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         addSummary('Propiedad intelectual', mode.value === 'new' ? `Nueva IP: ${document.getElementById('preprod-new-ip-name').value.trim()}` : mode.value === 'existing' ? `${text('select-ip')} · ${text('select-ip-installment')}` : 'Juego independiente', 0);
         addSummary('Concepto', `${text('select-topic')} · ${text('select-genre')} · ${text('select-audience')}`, 1);
         addSummary('Lanzamiento', text('select-platform'), 2);
-        addSummary('Motor y alcance', `${pipe?.name || 'Sin motor'} · ${getScope().selectedNodeIds.size} nodos`, 3);
+        addSummary('Motor de desarrollo', pipe?.name || 'Sin motor', 3);
         addSummary('Tecnologías', getTechnologyNames?.(getHistoricalTechs())?.join(', ') || 'Sin módulos históricos adicionales', 3);
         addSummary('Publicación', `${document.querySelector('input[name="publishing-contract"]:checked')?.closest('label')?.querySelector('strong')?.textContent || 'Autopublicación'} · ${document.querySelector('input[name="business-model"]:checked')?.closest('label')?.querySelector('.business-model-title')?.textContent || 'Premium'}`, 4);
         addSummary('Postlanzamiento', `${text('select-post-launch-content')} · Parches ${document.getElementById('toggle-postlaunch-patches').checked ? 'sí' : 'no'} · Monetización ${text('select-monetization-style')}`, 4);
         addSummary('Coste inicial', money(budget.cost), 4);
         addSummary('Fondos disponibles', money(budget.funds), 4);
         addSummary('Anticipo / saldo previsto', `${money(budget.advance)} / ${money(budget.remaining)}`, 4);
-        addSummary('Deuda técnica estimada', `${pipe?.baseDebtFloor || 0} pts de base · fricción ${getScope().calculateFriction(pipe?.frictionMultiplier || 1).frictionPercent}%`, 3);
+        addSummary('Deuda técnica base', `${pipe?.baseDebtFloor || 0} pts`, 3);
         addSummary('Requisitos pendientes', [0, 1, 2, 3, 4].map(validate).filter(Boolean).join(' · ') || 'Ninguno', 3);
         const warning = document.createElement('p'); warning.className = 'preprod-help';
         warning.textContent = budget.funds < budget.cost ? 'Fondos insuficientes para autorizar la producción. El anticipo se abona después del pago inicial.' : 'Todos los costes se aplicarán al iniciar el desarrollo.';
@@ -316,7 +311,6 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         steps[index].section.querySelector('h3').focus({ preventScroll: true });
     }
     function sync() {
-        architectureSummary.textContent = `Configurar arquitectura y tecnologías · ${getScope().selectedNodeIds.size} nodos`;
         choiceControls.forEach(render => render());
         if (current === 5) renderSummary();
         for (let i = 0; i < 5; i++) {

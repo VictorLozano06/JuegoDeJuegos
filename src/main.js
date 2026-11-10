@@ -2274,14 +2274,8 @@ function startProjectFromWizard() {
     const friction = scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
     const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
-    if (scopeDAG.selectedNodeIds.size < 3) {
-        preproductionWizard.setError('Selecciona al menos tres nodos de arquitectura.', 3);
-        preproductionWizard.doneSubmitting();
-        return;
-    }
-
     const dagConfig = {
-        selectedNodeIds: Array.from(scopeDAG.selectedNodeIds),
+        selectedNodeIds: Array.from(scopeDAG.selectedNodeIds || []),
         friction: friction,
         workload: workload,
         pipeline: activePipeline
