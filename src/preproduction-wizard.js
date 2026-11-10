@@ -234,7 +234,6 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         if (index === 2 && !selectedOption('select-platform')) return 'Selecciona una plataforma disponible.';
         if (index === 3) {
             if (!getPipeline()) return 'Necesitas un motor disponible. Desarróllalo en I+D si aún no tienes uno.';
-            if (getScope().selectedNodeIds.size < 3) return 'Selecciona al menos tres nodos de arquitectura.';
             const genreCheck = game.validateGenreTechRequirements(document.getElementById('select-genre').value, {
                 selectedNodeIds: [...getScope().selectedNodeIds], dagConfig: { pipeline: getPipeline() }
             });

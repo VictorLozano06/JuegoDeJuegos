@@ -1915,8 +1915,10 @@ class TycoonGame {
             stage: 1, // 1, 2, 3, 4 (polish/bugfix)
             stageProgress: 0,
             overallProgress: 0,
-            techPoints: engineTechBonus,
-            designPoints: engineDesignBonus,
+            techPoints: 0,
+            designPoints: 0,
+            engineTechBonus,
+            engineDesignBonus,
             bugs: 0,
             sliders: sliders,
             devCostTotal: totalDevCost,
@@ -2092,6 +2094,7 @@ class TycoonGame {
             if (p.bugs > 0) {
                 p.bugs = Math.max(0, p.bugs - bugReduction);
             }
+            if (staff.length && Math.random() < 0.12) p.bugs += 1;
             if (p.techDebtModel) {
                 p.techDebtModel.rawDebt = Math.max(0, (p.techDebtModel.rawDebt || 0) - bugReduction);
             }
@@ -2146,6 +2149,8 @@ class TycoonGame {
             if (techKeys.includes(key)) tech+=amount; else if (key!=='bugs') design+=amount;
             if (key==='bugs') p.bugs=Math.max(0,p.bugs-amount*.3/(1+Math.max(0,p.techDebtModel?.rawDebt||0)/50));
         }
+        tech *= 1 + (p.engineTechBonus || 0) / 100;
+        design *= 1 + (p.engineDesignBonus || 0) / 100;
         p.techPoints+=tech; p.designPoints+=design;
         const node = activeNodes.find(item => !item.completed);
         if (node && effort > 0) {
@@ -2162,7 +2167,8 @@ class TycoonGame {
             }
             node.updateCompletionState();
         }
-        if (stage<3) p.bugs+=(effort*.06)*(p.devMode==='crunch'?1.8:1);
+        if (staff.length && p.bugs > 0) p.bugs = Math.max(0, p.bugs - Math.max(0.5, weighted * 0.3));
+        if (effort > 0 && Math.random() < (p.devMode === 'crunch' ? 0.4 : 0.25)) p.bugs += 1;
         const scope=Math.sqrt(Math.max(1,(p.disciplineWorkloads?.totalSum||105)/105));
         const step=effort*10/scope;
         p.stageProgress=Math.min(100,(p.stageProgress||0)+step);

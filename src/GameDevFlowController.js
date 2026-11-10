@@ -478,6 +478,7 @@ export class GameDevFlowController {
         this.lastTech = 0;
         this.lastDesign = 0;
         this.lastBugs = 0;
+        this.pendingBubble = null;
 
         // Ensure top HUD is initialized on creation
         this.renderTopHUD();
@@ -488,15 +489,16 @@ export class GameDevFlowController {
      */
     initProject(project) {
         if (!project) return;
+        this.pendingBubble = null;
         this.project = project;
         this.project.lifecycleState = ProductionLifecycleState.STAGE_1_INPUT;
         this.state = ProductionLifecycleState.STAGE_1_INPUT;
         this.project.stage = 1;
         this.project.stageProgress = 0;
         this.project.overallProgress = 0;
-        this.lastTech = project.techPoints || 0;
-        this.lastDesign = project.designPoints || 0;
-        this.lastBugs = project.bugs || 0;
+        this.lastTech = Math.round(Number(project.techPoints) || 0);
+        this.lastDesign = Math.round(Number(project.designPoints) || 0);
+        this.lastBugs = Math.round(Number(project.bugs) || 0);
 
         this.closeCurrentModal();
 
@@ -594,6 +596,12 @@ export class GameDevFlowController {
      * Synchronizes HUD and stage gates with simulation progress.
      */
     syncWithProject(project) {
+        if (project !== this.project) {
+            this.pendingBubble = null;
+            this.lastTech = Math.round(Number(project?.techPoints) || 0);
+            this.lastDesign = Math.round(Number(project?.designPoints) || 0);
+            this.lastBugs = Math.round(Number(project?.bugs) || 0);
+        }
         this.project = project;
 
         if (!project) {
@@ -607,6 +615,14 @@ export class GameDevFlowController {
         }
 
         const overall = Math.min(100, Math.max(0, Number(project.overallProgress) || 0));
+
+        const currentTech = Math.round(Number(project.techPoints) || 0);
+        const currentDesign = Math.round(Number(project.designPoints) || 0);
+        const currentBugs = Math.round(Number(project.bugs) || 0);
+        this.emitPointBubbles(currentTech - this.lastTech, currentDesign - this.lastDesign, currentBugs - this.lastBugs);
+        this.lastTech = currentTech;
+        this.lastDesign = currentDesign;
+        this.lastBugs = currentBugs;
 
         // Progress threshold checks
         if (this.state === ProductionLifecycleState.STAGE_1_WORK && overall >= 33.3) {
@@ -643,40 +659,30 @@ export class GameDevFlowController {
             return;
         }
 
-        // Emit procedural 3D bubbles on points change
-        const currentTech = Number(project.techPoints) || 0;
-        const currentDesign = Number(project.designPoints) || 0;
-        const currentBugs = Number(project.bugs) || 0;
-
-        const techDelta = currentTech - this.lastTech;
-        const designDelta = currentDesign - this.lastDesign;
-        const bugDelta = currentBugs - this.lastBugs;
-
-        if (techDelta > 0 || designDelta > 0 || bugDelta > 0) {
-            this.emitPointBubbles(techDelta, designDelta, bugDelta);
-            this.lastTech = currentTech;
-            this.lastDesign = currentDesign;
-            this.lastBugs = currentBugs;
-        }
-
         this.updateTopHUD();
     }
 
     emitPointBubbles(techDelta, designDelta, bugDelta) {
         if (!this.world || typeof this.world.spawnDevelopmentBubble !== 'function') return;
+        if (this.pendingBubble) return;
 
         const empCount = (this.game?.employees?.length) || 1;
         const targetEmp = Math.floor(Math.random() * Math.max(1, Math.min(4, empCount)));
 
-        if (techDelta > 0) {
-            this.world.spawnDevelopmentBubble('tech', targetEmp);
-        }
-        if (designDelta > 0) {
-            this.world.spawnDevelopmentBubble('design', targetEmp);
-        }
-        if (bugDelta > 0) {
-            this.world.spawnDevelopmentBubble('bug', targetEmp);
-        }
+        const changed = [['tech', techDelta], ['design', designDelta], ['bug', bugDelta]]
+            .filter(([, delta]) => delta > 0);
+        if (!changed.length) return;
+        const next = (this.nextBubbleIndex || 0) % changed.length;
+        const type = changed[next][0];
+        const previous = { tech: this.lastTech, design: this.lastDesign, bug: this.lastBugs };
+        const pending = { type, value: previous[type], project: this.project };
+        this.pendingBubble = pending;
+        this.world.spawnDevelopmentBubble(type, targetEmp, () => {
+            if (this.pendingBubble !== pending || this.project !== pending.project) return;
+            this.pendingBubble = null;
+            this.updateTopHUD();
+        });
+        this.nextBubbleIndex = next + 1;
     }
 
     /**
@@ -726,6 +732,11 @@ export class GameDevFlowController {
             bugs = Math.max(0, Math.round(Number(p.bugs) || 0));
             design = Math.round(Number(p.designPoints) || 0);
             tech = Math.round(Number(p.techPoints) || 0);
+            if (this.pendingBubble?.project === p) {
+                if (this.pendingBubble.type === 'bug') bugs = this.pendingBubble.value;
+                if (this.pendingBubble.type === 'design') design = this.pendingBubble.value;
+                if (this.pendingBubble.type === 'tech') tech = this.pendingBubble.value;
+            }
 
             if (isBugFixing) {
                 statusText = 'Fase de depuración';

@@ -2282,12 +2282,6 @@ function startProjectFromWizard() {
     const friction = scopeDAG.calculateFriction(activePipeline.frictionMultiplier);
     const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
-    if (scopeDAG.selectedNodeIds.size < 3) {
-        preproductionWizard.setError('Selecciona al menos tres nodos de arquitectura.', 3);
-        preproductionWizard.doneSubmitting();
-        return;
-    }
-
     const dagConfig = {
         selectedNodeIds: Array.from(scopeDAG.selectedNodeIds),
         friction: friction,
@@ -4381,9 +4375,6 @@ function renderResearchSummary(mgr, historicalYear) {
     if (!strategicBar || !heroContainer || !availableContainer || !progressionContainer) return;
 
     // 1. Strategic Telemetry Bar
-    const totalTech = (game.employees || []).reduce((acc, e) => acc + (e.tech || 20), 0);
-    const weeklyRP = Math.max(1, Math.floor(totalTech / 45));
-
     let eraTag = 'Era 8-bit';
     let nextEraInfo = '1990 (Era 16/32-bit)';
     if (historicalYear >= 2015) {
@@ -4408,7 +4399,7 @@ function renderResearchSummary(mgr, historicalYear) {
             <div class="rd-stat-info">
                 <div class="rd-stat-label">Puntos de I+D</div>
                 <div class="rd-stat-value">${game.researchPoints.toLocaleString()} RP</div>
-                <div class="rd-stat-sub">+${weeklyRP} RP/semana pasivo</div>
+                <div class="rd-stat-sub">Se obtienen al desarrollar y completar tareas</div>
             </div>
         </div>
         <div class="rd-stat-card">

@@ -1204,7 +1204,7 @@ export class WorldEngine {
         });
     }
 
-    spawnDevelopmentBubble(type, empIndex = 0) {
+    spawnDevelopmentBubble(type, empIndex = 0, onArrival = null) {
         let origin = new THREE.Vector3(0, 1.85, 0);
         const char = this.characters && this.characters[empIndex];
         if (char) {
@@ -1218,9 +1218,9 @@ export class WorldEngine {
             origin.copy(monitor.lightPos);
         }
 
-        let color = 0x00d2ff; // Tech cyan/blue
-        if (type === 'design') color = 0xf59e0b; // Design amber/orange
-        if (type === 'bug') color = 0xef4444; // Bug red
+        let color = 0x10b981;
+        if (type === 'design') color = 0xf43f5e;
+        if (type === 'bug') color = 0xff7818;
 
         const geo = new THREE.SphereGeometry(0.12, 12, 12);
         const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.88 });
@@ -1230,16 +1230,10 @@ export class WorldEngine {
         mesh.position.z += (Math.random() - 0.5) * 0.3;
         this.particlesGroup.add(mesh);
 
-        const velocity = new THREE.Vector3(
-            (Math.random() - 0.5) * 0.5,
-            1.5 + Math.random() * 0.8,
-            (Math.random() - 0.5) * 0.5
-        );
-
         this.activeParticles.push({
-            mesh, velocity, life: 1.0, decay: 0.018,
-            isBubble: true,
-            rotSpeed: new THREE.Vector3(0, Math.random() * 2, 0)
+            mesh, life: 1.0, isBubble: true, elapsed: 0, onArrival,
+            origin: mesh.position.clone(),
+            targetId: `gdt-val-${type === 'bug' ? 'bugs' : type}`
         });
     }
 
@@ -1541,20 +1535,46 @@ export class WorldEngine {
         // Animate Development Particles
         for (let i = this.activeParticles.length - 1; i >= 0; i--) {
             const p = this.activeParticles[i];
-            p.mesh.position.addScaledVector(p.velocity, delta);
             if (p.isBubble) {
-                p.velocity.y += 0.25 * delta;
-                p.mesh.position.x += Math.sin((p.life * 8) + i) * 0.008;
-                p.mesh.scale.setScalar(Math.max(0.05, Math.min(1.3, 1.25 - p.life * 0.35)));
+                const target = document.getElementById(p.targetId);
+                const canvas = this.renderer.domElement.getBoundingClientRect();
+                const rect = target?.getBoundingClientRect();
+                if (!rect || !rect.width || !rect.height || !canvas.width || !canvas.height || !target.getClientRects().length) {
+                    p.life = 0;
+                } else {
+                    p.elapsed += delta;
+                    const progress = Math.min(1, p.elapsed / 1.1);
+                    const eased = progress * progress * (3 - 2 * progress);
+                    const start = p.origin.clone().project(this.camera);
+                    const endX = ((rect.left + rect.width / 2 - canvas.left) / canvas.width) * 2 - 1;
+                    const endY = 1 - ((rect.top + rect.height / 2 - canvas.top) / canvas.height) * 2;
+                    start.x += (endX - start.x) * eased;
+                    start.y += (endY - start.y) * eased;
+                    p.mesh.position.copy(start.unproject(this.camera));
+                    p.mesh.scale.setScalar(1 - progress * 0.65);
+                    p.life = 1 - progress;
+                    if (progress === 1) {
+                        p.onArrival?.();
+                        p.onArrival = null;
+                        const circle = document.getElementById(p.targetId)?.closest('.gdt-hud-circle');
+                        if (circle) {
+                            circle.classList.remove('has-arrival');
+                            void circle.offsetWidth;
+                            circle.classList.add('has-arrival');
+                        }
+                    }
+                }
             } else {
+                p.mesh.position.addScaledVector(p.velocity, delta);
                 p.mesh.rotation.x += p.rotSpeed.x * delta;
                 p.mesh.rotation.y += p.rotSpeed.y * delta;
                 p.velocity.y -= 2.2 * delta;
                 p.mesh.scale.setScalar(Math.max(0.01, p.life));
+                p.life -= p.decay;
             }
 
-            p.life -= p.decay;
             if (p.life <= 0) {
+                p.onArrival?.();
                 this.particlesGroup.remove(p.mesh);
                 p.mesh.geometry.dispose();
                 p.mesh.material.dispose();
