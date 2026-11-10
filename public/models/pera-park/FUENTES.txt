@@ -1,0 +1,26 @@
+Todos los recursos de esta carpeta se distribuyen bajo CC0 1.0.
+
+Kenney (GLB originales y sus atlas de color):
+https://kenney.nl/assets/city-kit-commercial
+https://kenney.nl/assets/city-kit-industrial
+https://kenney.nl/assets/city-kit-suburban
+https://kenney.nl/assets/city-kit-roads
+https://kenney.nl/assets/car-kit
+https://kenney.nl/assets/nature-kit
+https://kenney.nl/assets/furniture-kit
+
+Pixor, Fountain (GLB animado): https://pixor.art/library/elements/fountain/
+ambientCG, Foliage 001 (color del césped): https://ambientcg.com/view?id=Foliage001
+ambientCG, Paving Stones 036: https://ambientcg.com/a/PavingStones036
+
+Poly Haven, Grass Ground (base bajo el césped geométrico): https://polyhaven.com/a/grass_ground
+Poly Haven, Tree Small 02 (atlas de hojas): https://polyhaven.com/a/tree_small_02
+Poly Haven, Wooden Picnic Table (glTF, texturas y malla): https://polyhaven.com/a/wooden_picnic_table
+
+Innerscene, GLB CC0 con mallas agrupadas y simplificadas para el juego:
+https://www.innerscene.com/tools/library/3d-parts/sedan-car-42109739
+https://www.innerscene.com/tools/library/3d-parts/generic-electric-hatchback-6f7e33fa
+https://www.innerscene.com/tools/library/3d-parts/graphite-four-door-sedan-eed96d12
+https://www.innerscene.com/tools/library/3d-parts/low-rise-office-block-d9ac3f06
+https://www.innerscene.com/tools/library/3d-parts/three-storey-office-building-16b33ce5
+https://www.innerscene.com/tools/library/3d-parts/twenty-storey-glass-office-tower-0f2e9425

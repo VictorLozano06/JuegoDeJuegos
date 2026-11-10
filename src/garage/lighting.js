@@ -112,6 +112,7 @@ function concreteTexture(THREE) {
 /** The room owns these materials and their textures. Dimensions are in scene units. */
 export function createGarageShellMaterials(THREE, {
     backWidth = 10.8, backHeight = 4, doorWidth = 4.8, doorHeight = 3.2,
+    assetManager,
 } = {}) {
     const bricks = brickTexture(THREE, backWidth, backHeight);
     const shutter = doorTexture(THREE, doorWidth, doorHeight);
@@ -128,7 +129,7 @@ export function createGarageShellMaterials(THREE, {
         timber: new THREE.MeshStandardMaterial({ color: 0x67452f, roughness: 0.84 }),
         trim: new THREE.MeshStandardMaterial({ color: 0x435254, metalness: 0.32, roughness: 0.65 }),
     };
-    const loader = new THREE.TextureLoader();
+    const loader = new THREE.TextureLoader(assetManager);
     const base = `${import.meta.env.BASE_URL}models/garage-shell/materials/`;
     function applySurface(material, name, repeatX, repeatY) {
         for (const [kind, property] of [['Diffuse', 'map'], ['nor_gl', 'normalMap']]) {
@@ -152,23 +153,38 @@ export function createGarageShellMaterials(THREE, {
 export function applyOfficeLighting(world) {
     const { ambientLight, sunLight, rimLight } = world;
     const hologram = world.viewMode === 'dag_hologram';
+    const park = world.parkLocation === 'grounds' && !hologram;
+    const backdrop = park ? 0xa4b8c0 : 0x0a0c10;
+    world.scene?.background?.setHex(backdrop);
+    if (world.scene?.fog) {
+        world.scene.fog.color.setHex(backdrop);
+        world.scene.fog.density = park ? 0.0050 : 0.02;
+    }
     const garage = world.currentEra === 1 && !hologram;
     const modern = world.currentEra === 2 && !hologram;
 
-    ambientLight.color.setHex(garage ? 0xffd5ab : modern ? 0xc0d4cf : 0x2d2432);
-    ambientLight.intensity = garage ? 0.64 : modern ? 0.60 : hologram ? 0.35 : 0.55;
+    ambientLight.color.setHex(garage ? 0xffd5ab : modern ? 0xc0d4cf : park ? 0xc7ddec : 0x2d2432);
+    ambientLight.intensity = garage ? 0.64 : modern ? 0.60 : park ? 0.68 : hologram ? 0.35 : 0.55;
 
-    sunLight.color.setHex(garage ? 0xffe6c4 : modern ? 0xfff0d8 : 0xffdfba);
-    sunLight.intensity = garage ? 1.18 : hologram ? 0.35 : 1.25;
+    sunLight.color.setHex(garage ? 0xffe6c4 : modern ? 0xfff0d8 : park ? 0xffefd4 : 0xffdfba);
+    sunLight.intensity = garage ? 1.18 : park ? 1.22 : hologram ? 0.35 : 1.25;
     if (garage) {
         // The high window is on the right side of the back wall.
         sunLight.position.set(5, 8, -5.5);
+    } else if (park) {
+        sunLight.position.set(-24, 42, 17);
     } else if (modern) {
         sunLight.position.set(7, 12, 7);
     } else {
         sunLight.position.set(14, 18, 10);
     }
-    sunLight.shadow.normalBias = garage ? 0.018 : 0;
+    sunLight.shadow.normalBias = garage ? 0.018 : park ? 0.06 : 0;
+    const shadowCamera = sunLight.shadow.camera;
+    const shadowExtent = park ? 24 : 10;
+    shadowCamera.left = shadowCamera.bottom = -shadowExtent;
+    shadowCamera.right = shadowCamera.top = shadowExtent;
+    shadowCamera.far = park ? 100 : 50;
+    shadowCamera.updateProjectionMatrix();
 
     rimLight.color.setHex(garage ? 0xffbf91 : modern ? 0x96c5c8 : 0x38bdf8);
     rimLight.intensity = garage ? 0.17 : 0.35;

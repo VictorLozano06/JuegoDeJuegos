@@ -14,6 +14,7 @@ test('Asset catalog includes all essential 3D models and textures', () => {
 
 test('AssetPreloader reports progress and completes gracefully even in mock environment', async () => {
     const progressUpdates = [];
+    let preparedOffice = false;
     const preloader = new AssetPreloader({
         onProgress: (ratio, label) => {
             progressUpdates.push({ ratio, label });
@@ -23,16 +24,15 @@ test('AssetPreloader reports progress and completes gracefully even in mock envi
     const mockWorld = {
         createWhiteboardTexture: () => {},
         createArcadePosterTexture: () => {},
-        renderer: {
-            compile: () => {},
-            render: () => {}
-        },
+        renderer: {},
         scene: {},
-        camera: {}
+        camera: {},
+        async prepareOfficeFrame() { preparedOffice = true; }
     };
 
     await preloader.loadAll(mockWorld);
 
+    assert.ok(preparedOffice, 'The office frame should be prepared before loading completes');
     assert.ok(progressUpdates.length > 5, 'Should emit multiple progress steps');
     const finalUpdate = progressUpdates[progressUpdates.length - 1];
     assert.ok(finalUpdate.ratio >= 0.9, 'Final progress ratio should be near or equal 1.0');
