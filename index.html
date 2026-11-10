@@ -1361,109 +1361,59 @@
         </div>
     </div>
 
-    <!-- MODAL: I+D & TECH TREE PROGRESSION -->
+    <!-- MODAL: INVESTIGACIÓN DE TECNOLOGÍAS (ESTILO GAME DEV TYCOON) -->
     <div id="modal-research" class="modal-backdrop">
-        <div class="modal-window">
-            <div class="modal-header">
-                <div>
-                    <h2 class="modal-title"><span>[[DE_ICON_006]]</span> Laboratorio de I+D</h2>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin: 3px 0 0 0;">Centro de innovación estratégica y desarrollo tecnológico del estudio</p>
+        <div class="modal-window modal-research-gdt">
+            <!-- Modal Header -->
+            <div class="modal-header research-gdt-header">
+                <div class="research-gdt-title-block">
+                    <h2 class="modal-title"><span>[[DE_ICON_006]]</span> Investigación</h2>
+                    <p class="research-gdt-subtitle">Tecnologías disponibles para investigar y desbloquear para tu estudio</p>
                 </div>
-                <button class="modal-close">&times;</button>
+                <div class="research-gdt-header-badges">
+                    <div class="research-badge-rp" title="Puntos de Investigación disponibles">
+                        <span class="research-badge-icon">[[DE_ICON_006]]</span>
+                        <strong id="rd-header-rp">0 RP</strong>
+                    </div>
+                    <div class="research-badge-year" title="Línea temporal histórica">
+                        <span class="research-badge-icon">[[DE_ICON_066]]</span>
+                        <span id="rd-header-year">Año 1982</span>
+                    </div>
+                    <button type="button" class="modal-close" aria-label="Cerrar">&times;</button>
+                </div>
             </div>
 
-            <!-- Modern Laboratory Navigation Bar -->
-            <nav class="research-nav" id="research-nav" aria-label="Secciones del laboratorio de I+D">
-                <button type="button" class="research-nav-btn active" data-tab="summary">
-                    <span>[[DE_ICON_006]]</span> Resumen
+            <!-- Active Research Banner (visible only when an investigation is running) -->
+            <div id="rd-active-banner" class="rd-active-banner" style="display: none;"></div>
+
+            <!-- Category Filter Bar -->
+            <div class="rd-filter-bar" id="rd-category-filters"></div>
+
+            <!-- Available Technologies List Container (Game Dev Tycoon Style) -->
+            <div class="rd-list-container" id="rd-available-container"></div>
+
+            <!-- Modal Footer: Researched Tech Toggle + Secondary Launchers -->
+            <div class="research-gdt-footer">
+                <button type="button" class="rd-btn-secondary" id="btn-toggle-unlocked-tech">
+                    <span>[[DE_ICON_149]]</span> Ver tecnologías ya investigadas (<span id="rd-unlocked-count">0</span>)
                 </button>
-                <button type="button" class="research-nav-btn" data-tab="map">
-                    <span>[[DE_ICON_020]]</span> Mapa Tecnológico
-                </button>
-                <button type="button" class="research-nav-btn" data-tab="labs">
-                    <span>[[DE_ICON_028]]</span> Laboratorios y Motores
-                </button>
-                <button type="button" class="research-nav-btn" data-tab="hardware">
-                    <span>[[DE_ICON_067]]</span> Ingeniería Inversa
-                </button>
-            </nav>
-
-            <!-- TAB 1: RESUMEN (VISTA PRINCIPAL JUGABLE) -->
-            <div id="research-tab-summary" class="research-tab-pane active">
-                <!-- 1. Cabecera estratégica compacta -->
-                <div id="rd-strategic-bar" class="rd-strategic-bar"></div>
-
-                <!-- 2. Panel Hero: Siguiente Avance Tecnológico -->
-                <div id="rd-hero-container" class="rd-hero-container"></div>
-
-                <!-- 3. Tecnologías Disponibles Ahora -->
-                <div class="rd-section-header">
-                    <div>
-                        <h3 class="rd-section-title"><span>[[DE_ICON_020]]</span> Tecnologías Disponibles Ahora</h3>
-                        <p class="rd-section-subtitle">Proyectos listos para investigación inmediata con tu equipo de ingenieros.</p>
-                    </div>
-                </div>
-                <div id="rd-available-container" class="rd-available-grid"></div>
-
-                <!-- 4. Resumen de Progresión Tecnológica del Estudio -->
-                <div id="rd-progression-container" class="rd-progression-panel"></div>
-            </div>
-
-            <!-- TAB 2: MAPA TECNOLÓGICO COMPLETO (VISTA SECUNDARIA / DAG) -->
-            <div id="research-tab-map" class="research-tab-pane">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <h3 style="font-size: 15px; color: var(--accent-cyan); margin: 0;">Árbol de Arquitectura por Ramas Tecnológicas</h3>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">
-                            Mapa completo de dependencias históricas. Selecciona cualquier nodo para examinar su ficha táctica.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Branch Filter Tabs -->
-                <div class="branch-filter-bar" id="branch-filter-tabs">
-                    <button class="branch-tab-btn active" data-branch="all">[[DE_ICON_020]] Todas las Ramas</button>
-                    <button class="branch-tab-btn" data-branch="graphics">[[DE_ICON_054]] Gráfico</button>
-                    <button class="branch-tab-btn" data-branch="story">[[DE_ICON_057]] Historia</button>
-                    <button class="branch-tab-btn" data-branch="engine">[[DE_ICON_049]] Motor</button>
-                    <button class="branch-tab-btn" data-branch="gameplay">[[DE_ICON_070]] Jugabilidad</button>
-                    <button class="branch-tab-btn" data-branch="dialogues">[[DE_ICON_024]] Diálogos</button>
-                    <button class="branch-tab-btn" data-branch="level_design">[[DE_ICON_055]] Nivel</button>
-                    <button class="branch-tab-btn" data-branch="ai">[[DE_ICON_056]] I.A.</button>
-                    <button class="branch-tab-btn" data-branch="world_design">[[DE_ICON_066]] Mundo</button>
-                    <button class="branch-tab-btn" data-branch="sound">[[DE_ICON_045]] Sonido</button>
-                </div>
-
-                <!-- Branches Content Container -->
-                <div id="tech-tree-branches-container" style="margin-bottom: 24px;"></div>
-            </div>
-
-            <!-- TAB 3: LABORATORIOS Y MOTORES -->
-            <div id="research-tab-labs" class="research-tab-pane">
-                <!-- Topic Research Launcher -->
-                <div class="topic-research-launcher-bar" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 20px;">[[DE_ICON_028]]</span>
-                        <div>
-                            <strong style="color: #fff; font-size: 13px;">Laboratorio de Temáticas (Progresión por RP)</strong>
-                            <p style="color: var(--text-secondary); font-size: 11px; margin: 2px 0 0 0;">
-                                Desbloquea temáticas avanzadas (Cyberpunk, Terror, Zombis...) para tu catálogo.
-                            </p>
-                        </div>
-                    </div>
-                    <button type="button" class="dock-btn btn-primary-action" onclick="openTopicResearchModal()" style="font-weight: 700; padding: 6px 14px; font-size: 12px;">
-                        [[DE_ICON_028]] Investigar Nueva Temática
+                <div class="rd-footer-actions">
+                    <button type="button" class="rd-btn-secondary" onclick="openTopicResearchModal()">
+                        <span>[[DE_ICON_028]]</span> Investigar Temática
+                    </button>
+                    <button type="button" class="rd-btn-secondary" onclick="EngineCreationModal.open()">
+                        <span>[[DE_ICON_015]]</span> Crear Motor
                     </button>
                 </div>
-
-                <!-- Active In-house Engines & Creation Launcher -->
-                <div id="engine-management-container" style="margin-bottom: 20px;"></div>
             </div>
 
-            <!-- TAB 4: INGENIERÍA INVERSA -->
-            <div id="research-tab-hardware" class="research-tab-pane">
-                <!-- HARDWARE WORKBENCH: BANCO DE ANÁLISIS DE HARDWARE -->
-                <div id="hardware-workbench-container" class="hardware-workbench-container"></div>
+            <!-- Researched Technologies Drawer (hidden by default) -->
+            <div id="rd-unlocked-drawer" class="rd-unlocked-drawer" style="display: none;">
+                <div class="rd-unlocked-header">
+                    <h4><span>[[DE_ICON_149]]</span> Tecnologías Dominadas e Integradas</h4>
+                    <span class="rd-unlocked-subtitle">Módulos investigados que ya puedes usar en tus motores</span>
+                </div>
+                <div id="rd-unlocked-container" class="rd-unlocked-grid"></div>
             </div>
         </div>
     </div>
