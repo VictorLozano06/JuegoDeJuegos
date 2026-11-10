@@ -96,6 +96,7 @@ export function buildGarageLayout(world, THREE) {
         doorHeight: WALL_HEIGHT,
         floorWidth: ROOM_WIDTH,
         floorDepth: ROOM_DEPTH,
+        assetManager: world.officeAssetManager,
     });
 
     const matte = color => new THREE.MeshStandardMaterial({ color, roughness: 0.82 });
@@ -140,7 +141,7 @@ export function buildGarageLayout(world, THREE) {
     };
     const cachedShutter = preloadedModels.get(shutterUrl);
     if (cachedShutter) installShutter(cachedShutter);
-    else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(shutterUrl, gltf => installShutter(gltf.scene));
+    else if (THREE.GLTFLoader) new THREE.GLTFLoader(world.officeAssetManager).load(shutterUrl, gltf => installShutter(gltf.scene));
 
     box(room, 'Rodapié trasero', timber, ROOM_WIDTH - 0.15, 0.13, 0.055, 0.06, 0, BACK + 0.16);
     box(room, 'Dintel del portón', trim, 0.16, 0.15, ROOM_DEPTH - 0.16, LEFT + 0.17, WALL_HEIGHT - 0.15, 0.08);
@@ -157,7 +158,7 @@ export function buildGarageLayout(world, THREE) {
         emissiveIntensity: 0.12,
         roughness: 0.48,
     });
-    new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/garage/lot-01.jpg`, texture => {
+    new THREE.TextureLoader(world.officeAssetManager).load(`${import.meta.env.BASE_URL}textures/garage/lot-01.jpg`, texture => {
         texture.encoding = THREE.sRGBEncoding;
         glass.map = texture;
         glass.needsUpdate = true;
@@ -185,7 +186,7 @@ export function buildGarageLayout(world, THREE) {
     };
     const cachedWindow = preloadedModels.get(windowUrl);
     if (cachedWindow) installWindow(cachedWindow);
-    else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(windowUrl, gltf => installWindow(gltf.scene));
+    else if (THREE.GLTFLoader) new THREE.GLTFLoader(world.officeAssetManager).load(windowUrl, gltf => installWindow(gltf.scene));
 
     const print = new THREE.MeshStandardMaterial({ map: world.createArcadePosterTexture(), roughness: 0.89 });
     const oldPosterFrame = box(room, 'Marco del póster', timber, 1.03, 1.39, 0.055, -2.67, 1.66, wallFace + 0.0275);
@@ -196,7 +197,7 @@ export function buildGarageLayout(world, THREE) {
     const installDecor = (url, install) => {
         const cached = preloadedModels.get(url);
         if (cached) install(cached);
-        else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(url, gltf => install(gltf.scene));
+        else if (THREE.GLTFLoader) new THREE.GLTFLoader(world.officeAssetManager).load(url, gltf => install(gltf.scene));
     };
     installDecor('/models/garage-wall-decor/frame/frame.gltf', source => {
         const frame = source.clone(true);
@@ -252,7 +253,7 @@ export function buildGarageLayout(world, THREE) {
         level += h;
     });
     if (THREE.GLTFLoader) {
-        new THREE.GLTFLoader().load('/models/cardboard/polyfork-cardboard-delivery-box.glb', gltf => {
+        new THREE.GLTFLoader(world.officeAssetManager).load('/models/cardboard/polyfork-cardboard-delivery-box.glb', gltf => {
             if (!room.parent) return;
             const source = gltf.scene;
             // The published GLB defaults to the open state. Fold its four flap
@@ -364,7 +365,7 @@ export function buildGarageLayout(world, THREE) {
         { url: '/models/modern-office/taza.glb', name: 'Taza', fallback: mugFallback, width: 0.15, height: 0.12, depth: 0.13, x: 0.73, y: 1.12, z: 0.14 }
     ];
     if (THREE.GLTFLoader) {
-        const loader = new THREE.GLTFLoader();
+        const loader = new THREE.GLTFLoader(world.officeAssetManager);
         for (const prop of props) {
             const install = source => {
                 if (station.parent !== room) return;

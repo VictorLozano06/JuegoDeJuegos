@@ -377,7 +377,7 @@ function syncParkNavigation() {
     nav.dataset.location = location;
     const building = PARK_BUILDINGS[location];
     document.getElementById('park-location-title').textContent = building?.name ?? 'Paseo del campus';
-    document.getElementById('park-location-detail').textContent = building?.detail ?? 'Elige un edificio o pulsa su entrada en el anillo.';
+    document.getElementById('park-location-detail').textContent = building?.detail ?? 'Elige un destino o pulsa su edificio en el mapa.';
     const routes = location === 'grounds'
         ? Object.entries(PARK_BUILDINGS)
         : [['grounds', { name: 'Volver al exterior', color: 0x74d6b2 }]];
@@ -422,30 +422,46 @@ async function enterGameplay({ checkpoint = false } = {}) {
     window._pausedSpeedForNews = 0;
     if (game.pendingIndustryEvents?.length && game.gameSpeed === 0) game.gameSpeed = 1;
 
+    let officeLoadingScreen;
     try {
         const office = game.getActiveOffice();
         lastRenderedEmployeeCount = game.employees.length;
-        if (world.currentEra === office.tier) {
+        const changedOffice = world.currentEra !== office.tier;
+        if (changedOffice || world.officeAssetStatus !== 'ready') {
+            officeLoadingScreen = new LoadingScreen();
+            officeLoadingScreen.start();
+            officeLoadingScreen.setProgress(0.12);
+            world.loadingScreenActive = true;
+            // Give the cover a frame before building and compiling the destination.
+            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (changedOffice) world.buildOffice(office.tier);
+            else if (world.officeAssetStatus === 'failed') world.buildOffice(office.tier, world.parkLocation);
+            world.syncEmployees(game.employees);
+            world.transitionToGameplay({ immediate: true });
+            await world.officeAssetsReady;
+            officeLoadingScreen.setProgress(0.85);
+            await world.prepareOfficeFrame();
+            officeLoadingScreen.setComplete();
+            await officeLoadingScreen.waitForCompletion();
+        } else {
             world.syncEmployees(game.employees);
             await world.transitionToGameplay();
-        } else {
-            await world.transitionToGameplay({
-                era: office.tier,
-                revealOffice: () => {
-                    world.buildOffice(office.tier);
-                    world.syncEmployees(game.employees);
-                }
-            });
         }
         populateProjectWizard();
         updateSpeedButtonsUI(game.gameSpeed);
     } catch (error) {
+        console.error('No se pudo abrir el estudio:', error);
         appState = STATE_MAIN_MENU;
-        showMenuOffice(game.getActiveOffice().tier, game.employees);
+        world.enterMainMenu();
         mainMenu.setBusy(false);
         mainMenu.show();
-        mainMenu.report(error.message);
+        mainMenu.report('No se han podido cargar todos los recursos del estudio. Vuelve a intentar abrir la partida.');
         return;
+    } finally {
+        if (officeLoadingScreen) {
+            world.loadingScreenActive = false;
+            officeLoadingScreen.hide();
+        }
     }
     appState = STATE_PLAYING;
     document.getElementById('ui-overlay')?.removeAttribute('inert');

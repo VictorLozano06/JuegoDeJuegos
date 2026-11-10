@@ -21,7 +21,7 @@ const OFFICE_SCENES = {
     garage: { build: buildGarageLayout, position: [11, 7.3, 8], target: [0, 1, 0] },
     modern: { build: buildModernOffice, position: [13, 14, 16], target: [0, 0.95, -0.45] },
     campus: { build: world => world.buildCyberCampusEra(), position: [20, 18, 20], target: [0, 1, -0.5] },
-    'pera-park': { build: buildPeraPark, position: [33, 49, 43], target: [0, 0, 0], maxDistance: 130 }
+    'pera-park': { build: buildPeraPark, position: [34, 49, 46], target: [0, 1.35, -1.9], maxDistance: 170 }
 };
 const PARK_RECEPTION = { position: [9, 9, 13], target: [0, 0.7, -0.45] };
 function officeCameraPosition(framing, aspect = 1.6) {
@@ -354,14 +354,28 @@ export class WorldEngine {
         this.controls.dampingFactor = 0.06;
         this.controls.addEventListener('start', () => {
             this.cameraBeingManipulated = true;
+            this.parkZoomDistance = null;
             this.targetCamPos = null;
             this.targetLookAt = null;
             this.isTransitioningCamera = false;
         });
         this.controls.addEventListener('end', () => {
             this.cameraBeingManipulated = false;
-            this.nextShadowRefresh = 0;
+            if (this.parkLocation !== 'grounds') this.nextShadowRefresh = 0;
         });
+        this.renderer.domElement.addEventListener('wheel', event => {
+            if (this.parkLocation !== 'grounds' || this.viewMode !== 'office' ||
+                this.menuCamera.active || !this.controls.enabled || !event.deltaY) return;
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            this.targetCamPos = this.targetLookAt = null;
+            this.isTransitioningCamera = false;
+            const distance = this.parkZoomDistance ?? this.camera.position.distanceTo(this.controls.target);
+            const units = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 160 : 1;
+            const change = THREE.MathUtils.clamp(event.deltaY * units * 0.00155, -0.44, 0.44);
+            this.parkZoomDistance = THREE.MathUtils.clamp(distance * Math.exp(change),
+                this.controls.minDistance, this.controls.maxDistance);
+        }, { capture: true, passive: false });
         this.controls.maxPolarAngle = Math.PI / 2.2;
         this.controls.minDistance = 6;
         this.controls.maxDistance = 35;
@@ -418,16 +432,24 @@ export class WorldEngine {
         this.menuCamera.enter(this.desks[0]?.worldPos, this.clock.elapsedTime);
     }
 
-    transitionToGameplay({ era = this.currentEra, revealOffice } = {}) {
+    transitionToGameplay({ immediate = false } = {}) {
         this.targetCamPos = null;
         this.targetLookAt = null;
         this.isTransitioningCamera = false;
-        const framing = era === this.currentEra
-            ? { position: this.cameraOfficePos.toArray(), target: this.cameraOfficeTarget.toArray() }
-            : OFFICE_SCENES[officeAtTier(era).sceneId];
-        return this.menuCamera.play(
-            officeCameraPosition(framing, this.camera.aspect), new THREE.Vector3(...framing.target), revealOffice
-        );
+        if (immediate) {
+            this.menuCamera.finish(this.cameraOfficePos, this.cameraOfficeTarget);
+            return;
+        }
+        return this.menuCamera.play(this.cameraOfficePos, this.cameraOfficeTarget);
+    }
+
+    async prepareOfficeFrame() {
+        await this.officeAssetsReady;
+        this.updateParkDetail?.(this.camera, false);
+        if (this.renderer.compileAsync) await this.renderer.compileAsync(this.scene, this.camera);
+        else this.renderer.compile(this.scene, this.camera);
+        this.renderer.shadowMap.needsUpdate = true;
+        this.renderFrame();
     }
 
     setGraphicsSettings({ resolution = this.resolution, shadows } = {}) {
@@ -710,6 +732,9 @@ export class WorldEngine {
         });
         for (const resource of resources) resource.dispose();
         this.officeGroup.clear();
+        this.animatePark = null;
+        this.updateParkDetail = null;
+        this.parkZoomDistance = null;
         this.dynamicTextures = [];
         this.nextShadowRefresh = 0;
         this.desks = [];
@@ -720,6 +745,19 @@ export class WorldEngine {
         this.interactiveParkEntrances = [];
         this.coffeeMugPos = null;
         this.clearComputerHover();
+
+        const errors = [];
+        const manager = new THREE.LoadingManager();
+        const sceneLoaded = new Promise((resolve, reject) => {
+            manager.onLoad = () => {
+                if (errors.length) reject(new Error(`No se pudo cargar ${errors[0]}`));
+                else resolve();
+            };
+            manager.onError = url => errors.push(url);
+        });
+        // Keep the manager open until the builder has registered all its loaders.
+        manager.itemStart('office');
+        this.officeAssetManager = manager;
 
         let framing = OFFICE_SCENES[office.sceneId];
         if (location === 'studio') {
@@ -732,10 +770,9 @@ export class WorldEngine {
             framing.build(this, THREE);
         }
         applyOfficeLighting(this);
-        if (this.scene?.fog) this.scene.fog.density = location === 'grounds' ? 0.004 : 0.02;
         if (this.controls) this.controls.maxDistance = framing.maxDistance ?? 35;
         if (this.camera) {
-            this.camera.far = location === 'grounds' ? 210 : 100;
+            this.camera.far = location === 'grounds' ? 315 : 100;
             this.camera.updateProjectionMatrix();
         }
         this.cameraOfficePos.copy(officeCameraPosition(framing, this.camera?.aspect));
@@ -746,6 +783,16 @@ export class WorldEngine {
             this.targetLookAt = this.cameraOfficeTarget.clone();
         }
         this.updateCharacterPositions();
+        const parkLoaded = this.officeGroup.getObjectByName('Pera Park')?.userData.assetsReady;
+        this.officeAssetStatus = 'loading';
+        const ready = Promise.all([sceneLoaded, parkLoaded]);
+        this.officeAssetsReady = ready;
+        ready.then(() => {
+            if (this.officeAssetsReady === ready) this.officeAssetStatus = 'ready';
+        }, () => {
+            if (this.officeAssetsReady === ready) this.officeAssetStatus = 'failed';
+        });
+        manager.itemEnd('office');
     }
 
     buildCyberCampusEra() {
@@ -859,7 +906,7 @@ export class WorldEngine {
         };
         const cached = preloadedModels.get(url);
         if (cached) install(cached);
-        else new THREE.GLTFLoader().load(url, gltf => install(gltf.scene), undefined, error => console.warn('No se pudo cargar la radio:', error));
+        else new THREE.GLTFLoader(this.officeAssetManager).load(url, gltf => install(gltf.scene), undefined, error => console.warn('No se pudo cargar la radio:', error));
     }
 
     createDesk(x, y, z, style, index) {
@@ -878,7 +925,7 @@ export class WorldEngine {
             });
             if (THREE.GLTFLoader) {
                 const loadFittedModel = (url, fallback, options) => {
-                    new THREE.GLTFLoader().load(url, gltf => {
+                    new THREE.GLTFLoader(this.officeAssetManager).load(url, gltf => {
                         if (!group.parent) return;
                         const model = gltf.scene;
                         if (options.rotation) model.rotation.y = options.rotation;
@@ -1414,6 +1461,10 @@ export class WorldEngine {
         }
         this.needsStaticFrame = false;
         this.updateRenderPerformance(delta);
+        if (!menuShot && this.parkLocation === 'grounds' && this.viewMode === 'office') {
+            this.renderParkFrame(delta, time);
+            return;
+        }
 
         if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
         else this.controls.update();
@@ -1677,26 +1728,49 @@ export class WorldEngine {
         // Update 3D Holographic Scope Architecture DAG Subsystem
         this.updateScopeDag(delta, time);
 
-        // Camera Smooth Lerp Transition between Office and Hologram DAG
-        if (!menuShot && this.targetCamPos) {
-            this.camera.position.lerp(this.targetCamPos, Math.min(1.0, delta * 4.5));
-            if (this.camera.position.distanceTo(this.targetCamPos) < 0.05) {
-                this.targetCamPos = null;
-                this.isTransitioningCamera = false;
-            }
-        }
-        if (!menuShot && this.targetLookAt && this.controls) {
-            this.controls.target.lerp(this.targetLookAt, Math.min(1.0, delta * 4.5));
-            if (this.controls.target.distanceTo(this.targetLookAt) < 0.05) {
-                this.targetLookAt = null;
-            }
-        }
+        if (!menuShot) this.updateCameraTransition(delta);
 
         if (!this.cameraBeingManipulated && time >= this.nextShadowRefresh) {
             this.renderer.shadowMap.needsUpdate = true;
             this.nextShadowRefresh = time + SHADOW_REFRESH_INTERVAL;
         }
 
+        this.renderFrame();
+    }
+
+    updateCameraTransition(delta) {
+        if (this.targetCamPos) {
+            this.camera.position.lerp(this.targetCamPos, Math.min(1.0, delta * 4.5));
+            if (this.camera.position.distanceTo(this.targetCamPos) < 0.05) {
+                this.targetCamPos = null;
+                this.isTransitioningCamera = false;
+            }
+        }
+        if (this.targetLookAt && this.controls) {
+            this.controls.target.lerp(this.targetLookAt, Math.min(1.0, delta * 4.5));
+            if (this.controls.target.distanceTo(this.targetLookAt) < 0.05) {
+                this.targetLookAt = null;
+            }
+        }
+    }
+
+    renderParkFrame(delta, time) {
+        this.controls.update();
+        this.updateCameraTransition(delta);
+        if (this.parkZoomDistance !== null) {
+            const current = this.camera.position.distanceTo(this.controls.target);
+            const next = THREE.MathUtils.lerp(current, this.parkZoomDistance, 1 - Math.exp(-Math.min(delta, 0.06) * 15));
+            this.camera.position.sub(this.controls.target).setLength(next).add(this.controls.target);
+            if (Math.abs(next - this.parkZoomDistance) < 0.012) this.parkZoomDistance = null;
+        }
+        this.updateParkDetail?.(this.camera, this.cameraBeingManipulated || this.parkZoomDistance !== null);
+        this.animatePark?.(time);
+        this.particlesGroup.visible = false;
+        this.confettiGroup.visible = false;
+        if (time >= this.nextShadowRefresh) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this.nextShadowRefresh = Infinity;
+        }
         this.renderFrame();
     }
 
@@ -1721,10 +1795,13 @@ export class WorldEngine {
 
     updateRenderPerformance(delta) {
         // React to sustained slow frames, not a single loading spike or tab switch.
-        if (delta <= 0 || delta > 0.2) return;
+        if (delta <= 0) return;
+        const park = this.parkLocation === 'grounds' && this.viewMode === 'office';
+        if (delta > 0.2 && !park) return;
+        delta = Math.min(delta, 0.12);
         this.frameTimeAverage = this.frameTimeAverage ? this.frameTimeAverage * 0.95 + delta * 0.05 : delta;
         this.performanceSampleTime += delta;
-        if (this.performanceSampleTime < 2) return;
+        if (this.performanceSampleTime < (park ? 1.2 : 2)) return;
         this.performanceSampleTime = 0;
         let next = this.performanceScale;
         if (this.frameTimeAverage > 1 / 38) {
@@ -2591,7 +2668,7 @@ export class WorldEngine {
 
         // Pointer Move for Hover Raycasting (Punto 2: Hover con outline / luminosidad brillante)
         const updatePointerHover = (e) => {
-            if (this.menuCamera.active) return;
+            if (this.menuCamera.active || this.cameraBeingManipulated || this.parkZoomDistance != null) return;
             const rect = this.renderer.domElement.getBoundingClientRect();
             mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;

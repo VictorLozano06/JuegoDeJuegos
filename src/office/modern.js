@@ -153,7 +153,7 @@ export function buildModernOffice(world, THREE) {
     // Models are loaded once per office instance; the procedural chairs remain as
     // a fallback while the files load or if an asset cannot be retrieved.
     if (!THREE.GLTFLoader) return;
-    const loader = new THREE.GLTFLoader();
+    const loader = new THREE.GLTFLoader(world.officeAssetManager);
     loader.load('/models/modern-office/planta.glb', gltf => {
         if (!room.parent) return;
         const bounds = new THREE.Box3().setFromObject(gltf.scene);
