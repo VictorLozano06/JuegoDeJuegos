@@ -38,6 +38,7 @@ export const ASSET_CATALOG = {
         '/models/retro-monitor.glb',
         '/models/retro-keyboard.glb',
         '/models/retro-mouse.glb',
+        '/models/garage-window/window.glb',
         '/models/garage-station/dresser.glb',
         '/models/garage-station/boombox.glb',
         '/models/garage-station/coffee-maker.glb',

@@ -135,16 +135,39 @@ export function buildGarageLayout(world, THREE) {
 
     // Wall-mounted window, notice board and framed arcade print.
     const wallFace = BACK + 0.141;
+    const landscape = windowMap(THREE);
     const glass = new THREE.MeshStandardMaterial({
-        map: windowMap(THREE),
+        map: landscape,
         emissive: 0xf2c18b,
         emissiveIntensity: 0.12,
         roughness: 0.48,
     });
-    box(room, 'Marco de ventana', timber, 1.95, 0.84, 0.10, 2.74, 2.40, wallFace + 0.05);
+    new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}textures/garage/lot-01.jpg`, texture => {
+        texture.encoding = THREE.sRGBEncoding;
+        glass.map = texture;
+        glass.needsUpdate = true;
+        landscape.dispose();
+    });
+    const oldWindowFrame = box(room, 'Marco de ventana', timber, 1.95, 0.84, 0.10, 2.74, 2.40, wallFace + 0.05);
     plane(room, 'Cristal de ventana', glass, 1.77, 0.66, 2.74, 2.82, wallFace + 0.101);
-    box(room, 'Parteluz', timber, 0.07, 0.68, 0.025, 2.74, 2.48, wallFace + 0.11);
-    box(room, 'Alféizar', timber, 2.03, 0.08, 0.22, 2.74, 2.39, wallFace + 0.11);
+    const oldWindowDivider = box(room, 'Parteluz', timber, 0.07, 0.68, 0.025, 2.74, 2.48, wallFace + 0.11);
+    const oldWindowSill = box(room, 'Alféizar', timber, 2.03, 0.08, 0.22, 2.74, 2.39, wallFace + 0.11);
+    const windowUrl = '/models/garage-window/window.glb';
+    const installWindow = source => {
+        for (const x of [2.25, 3.23]) {
+            const frame = source.clone(true);
+            frame.name = 'Ventana de madera';
+            frame.scale.set(1.08, 0.53, 0.75);
+            frame.position.set(x, 2.40, wallFace + 0.20);
+            room.add(frame);
+        }
+        oldWindowFrame.visible = false;
+        oldWindowDivider.visible = false;
+        oldWindowSill.visible = false;
+    };
+    const cachedWindow = preloadedModels.get(windowUrl);
+    if (cachedWindow) installWindow(cachedWindow);
+    else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(windowUrl, gltf => installWindow(gltf.scene));
 
     const print = new THREE.MeshStandardMaterial({ map: world.createArcadePosterTexture(), roughness: 0.89 });
     box(room, 'Marco del póster', timber, 1.03, 1.39, 0.055, -2.67, 1.66, wallFace + 0.0275);
