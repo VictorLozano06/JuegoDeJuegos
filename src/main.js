@@ -326,7 +326,9 @@ function initializeMainMenu() {
         onReturnToMenu: returnToMainMenu
     });
     applyMenuSettings(settings);
-    world.enterMainMenu();
+    const latestOffice = saveSystem.latest()?.currentOffice;
+    if (latestOffice === 4) showMenuOffice(latestOffice, game.employees);
+    else world.enterMainMenu();
     mainMenu.show();
 }
 
@@ -347,7 +349,7 @@ function loadSavedGame(id) {
 }
 
 function showMenuOffice(tier, employees) {
-    if (world.currentEra !== tier) world.buildOffice(tier);
+    if (world.currentEra !== tier || (tier === 4 && world.parkLocation !== 'grounds')) world.buildOffice(tier);
     world.syncEmployees(employees);
     world.enterMainMenu();
 }
@@ -7131,7 +7133,8 @@ function closeAllModals() {
     if (cancelNewGame) {
         creatingNewGame = false;
         world.updateCharacterMesh(0, game.characterCustomization);
-        showMenuOffice(game.getActiveOffice().tier, game.employees);
+        const latestOffice = saveSystem.latest()?.currentOffice;
+        showMenuOffice(latestOffice === 4 ? 4 : game.getActiveOffice().tier, game.employees);
         mainMenu.show();
     }
     if (game.pendingIndustryEvents?.length) setTimeout(() => renderIndustryNews(game), 0);

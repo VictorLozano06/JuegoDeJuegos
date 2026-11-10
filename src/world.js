@@ -415,7 +415,7 @@ export class WorldEngine {
             this.hoveredCharacter = null;
         }
         this.container.style.cursor = 'default';
-        this.menuCamera.enter(this.desks[0]?.worldPos, this.clock.elapsedTime);
+        this.menuCamera.enter(this.desks[0]?.worldPos, this.clock.elapsedTime, { park: this.parkLocation === 'grounds' });
     }
 
     transitionToGameplay({ era = this.currentEra, revealOffice } = {}) {
@@ -1417,6 +1417,9 @@ export class WorldEngine {
 
         if (menuShot) this.menuCamera.update(delta, time, this.desks[0]?.worldPos);
         else this.controls.update();
+        for (const entrance of this.interactiveParkEntrances || []) {
+            if (entrance.userData.parkLabel) entrance.visible = !menuShot;
+        }
         this.particlesGroup.visible = !menuShot;
         this.confettiGroup.visible = !menuShot;
 

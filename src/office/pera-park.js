@@ -199,6 +199,7 @@ export function buildPeraPark(world, THREE) {
             label.scale.set(4.2, 0.92, 1);
             label.renderOrder = 20;
             label.userData.parkDestination = id;
+            label.userData.parkLabel = true;
             buildingGroup.add(label);
             world.interactiveParkEntrances.push(label);
         }

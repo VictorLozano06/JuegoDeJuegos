@@ -86,7 +86,11 @@ function labelMap(THREE) {
 
 /** Construct the cutaway garage. All structural coordinates are in metres. */
 export function buildGarageLayout(world, THREE) {
-    const room = world.officeGroup;
+    // Keep asynchronous garage assets attached to this scene instance, so a
+    // late load cannot add garage props to the next office.
+    const room = new THREE.Group();
+    room.name = 'Garaje';
+    world.officeGroup.add(room);
     const {
         brick, door, floor, timber, trim
     } = createGarageShellMaterials(THREE, {
