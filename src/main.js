@@ -29,6 +29,9 @@ import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
 import { EngineCreationModal } from './EngineCreationModal.js';
 import './office-move.css';
+import { openStudioRadio, closeStudioRadio } from './radio-player.js';
+
+window.addEventListener('studio-radio-open', openStudioRadio);
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -417,6 +420,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
 }
 
 function returnToMainMenu() {
+    closeStudioRadio();
     if (appState !== STATE_PLAYING) return;
     if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
     appState = STATE_MAIN_MENU;

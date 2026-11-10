@@ -259,6 +259,7 @@ export function buildGarageLayout(world, THREE) {
     radio.name = 'Radiocasete';
     radio.position.set(-0.49, 1.12, -0.035);
     station.add(radio);
+    world.addRadio(station, -0.49, 1.12, -0.035);
     const radioBody = matte(0x464c48);
     const speaker = matte(0x292c29);
     const cassette = matte(0x8c7960);

@@ -11,6 +11,7 @@ import { MenuCamera } from './menuCamera.js';
 import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
 import { game } from './simulation.js';
+import { preloadedModels } from './loading-screen.js';
 
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
@@ -289,6 +290,7 @@ export class WorldEngine {
         this.steamParticles = [];
         this.steamGeometry = new THREE.PlaneGeometry(0.06, 0.06);
         this.interactiveComputers = [];
+        this.interactiveRadios = [];
         this.hoveredComputer = null;
         this.previousCameraPos = null;
         this.previousControlsTarget = null;
@@ -338,6 +340,16 @@ export class WorldEngine {
         this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.06;
+        this.controls.addEventListener('start', () => {
+            this.cameraBeingManipulated = true;
+            this.targetCamPos = null;
+            this.targetLookAt = null;
+            this.isTransitioningCamera = false;
+        });
+        this.controls.addEventListener('end', () => {
+            this.cameraBeingManipulated = false;
+            this.nextShadowRefresh = 0;
+        });
         this.controls.maxPolarAngle = Math.PI / 2.2;
         this.controls.minDistance = 6;
         this.controls.maxDistance = 35;
@@ -682,6 +694,7 @@ export class WorldEngine {
         this.monitors = [];
         this.serverLeds = [];
         this.interactiveComputers = [];
+        this.interactiveRadios = [];
         this.clearComputerHover();
 
         const framing = OFFICE_SCENES[office.sceneId];
@@ -735,7 +748,59 @@ export class WorldEngine {
         this.createDesk(3.2, 0, 2.2, 'cyber', 5);
 
         this.createCoffeeStation(6.0, 0, -5.0);
+        this.addRadio(this.officeGroup, 5.45, 1.2, -5.0, true, Math.PI);
         this.coffeeMugPos = new THREE.Vector3(6.4, 1.35, -4.9);
+    }
+
+    addRadio(parent, x, y, z, createModel = false, rotation = 0) {
+        const group = new THREE.Group();
+        group.name = 'Radio interactiva';
+        group.position.set(x, y, z);
+        group.rotation.y = rotation;
+        parent.add(group);
+        const hitbox = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.48, 0.28),
+            new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }));
+        hitbox.position.y = 0.23;
+        group.add(hitbox);
+        this.interactiveRadios.push(hitbox);
+        if (!createModel || !THREE.GLTFLoader) return;
+        const placeholder = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.33, 0.2), new THREE.MeshStandardMaterial({ color: 0x39434a, roughness: 0.75 }));
+        placeholder.position.y = 0.165;
+        group.add(placeholder);
+        const url = '/models/garage-station/boombox.glb';
+        const install = source => {
+            if (!group.parent) return;
+            const model = source.clone(true);
+            const bounds = new THREE.Box3().setFromObject(model);
+            const size = bounds.getSize(new THREE.Vector3());
+            const center = bounds.getCenter(new THREE.Vector3());
+            if (!size.x || !size.y || !size.z) return;
+            model.scale.set(0.68 / size.x, 0.42 / size.y, 0.2 / size.z);
+            model.position.set(-center.x * model.scale.x, -bounds.min.y * model.scale.y, -center.z * model.scale.z);
+            model.traverse(child => {
+                if (!child.isMesh) return;
+                child.castShadow = true;
+                child.receiveShadow = true;
+                const adjust = material => {
+                    const copy = material.clone();
+                    if (copy.isMeshStandardMaterial) {
+                        copy.metalness = Math.min(copy.metalness, 0.2);
+                        copy.roughness = Math.max(copy.roughness, 0.65);
+                        copy.emissive.setHex(0x555555);
+                        copy.emissiveMap = copy.map;
+                        copy.emissiveIntensity = 0.35;
+                    }
+                    return copy;
+                };
+                child.material = Array.isArray(child.material) ? child.material.map(adjust) : adjust(child.material);
+            });
+            group.add(model);
+            placeholder.visible = false;
+            this.nextShadowRefresh = 0;
+        };
+        const cached = preloadedModels.get(url);
+        if (cached) install(cached);
+        else new THREE.GLTFLoader().load(url, gltf => install(gltf.scene), undefined, error => console.warn('No se pudo cargar la radio:', error));
     }
 
     createDesk(x, y, z, style, index) {
@@ -958,7 +1023,7 @@ export class WorldEngine {
 
         // Small wooden credenza
         const cabinet = new THREE.Mesh(
-            new THREE.BoxGeometry(1.4, 1.2, 0.9),
+            new THREE.BoxGeometry(1.8, 1.2, 0.9),
             new THREE.MeshStandardMaterial({ color: 0x3e2723, roughness: 0.8 })
         );
         cabinet.position.y = 0.6;
@@ -1546,7 +1611,7 @@ export class WorldEngine {
             }
         }
 
-        if (time >= this.nextShadowRefresh) {
+        if (!this.cameraBeingManipulated && time >= this.nextShadowRefresh) {
             this.renderer.shadowMap.needsUpdate = true;
             this.nextShadowRefresh = time + SHADOW_REFRESH_INTERVAL;
         }
@@ -2452,6 +2517,13 @@ export class WorldEngine {
 
             raycaster.setFromCamera(mouse, this.camera);
 
+            if (this.viewMode === 'office' && raycaster.intersectObjects(this.interactiveRadios, false).length) {
+                this.clearComputerHover();
+                if (this.hoveredCharacter) { this.unhighlightCharacter(this.hoveredCharacter); this.hoveredCharacter = null; }
+                this.container.style.cursor = 'pointer';
+                return;
+            }
+
             // 1. Check DAG 3D Nodes Raycasting
             if (this.scopeDagGroup && this.scopeDagGroup.visible && this.dagInteractiveMeshes.length > 0) {
                 const hits = raycaster.intersectObjects(this.dagInteractiveMeshes, false);
@@ -2548,8 +2620,8 @@ export class WorldEngine {
             if (this.hoveredCharacter) {
                 this.unhighlightCharacter(this.hoveredCharacter);
                 this.hoveredCharacter = null;
-                this.container.style.cursor = 'default';
             }
+            this.container.style.cursor = 'default';
         };
         let pendingPointer = null;
         let pointerFramePending = false;
@@ -2587,6 +2659,11 @@ export class WorldEngine {
             mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
             raycaster.setFromCamera(mouse, this.camera);
+
+            if (this.viewMode === 'office' && raycaster.intersectObjects(this.interactiveRadios, false).length) {
+                window.dispatchEvent(new CustomEvent('studio-radio-open'));
+                return;
+            }
 
             // 1. Raycast Interactive DAG Nodes
             if (this.scopeDagGroup && this.scopeDagGroup.visible && this.dagInteractiveMeshes.length > 0) {
