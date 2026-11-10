@@ -188,11 +188,39 @@ export function buildGarageLayout(world, THREE) {
     else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(windowUrl, gltf => installWindow(gltf.scene));
 
     const print = new THREE.MeshStandardMaterial({ map: world.createArcadePosterTexture(), roughness: 0.89 });
-    box(room, 'Marco del póster', timber, 1.03, 1.39, 0.055, -2.67, 1.66, wallFace + 0.0275);
-    plane(room, 'Póster de recreativa', print, 0.89, 1.25, -2.67, 2.355, wallFace + 0.056);
+    const oldPosterFrame = box(room, 'Marco del póster', timber, 1.03, 1.39, 0.055, -2.67, 1.66, wallFace + 0.0275);
+    const posterArt = plane(room, 'Póster de recreativa', print, 0.89, 1.25, -2.67, 2.355, wallFace + 0.056);
     const board = new THREE.MeshStandardMaterial({ map: world.createWhiteboardTexture(), roughness: 0.8 });
-    box(room, 'Marco de la pizarra', timber, 1.85, 1.12, 0.060, -0.65, 1.79, wallFace + 0.03);
-    plane(room, 'Planificación del estudio', board, 1.74, 1.01, -0.65, 2.35, wallFace + 0.061);
+    const oldBoardFrame = box(room, 'Marco de la pizarra', timber, 1.85, 1.12, 0.060, -0.65, 1.79, wallFace + 0.03);
+    const boardArt = plane(room, 'Planificación del estudio', board, 1.74, 1.01, -0.65, 2.35, wallFace + 0.061);
+    const installDecor = (url, install) => {
+        const cached = preloadedModels.get(url);
+        if (cached) install(cached);
+        else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(url, gltf => install(gltf.scene));
+    };
+    installDecor('/models/garage-wall-decor/frame/frame.gltf', source => {
+        const frame = source.clone(true);
+        frame.traverse(object => {
+            if (object.isMesh && /artwork|glass/i.test(object.material?.name || '')) object.visible = false;
+        });
+        frame.name = 'Marco del póster 3D';
+        frame.scale.set(1.73, 1.65, 1);
+        frame.position.set(-2.67, 2.355, wallFace + 0.002);
+        room.add(frame);
+        posterArt.position.z = wallFace + 0.012;
+        oldPosterFrame.visible = false;
+    });
+    installDecor('/models/garage-wall-decor/whiteboard.glb', source => {
+        const model = source.clone(true);
+        model.name = 'Pizarra 3D';
+        model.scale.set(0.925, 0.85, 1);
+        model.position.set(-0.65, 1.79, wallFace + 0.002);
+        room.add(model);
+        // Keep the diagram inside the frame, behind its front edge.
+        boardArt.scale.set(0.93, 0.88, 1);
+        boardArt.position.set(-0.65, 2.35, wallFace + 0.065);
+        oldBoardFrame.visible = false;
+    });
 
     world.createDesk(-1.45, 0, 0.25, 'retro', 0);
     world.createDesk(1.45, 0, 0.25, 'retro', 1);

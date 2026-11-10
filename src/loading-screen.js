@@ -39,6 +39,8 @@ export const ASSET_CATALOG = {
         '/models/retro-keyboard.glb',
         '/models/retro-mouse.glb',
         '/models/garage-shell/shutter/rollershutter_window_01_1k.gltf',
+        '/models/garage-wall-decor/whiteboard.glb',
+        '/models/garage-wall-decor/frame/frame.gltf',
         '/models/garage-window/window.glb',
         '/models/garage-station/dresser.glb',
         '/models/garage-station/boombox.glb',

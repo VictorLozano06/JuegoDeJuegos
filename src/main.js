@@ -159,6 +159,7 @@ async function bootGameApp() {
 
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
+        world.loadingScreenActive = Boolean(loadingScreenInstance);
         world.onNodeClick(on3DNodeClicked);
 
         // Initialize Game Dev Tycoon Sequential Production Flow Controller
@@ -261,6 +262,7 @@ async function bootGameApp() {
             await preloader.loadAll(world);
             loadingScreenInstance.setComplete('¡Llegada al almacén de videojuegos! Texturas y modelos 3D preparados.');
             await loadingScreenInstance.waitForCompletion();
+            world.loadingScreenActive = false;
             loadingScreenInstance.hide();
         }
 
@@ -278,6 +280,7 @@ async function bootGameApp() {
     } catch (e) {
         console.error('CRITICAL BOOT ERROR:', e);
         window.__bootError = e.stack || e.message;
+        if (world) world.loadingScreenActive = false;
         if (loadingScreenInstance) loadingScreenInstance.setError();
     }
 }

@@ -1344,7 +1344,9 @@ export class WorldEngine {
 
         const delta = this.clock.getDelta();
         const time = this.clock.elapsedTime;
-        if (document.hidden) return;
+        // The loading screen has its own animation; do not render the hidden
+        // office concurrently while its assets and shaders are being prepared.
+        if (document.hidden || this.loadingScreenActive) return;
 
         const menuShot = this.menuCamera.active;
         // Keep the last office frame while these menus are open. Redraw on demand
