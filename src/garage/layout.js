@@ -155,8 +155,7 @@ export function buildGarageLayout(world, THREE) {
     world.createDesk(-1.45, 0, 0.25, 'retro', 0);
     world.createDesk(1.45, 0, 0.25, 'retro', 1);
 
-    // The boxes narrow as the pile rises. Rotation is around Y only, so the
-    // bottom of each box remains in contact with the previous lid.
+    // Keep the carton faces aligned and seat each box directly on the one below.
     const storage = new THREE.Group();
     storage.name = 'Archivo y material de mudanza';
     storage.position.set(-3.59, 0, -2.56);
@@ -166,16 +165,60 @@ export function buildGarageLayout(world, THREE) {
     const label = new THREE.MeshStandardMaterial({ map: labelMap(THREE), roughness: 0.94 });
     let level = 0;
     const sizes = [[0.94, 0.58, 0.96], [0.79, 0.46, 0.77], [0.58, 0.35, 0.56]];
+    const boxPlaceholders = [];
     sizes.forEach(([w, h, d], index) => {
         const carton = new THREE.Group();
-        carton.rotation.y = (Math.random() - 0.5) * Math.PI / 30;
+        carton.rotation.y = 0;
         carton.position.set([0, 0.022, -0.018][index], level, [0, -0.018, 0.014][index]);
         storage.add(carton);
-        box(carton, 'Caja de cartón', cardboard[index], w, h, d, 0, 0, 0, true);
-        plane(carton, 'Precinto', tape, 0.09, d, 0, h + 0.001, 0).rotation.x = -Math.PI / 2;
-        plane(carton, 'Etiqueta de archivo', label, 0.22, 0.11, w * 0.19, h * 0.64, d / 2 + 0.001);
+        const placeholder = new THREE.Group();
+        placeholder.name = 'Caja provisional';
+        carton.add(placeholder);
+        box(placeholder, 'Caja de cartón', cardboard[index], w, h, d, 0, 0, 0, true);
+        plane(placeholder, 'Precinto', tape, 0.09, d, 0, h + 0.001, 0).rotation.x = -Math.PI / 2;
+        plane(placeholder, 'Precinto transversal', tape, w, 0.07, 0, h + 0.002, 0).rotation.x = -Math.PI / 2;
+        plane(placeholder, 'Etiqueta de archivo', label, 0.22, 0.11, w * 0.19, h * 0.64, d / 2 + 0.001);
+        boxPlaceholders.push({ carton, placeholder, w, h, d });
         level += h;
     });
+    if (THREE.GLTFLoader) {
+        new THREE.GLTFLoader().load('/models/cardboard/polyfork-cardboard-delivery-box.glb', gltf => {
+            if (!room.parent) return;
+            const source = gltf.scene;
+            // The published GLB defaults to the open state. Fold its four flap
+            // groups into the creator's sealed pose before measuring or cloning it.
+            const boardThickness = 0.013 + (0.006 - 0.013) * 0.65;
+            let closedFlaps = 0;
+            source.traverse(flap => {
+                if (!['flap-front', 'flap-back', 'flap-left', 'flap-right'].includes(flap.name)) return;
+                flap.rotation.set(0, 0, 0);
+                flap.position.y = flap.name === 'flap-front' || flap.name === 'flap-back'
+                    ? 0.30 + boardThickness * 2 + 0.005
+                    : 0.30 + 0.0015;
+                closedFlaps++;
+            });
+            if (closedFlaps !== 4) {
+                console.warn('No se encontraron las cuatro solapas de la caja.');
+                return;
+            }
+            const sourceBounds = new THREE.Box3().setFromObject(source);
+            const sourceSize = sourceBounds.getSize(new THREE.Vector3());
+            const sourceCenter = sourceBounds.getCenter(new THREE.Vector3());
+            if (!sourceSize.x || !sourceSize.y || !sourceSize.z) return;
+            for (const { carton, placeholder, w, h, d } of boxPlaceholders) {
+                const model = source.clone(true);
+                model.scale.set(w / sourceSize.x, h / sourceSize.y, d / sourceSize.z);
+                model.position.set(-sourceCenter.x * model.scale.x, -sourceBounds.min.y * model.scale.y, -sourceCenter.z * model.scale.z);
+                model.name = 'Caja de cartón cerrada';
+                model.traverse(object => {
+                    if (object.isMesh) { object.castShadow = true; object.receiveShadow = true; }
+                });
+                carton.add(model);
+                placeholder.visible = false;
+            }
+            world.nextShadowRefresh = 0;
+        }, undefined, error => console.warn('No se pudo cargar el modelo de las cajas:', error));
+    }
 
     const bin = new THREE.Group();
     bin.name = 'Papelera entre los escritorios';

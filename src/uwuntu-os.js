@@ -1,6 +1,7 @@
 import { game } from './simulation.js';
 import { syncStudioAvatars } from './company-logo.js';
 import { ensureVreadState, generateVreadFeed, getCommunitySentiment, classifyVreadPost } from './vread-engine.js';
+import { renderCasinoApp } from './casino-ui.js';
 
 /**
  * DEV EMPIRE 3D - UWUNTU XD OPERATING SYSTEM
@@ -30,6 +31,7 @@ export const UWUNTU_LOGO_SVG = `
 
 // 2. VECTOR ICONS CATALOG (All original SVG, no emojis)
 export const APP_ICONS = {
+    casino: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="16" r="12" fill="#8d4e2b" fill-opacity=".28"/><circle cx="16" cy="16" r="8"/><circle cx="16" cy="16" r="2" fill="currentColor"/><path d="M16 4v4M16 24v4M4 16h4M24 16h4M7.5 7.5l2.8 2.8M21.7 21.7l2.8 2.8M24.5 7.5l-2.8 2.8M10.3 21.7l-2.8 2.8"/></svg>`,
     newGame: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="8" width="26" height="16" rx="6" fill="#0284c7" fill-opacity="0.25"/>
         <line x1="9" y1="16" x2="15" y2="16"/>
@@ -322,6 +324,12 @@ export const UWUNTU_APPS = [
     },
 
     // SISTEMA
+    {
+        id: 'app-casino', title: 'Casino Royale · Salón privado', shortTitle: 'Casino',
+        category: 'Mercado', isCustomApp: true, requiresInstall: true, availableYear: 2010,
+        icon: APP_ICONS.casino, badgeColor: '#c49543', defaultWidth: 960, defaultHeight: 680,
+        renderContent: (container, gameInstance) => renderCasinoApp(container, gameInstance)
+    },
     {
         id: 'app-store',
         title: 'Uwuntu Store · Software Hub',
@@ -1027,6 +1035,7 @@ export class UwuntuOS {
 
         // Workstation Tools (Filter apps that require installation from Store)
         UWUNTU_APPS.forEach(app => {
+            if (app.availableYear && this.getHistoricalYear() < app.availableYear) return;
             if (app.requiresInstall && !this.installedApps.has(app.id)) {
                 return;
             }
@@ -1272,6 +1281,7 @@ export class UwuntuOS {
 
         const filterLower = searchFilter.toLowerCase();
         const filteredApps = UWUNTU_APPS.filter(app => {
+            if (app.availableYear && this.getHistoricalYear() < app.availableYear) return false;
             if (app.requiresInstall && !this.installedApps.has(app.id)) {
                 return false;
             }
@@ -1634,6 +1644,10 @@ export class UwuntuOS {
     launchApp(appId) {
         const app = UWUNTU_APPS.find(a => a.id === appId);
         if (!app) return;
+        if (app.availableYear && this.getHistoricalYear() < app.availableYear) {
+            this.showWallpaperToast(`«${app.shortTitle}» estará disponible en ${app.availableYear}.`);
+            return;
+        }
 
         // If direct action (e.g. 3D Hologram toggle)
         if (app.isDirectAction && typeof app.action === 'function') {
@@ -2103,6 +2117,12 @@ export class UwuntuOS {
     }
 
     installApp(appId, onComplete) {
+        const app = UWUNTU_APPS.find(item => item.id === appId);
+        if (app?.availableYear && this.getHistoricalYear() < app.availableYear) {
+            this.showWallpaperToast(`«${app.shortTitle}» estará disponible en ${app.availableYear}.`);
+            onComplete?.();
+            return;
+        }
         this.installedApps.add(appId);
         localStorage.setItem('uwuntu_installed_apps', JSON.stringify(Array.from(this.installedApps)));
 
@@ -4597,6 +4617,14 @@ export function renderOSUpdateAppContent(container, gameInstance, osInstance) {
 // 6. CUSTOM APP: UWUNTU STORE · SOFTWARE HUB
 export const STORE_CATALOG = [
     {
+        id: 'app-casino', name: 'Casino Royale · Salón privado', shortName: 'Casino',
+        category: 'Finanzas & Análisis', categoryKey: 'finance', availableYear: 2010,
+        icon: APP_ICONS.casino, badgeColor: '#c49543', author: 'Royale Digital', version: 'v1.0',
+        size: '28 MB', rating: '4.2', ratingCount: '2.1k', downloads: '18k',
+        description: 'Tragaperras, blackjack y ruleta para apostar fondos o franquicias del estudio.',
+        features: ['Tres juegos de azar', 'Apuestas con dinero o franquicias', 'Historial de resultados'], isHero: false
+    },
+    {
         id: 'app-vread',
         name: 'Vread · Red Social y Comunidad',
         shortName: 'Vread',
@@ -4704,6 +4732,7 @@ export function renderStoreAppContent(container, gameInstance) {
         const installedSet = os ? os.installedApps : new Set();
 
         const filteredCatalog = STORE_CATALOG.filter(item => {
+            if (item.availableYear && (os?.getHistoricalYear?.() ?? gameInstance.getHistoricalYear()) < item.availableYear) return false;
             const matchesCat = currentCategory === 'all' || item.categoryKey === currentCategory;
             const q = searchQuery.toLowerCase().trim();
             const matchesSearch = !q ||

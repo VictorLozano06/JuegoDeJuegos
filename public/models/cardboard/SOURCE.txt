@@ -1,0 +1,4 @@
+Model: Cardboard Delivery Box by Polyfork, low-poly sealed cardboard shipping box.
+Source: https://polyfork.dev/asset/cardboard-delivery-box-59cc68
+Credit: Cardboard Delivery Box by Polyfork (https://polyfork.dev/asset/cardboard-delivery-box-59cc68), CC BY 4.0.
+The GLB is included in the game with attribution under CC BY 4.0.
