@@ -2,6 +2,7 @@
 const fail = message => ({ success: false, message });
 const pick = (items, random) => items[Math.floor(random() * items.length)];
 const rank = random => pick(['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'], random);
+export const SLOT_SYMBOLS = ['7', 'DIAMANTE', 'CEREZA', 'CAMPANA', 'ESTRELLA', 'BAR'];
 export function handValue(cards) {
     let total = 0, aces = 0;
     for (const card of cards) {
@@ -56,19 +57,20 @@ function settle(game, stake, multiplier, description) {
     state(game).history.unshift({ message, year: game.getHistoricalYear() });
     state(game).history.length = Math.min(state(game).history.length, 12);
     game.notify?.();
-    return { success: true, message };
+    return { success: true, message, outcome };
 }
 export function spinSlots(game, stake, random = Math.random) {
     const reserved = reserve(game, stake); if (!reserved.success) return reserved;
-    const reels = Array.from({ length: 3 }, () => pick(['7', 'DIAMANTE', 'CEREZA', 'CAMPANA', 'ESTRELLA', 'BAR'], random));
+    const reels = Array.from({ length: 3 }, () => pick(SLOT_SYMBOLS, random));
     const matches = new Set(reels).size;
     return { ...settle(game, reserved.stake, matches === 1 ? 8 : matches === 2 ? 1 : 0, `Tragaperras: ${reels.join(' · ')}`), reels };
 }
 const red = new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]);
+export const rouletteColor = number => number === 0 ? 'verde' : red.has(number) ? 'rojo' : 'negro';
 export function spinRoulette(game, stake, choice, random = Math.random) {
     if (!['red', 'black', 'number'].includes(choice?.kind) || (choice.kind === 'number' && (!Number.isInteger(choice.number) || choice.number < 0 || choice.number > 36))) return fail('Elige rojo, negro o un número del 0 al 36.');
     const reserved = reserve(game, stake); if (!reserved.success) return reserved;
-    const number = Math.floor(random() * 37), color = number === 0 ? 'verde' : red.has(number) ? 'rojo' : 'negro';
+    const number = Math.floor(random() * 37), color = rouletteColor(number);
     const won = choice.kind === 'number' ? number === choice.number : (choice.kind === 'red' ? color === 'rojo' : color === 'negro');
     return { ...settle(game, reserved.stake, won ? (choice.kind === 'number' ? 36 : 2) : 0, `Ruleta: ${number} ${color}`), number, color };
 }
@@ -79,7 +81,7 @@ export function startBlackjack(game, stake, random = Math.random) {
     const playerNatural = handValue(hand.player) === 21, dealerNatural = handValue(hand.dealer) === 21;
     if (playerNatural || dealerNatural) {
         state(game).hand = null;
-        return settle(game, hand.stake, playerNatural && dealerNatural ? 1 : playerNatural ? 2.5 : 0, `Blackjack: tú ${hand.player.join(' + ')} · banca ${hand.dealer.join(' + ')}`);
+        return { ...settle(game, hand.stake, playerNatural && dealerNatural ? 1 : playerNatural ? 2.5 : 0, `Blackjack: tú ${hand.player.join(' + ')} · banca ${hand.dealer.join(' + ')}`), cards: { player: hand.player, dealer: hand.dealer } };
     }
     game.notify?.();
     return { success: true, message: 'Elige pedir carta o plantarte.' };
@@ -94,5 +96,5 @@ export function playBlackjack(game, action, random = Math.random) {
     const p = handValue(hand.player), d = handValue(hand.dealer);
     const multiplier = p > 21 ? 0 : d > 21 || p > d ? 2 : p === d ? 1 : 0;
     state(game).hand = null;
-    return settle(game, hand.stake, multiplier, `Blackjack: tú ${p} · banca ${d}`);
+    return { ...settle(game, hand.stake, multiplier, `Blackjack: tú ${p} · banca ${d}`), cards: { player: hand.player, dealer: hand.dealer } };
 }
