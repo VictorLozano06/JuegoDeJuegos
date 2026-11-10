@@ -2,6 +2,7 @@ import { game } from './simulation.js';
 import { syncStudioAvatars } from './company-logo.js';
 import { ensureVreadState, generateVreadFeed, getCommunitySentiment, classifyVreadPost } from './vread-engine.js';
 import { renderCasinoApp } from './casino-ui.js';
+import { jumpToYear } from './admin-time.js';
 
 /**
  * DEV EMPIRE 3D - UWUNTU XD OPERATING SYSTEM
@@ -1806,7 +1807,7 @@ export class UwuntuOS {
 
         // Draggable Titlebar Logic
         let isDragging = false;
-        let startX, startY, origLeft, origTop;
+        let startX, startY, origLeft, origTop, nextLeft, nextTop, dragFrame = 0;
 
         titlebar.addEventListener('pointerdown', (e) => {
             if (e.target.closest('.win-btn')) return;
@@ -1818,6 +1819,8 @@ export class UwuntuOS {
             startY = e.clientY;
             origLeft = winEl.offsetLeft;
             origTop = winEl.offsetTop;
+            nextLeft = origLeft;
+            nextTop = origTop;
             winEl.classList.add('is-dragging');
             titlebar.setPointerCapture(e.pointerId);
         });
@@ -1826,15 +1829,22 @@ export class UwuntuOS {
             if (!isDragging) return;
             const dx = e.clientX - startX;
             const dy = e.clientY - startY;
-            const newLeft = Math.max(10, Math.min(window.innerWidth - 100, origLeft + dx));
-            const newTop = Math.max(10, Math.min(window.innerHeight - 60, origTop + dy));
-            winEl.style.left = `${newLeft}px`;
-            winEl.style.top = `${newTop}px`;
+            nextLeft = Math.max(10, Math.min(window.innerWidth - 100, origLeft + dx));
+            nextTop = Math.max(10, Math.min(window.innerHeight - 60, origTop + dy));
+            if (!dragFrame) dragFrame = requestAnimationFrame(() => {
+                dragFrame = 0;
+                winEl.style.transform = `translate3d(${nextLeft - origLeft}px, ${nextTop - origTop}px, 0)`;
+            });
         });
 
         const stopDrag = (e) => {
             if (isDragging) {
                 isDragging = false;
+                if (dragFrame) cancelAnimationFrame(dragFrame);
+                dragFrame = 0;
+                winEl.style.left = `${nextLeft}px`;
+                winEl.style.top = `${nextTop}px`;
+                winEl.style.transform = '';
                 winEl.classList.remove('is-dragging');
                 try { titlebar.releasePointerCapture(e.pointerId); } catch {}
             }
@@ -3953,6 +3963,13 @@ function renderAdminAppContent(container, gameInstance) {
             <div class="admin-main-layout">
                 <!-- Left: Quick Action Cards -->
                 <div class="admin-controls-pane">
+                    <div class="admin-box">
+                        <div class="admin-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 15h8m-3-3 3 3-3 3"/></svg><span>Calendario</span></div>
+                        <label for="admin-target-year">Adelantar al año</label>
+                        <div class="admin-funds-input-group"><input type="number" id="admin-target-year" min="${(gameInstance.getHistoricalYear?.() || 1982) + 1}" max="2200" step="1" value="${(gameInstance.getHistoricalYear?.() || 1982) + 1}"><button type="button" class="admin-btn primary" id="admin-jump-year">Adelantar año</button></div>
+                        <p class="admin-year-help">Cambia la fecha sin simular las semanas intermedias, sus gastos ni sus eventos.</p>
+                        <p class="admin-year-error" id="admin-year-error" role="alert"></p>
+                    </div>
                     <!-- Section: Finanzas -->
                     <div class="admin-box">
                         <div class="admin-box-title">
@@ -4063,6 +4080,8 @@ function renderAdminAppContent(container, gameInstance) {
         if (statRP) statRP.textContent = `${getRP()} RP`;
         if (statEnergy) statEnergy.textContent = `${getAvgEnergy()}%`;
         if (statHype) statHype.textContent = String(gameInstance.hype || 0);
+        const dateBadge = container.querySelector('#admin-live-date');
+        if (dateBadge) dateBadge.textContent = getHistoricalDate();
 
         const legacyFunds = document.getElementById('admin-current-funds');
         if (legacyFunds) legacyFunds.textContent = getFundsFormatted();
@@ -4071,6 +4090,42 @@ function renderAdminAppContent(container, gameInstance) {
         window.refreshOfficeManager?.();
         window.autosaveCurrentGame?.();
     };
+
+    container.querySelector('#admin-jump-year')?.addEventListener('click', event => {
+        const input = container.querySelector('#admin-target-year');
+        const error = container.querySelector('#admin-year-error');
+        const target = Number(input.value);
+        const current = gameInstance.getHistoricalYear();
+        if (!Number.isSafeInteger(target) || target <= current || target > 2200) {
+            error.textContent = `Elige un año posterior a ${current} y hasta 2200.`;
+            input.focus();
+            return;
+        }
+        error.textContent = '';
+        const origin = event.currentTarget;
+        const dialog = document.createElement('dialog');
+        dialog.className = 'admin-year-dialog';
+        dialog.setAttribute('aria-labelledby', 'admin-year-confirm-title');
+        dialog.innerHTML = `<h2 id="admin-year-confirm-title">Adelantar el calendario</h2><p>La fecha pasará de <strong>${current}</strong> a <strong>${target}</strong>. Las semanas intermedias, sus gastos y sus eventos no se simularán.</p><div><button type="button" data-cancel>Cancelar</button><button type="button" data-confirm>Adelantar a ${target}</button></div>`;
+        dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
+        dialog.querySelector('[data-confirm]').addEventListener('click', () => {
+            const result = jumpToYear(gameInstance, target);
+            dialog.close();
+            if (!result.success) { error.textContent = result.message; return; }
+            input.min = String(target + 1);
+            input.value = String(target + 1);
+            window.uwuntuOS?.syncEraTheme();
+            window.uwuntuOS?.renderDesktopIcons();
+            window.uwuntuOS?.renderStartMenuItems();
+            window.uwuntuOS?.checkSystemNotifications();
+            refreshStats();
+            appendLog(result.message, 'success');
+        }, { once: true });
+        dialog.addEventListener('close', () => { dialog.remove(); if (origin.isConnected) origin.focus(); }, { once: true });
+        document.body.appendChild(dialog);
+        dialog.showModal();
+        dialog.querySelector('[data-cancel]').focus();
+    });
 
     container.querySelector('#admin-btn-add-funds')?.addEventListener('click', () => {
         const val = Math.max(0, parseInt(fundsInput?.value || 0, 10));
@@ -4286,11 +4341,16 @@ function renderAdminAppContent(container, gameInstance) {
 
             case 'advance': {
                 const weeks = Math.min(52, Math.max(1, parseInt(args[0], 10) || 1));
-                for (let i = 0; i < weeks; i++) {
-                    gameInstance.advanceWeek?.();
+                let advanced = 0;
+                for (let i = 0; i < weeks && !gameInstance.isPaused; i++) {
+                    const before = gameInstance.getIndustryWeek();
+                    gameInstance.advanceCalendar();
+                    if (gameInstance.getIndustryWeek() === before) break;
+                    advanced++;
                 }
                 refreshStats();
-                appendLog(`OK: Simulación avanzada ${weeks} semana(s).`, 'success');
+                window.uwuntuOS?.syncEraTheme();
+                appendLog(advanced ? `Simulación avanzada ${advanced} semana(s).` : 'No se pudo avanzar: reanuda la partida o resuelve la bancarrota pendiente.', advanced ? 'success' : 'error');
                 break;
             }
 

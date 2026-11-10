@@ -1284,7 +1284,7 @@ export class WorldEngine {
         const menuShot = this.menuCamera.active;
         // Keep the last office frame while these menus are open. Redraw on demand
         // for appearance changes and resizes without advancing the visual effects.
-        if (!menuShot && document.querySelector('.modal-backdrop.active > .compact-menu, #modal-expo-scene.active, .game-dialog[open]')) {
+        if (!menuShot && (window.uwuntuOS?.isOpen || document.querySelector('.modal-backdrop.active > .compact-menu, #modal-expo-scene.active, .game-dialog[open]'))) {
             if (this.needsStaticFrame) {
                 this.renderer.shadowMap.needsUpdate = true;
                 this.renderFrame();
