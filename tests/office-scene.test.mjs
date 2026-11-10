@@ -17,7 +17,7 @@ after(async () => {
 
 const { WorldEngine } = await vite.ssrLoadModule('/src/world.js');
 
-function buildScene() {
+function buildScene(tier = 2) {
     // Exercise the real scene builder and placement logic without a WebGL context.
     const world = Object.assign(Object.create(WorldEngine.prototype), {
         currentEra: 1,
@@ -34,7 +34,7 @@ function buildScene() {
         createWhiteboardTexture: () => new THREE.Texture(),
         clearComputerHover: () => {}
     });
-    world.buildOffice(2);
+    world.buildOffice(tier);
     return world;
 }
 
@@ -47,6 +47,43 @@ test('the modern scene builds one founder workstation and four separate team wor
     assert.equal(world.monitors.filter(Boolean).length, 5);
     assert.equal(new Set(world.desks.map(desk => desk.seatPos.toArray().join(','))).size, 5);
     assert.ok(world.desks.every(desk => desk.occupant === null));
+});
+
+test('the campus seats the founder and nine employees at distinct workstations', () => {
+    const world = buildScene(3);
+    assert.equal(world.desks.length, 10);
+    assert.equal(world.desks.filter(desk => desk.role === 'founder').length, 1);
+    assert.equal(world.desks.filter(desk => desk.role === 'employee').length, 9);
+    assert.equal(world.monitors.length, 10);
+    assert.equal(new Set(world.desks.map(desk => desk.seatPos.toArray().join(','))).size, 10);
+    world.characters = Array.from({ length: 10 }, (_, i) => ({
+        employee: { id: i === 0 ? 'player' : `employee-${i}` }, group: new THREE.Group()
+    }));
+    world.updateCharacterPositions();
+    assert.equal(world.desks.filter(desk => desk.occupant?.group.visible).length, 10);
+    assert.equal(world.desks[0].occupant.employee.id, 'player');
+});
+
+test('Pera Park connects three entrances to interiors and reuses the tier-three studio', () => {
+    const world = buildScene(3);
+    const studioSeats = world.desks.map(desk => desk.seatPos.toArray());
+    world.buildOffice(4);
+    assert.equal(world.parkLocation, 'grounds');
+    assert.deepEqual([...new Set(world.interactiveParkEntrances.map(mesh => mesh.userData.parkDestination))],
+        ['studio', 'consoles', 'lab']);
+    assert.equal(world.desks.length, 0);
+    assert.equal(world.officeGroup.children[0].children.filter(mesh => mesh.name === 'Parcela de expansión').length, 2);
+
+    world.buildOffice(4, 'studio');
+    assert.deepEqual(world.desks.map(desk => desk.seatPos.toArray()), studioSeats);
+    assert.equal(world.interactiveParkEntrances.length, 0);
+
+    world.buildOffice(4, 'consoles');
+    assert.ok(world.officeGroup.getObjectByName('Prototipo de consola'));
+    world.buildOffice(4, 'lab');
+    assert.ok(world.officeGroup.getObjectByName('Módulo de pruebas'));
+    world.buildOffice(4, 'grounds');
+    assert.ok(world.officeGroup.getObjectByName('Cubierta circular'));
 });
 
 test('the founder keeps their desk and extra characters never overlap occupied seats', () => {

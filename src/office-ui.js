@@ -56,7 +56,7 @@ function buildOfficeCard(office, occupied, onAction) {
         action.disabled = !office.canActivate;
         action.addEventListener('click', () => onAction(office.id, 'activate'));
     } else {
-        action.textContent = 'Comprar y activar';
+        action.textContent = office.cost ? 'Comprar y activar' : 'Activar sede gratis';
         action.disabled = !office.canPurchase;
         action.addEventListener('click', () => onAction(office.id, 'purchase'));
     }

@@ -75,17 +75,29 @@ test('reopening an unlocked office is free', () => {
     assert.equal(game.funds, 0);
 });
 
-test('campus progression still requires the modern office and a successful catalogue', () => {
+test('campus is available from the start without cost or progression requirements', () => {
     const game = newGame();
-    game.funds = 1700000;
-    game.gamesHistory = Array.from({ length: 6 }, () => ({ score: 9 }));
-    assert.equal(game.purchaseOffice('campus').success, false);
-    assert.equal(game.funds, 1700000);
-    assert.equal(game.purchaseOffice('modern').success, true);
+    game.funds = 0;
+    game.gamesHistory = [];
+    assert.equal(game.getOffices().find(office => office.id === 'campus').canPurchase, true);
     assert.equal(game.purchaseOffice('campus').success, true);
     assert.equal(game.era, 3);
-    assert.equal(game.funds, 750000);
-    assert.equal(game.getMaxStaffCapacity(), 8);
+    assert.equal(game.funds, 0);
+    assert.equal(game.getMaxStaffCapacity(), 10);
+    game.funds = 1000;
+    for (let i = 1; i <= 9; i++) {
+        assert.equal(game.hireEmployee({ name: `Employee ${i}`, salary: 100 }).success, true);
+    }
+    assert.equal(game.employees.length, 10);
+    assert.equal(game.hireEmployee({ name: 'Employee 10', salary: 100 }).success, false);
+    assert.equal(game.activateOffice('garage').success, false);
+    const saves = new SaveSystem(storageForTests());
+    saves.save(game, { id: 'campus' });
+    const restored = newGame();
+    saves.load('campus', restored);
+    assert.equal(restored.getActiveOffice().id, 'campus');
+    assert.equal(restored.employees.length, 10);
+    assert.equal(restored.getMaxStaffCapacity(), 10);
 });
 
 test('save and load round trip the active office and ownership', () => {
@@ -103,6 +115,21 @@ test('save and load round trip the active office and ownership', () => {
     assert.equal(restored.era, 2);
     assert.equal(restored.funds, 20000);
     assert.equal(restored.purchaseOffice('modern').success, false);
+});
+
+test('Pera Park is available for a visit and persists as office four without a fourth production era', () => {
+    const game = newGame();
+    game.funds = 0;
+    assert.equal(game.purchaseOffice('pera-park').success, true);
+    assert.equal(game.getActiveOffice().tier, 4);
+    assert.equal(game.era, 3);
+    const saves = new SaveSystem(storageForTests());
+    saves.save(game, { id: 'park' });
+    const restored = newGame();
+    assert.equal(saves.list()[0].currentOffice, 4);
+    saves.load('park', restored);
+    assert.equal(restored.getActiveOffice().id, 'pera-park');
+    assert.equal(restored.era, 3);
 });
 
 test('version-one saves without office fields default to the garage or preserve known eras', () => {

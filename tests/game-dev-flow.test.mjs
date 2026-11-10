@@ -3,6 +3,24 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { GameDevFlowController, ProductionLifecycleState, DevelopmentStageModal } from '../src/GameDevFlowController.js';
 
+test('el contador espera la llegada y conserva el valor real en el proyecto', () => {
+    let arrive;
+    const controller = new GameDevFlowController({ game: {}, world: {
+        spawnDevelopmentBubble: (_type, _employee, callback) => { arrive = callback; }
+    } });
+    const project = { name: 'Juego', stage: 1, overallProgress: 0, techPoints: 0, designPoints: 0, bugs: 0 };
+    controller.project = project;
+    controller.state = ProductionLifecycleState.STAGE_1_WORK;
+    controller.hudEl = { innerHTML: '', querySelector: () => null };
+    globalThis.document = {};
+    project.techPoints = 4;
+    controller.syncWithProject(project);
+    assert.equal(project.techPoints, 4);
+    assert.match(controller.hudEl.innerHTML, /id="gdt-val-tech">0</);
+    arrive();
+    assert.match(controller.hudEl.innerHTML, /id="gdt-val-tech">4</);
+});
+
 test('ProductionLifecycleState enum includes all Game Dev Tycoon discrete states', () => {
     const expected = [
         'STATE_SETUP',

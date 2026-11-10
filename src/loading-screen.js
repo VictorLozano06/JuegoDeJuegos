@@ -114,6 +114,9 @@ export class LoadingScreen {
     }
     start() {
         this.root.classList.remove('fade-out'); this.root.style.display = 'flex';
+        this.root.classList.remove('load-failed');
+        document.getElementById('loading-dock-status').textContent = 'EN RUTA AL ALMACÉN';
+        document.getElementById('loading-dock-badge').classList.remove('docked');
         document.getElementById('loading-completion-row').hidden = true;
         this.lastTime = performance.now();
         this.loop();
@@ -133,10 +136,10 @@ export class LoadingScreen {
     }
     hide() {
         this.root.classList.add('fade-out');
+        cancelAnimationFrame(this.animFrameId);
         window.removeEventListener('keydown', this.onKeyDown);
         window.removeEventListener('resize', this.onResize);
         document.getElementById('loading-enter-btn')?.removeEventListener('click', this.onEnter);
-        setTimeout(() => { cancelAnimationFrame(this.animFrameId); this.root.style.display = 'none'; }, 700);
     }
     loop() {
         const now = performance.now(), dt = Math.min((now - this.lastTime) / 1000, .05);
@@ -331,13 +334,7 @@ export class AssetPreloader {
 
         // 5. Compilación y calentamiento de shaders WebGL en GPU
         if (worldInstance && worldInstance.renderer && worldInstance.scene && worldInstance.camera) {
-            try {
-                if (worldInstance.renderer.compileAsync) await worldInstance.renderer.compileAsync(worldInstance.scene, worldInstance.camera);
-                else worldInstance.renderer.compile(worldInstance.scene, worldInstance.camera);
-                worldInstance.renderer.render(worldInstance.scene, worldInstance.camera);
-            } catch (e) {
-                throw e;
-            }
+            await worldInstance.prepareOfficeFrame();
         }
         update('Compilando shaders y subiendo texturas a la GPU...');
 
