@@ -1,4 +1,5 @@
 import { createGarageShellMaterials } from './lighting.js';
+import { preloadedModels } from '../loading-screen.js';
 
 const ROOM_WIDTH = 8.8;
 const ROOM_DEPTH = 6.8;
@@ -242,14 +243,16 @@ export function buildGarageLayout(world, THREE) {
     station.name = 'Estación de café y música';
     station.position.set(2.56, 0, -2.72);
     room.add(station);
-    box(station, 'Zócalo del aparador', trim, 1.76, 0.10, 0.55, 0, 0, 0);
-    box(station, 'Aparador', timber, 1.88, 0.94, 0.63, 0, 0.10, 0, true);
-    box(station, 'Encimera del aparador', timber, 1.99, 0.08, 0.72, 0, 1.04, 0, true);
+    const cabinetFallback = new THREE.Group();
+    station.add(cabinetFallback);
+    box(cabinetFallback, 'Zócalo del aparador', trim, 1.76, 0.10, 0.55, 0, 0, 0);
+    box(cabinetFallback, 'Aparador', timber, 1.88, 0.94, 0.63, 0, 0.10, 0, true);
+    box(cabinetFallback, 'Encimera del aparador', timber, 1.99, 0.08, 0.72, 0, 1.04, 0, true);
     const drawer = matte(0x79553f);
     const brass = new THREE.MeshStandardMaterial({ color: 0xc2a06e, roughness: 0.63, metalness: 0.34 });
     for (const y of [0.18, 0.48, 0.78]) {
-        box(station, 'Frente del cajón', drawer, 1.74, 0.23, 0.03, 0, y, 0.327);
-        box(station, 'Tirador', brass, 0.18, 0.023, 0.035, 0, y + 0.10, 0.350);
+        box(cabinetFallback, 'Frente del cajón', drawer, 1.74, 0.23, 0.03, 0, y, 0.327);
+        box(cabinetFallback, 'Tirador', brass, 0.18, 0.023, 0.035, 0, y + 0.10, 0.350);
     }
 
     const radio = new THREE.Group();
@@ -270,14 +273,66 @@ export function buildGarageLayout(world, THREE) {
     box(radio, 'Dial de frecuencia', brass, 0.19, 0.024, 0.014, 0, 0.21, 0.109);
 
     const coffee = matte(0x7e3d33);
-    box(station, 'Bandeja de la cafetera', darkMetal, 0.34, 0.045, 0.33, 0.36, 1.12, -0.06);
-    box(station, 'Depósito de la cafetera', coffee, 0.29, 0.42, 0.12, 0.36, 1.165, -0.16);
-    box(station, 'Cabezal de la cafetera', coffee, 0.30, 0.11, 0.29, 0.36, 1.49, -0.07);
+    const coffeeFallback = new THREE.Group();
+    station.add(coffeeFallback);
+    box(coffeeFallback, 'Bandeja de la cafetera', darkMetal, 0.34, 0.045, 0.33, 0.36, 1.12, -0.06);
+    box(coffeeFallback, 'Depósito de la cafetera', coffee, 0.29, 0.42, 0.12, 0.36, 1.165, -0.16);
+    box(coffeeFallback, 'Cabezal de la cafetera', coffee, 0.30, 0.11, 0.29, 0.36, 1.49, -0.07);
     const carafe = matte(0x594237);
-    mesh(station, 'Jarra de café', new THREE.CylinderGeometry(0.090, 0.105, 0.20, 12), carafe, 0.36, 1.265, 0.02);
+    mesh(coffeeFallback, 'Jarra de café', new THREE.CylinderGeometry(0.090, 0.105, 0.20, 12), carafe, 0.36, 1.265, 0.02);
     const mug = matte(0xd5b78a);
-    mesh(station, 'Taza de cerámica', new THREE.CylinderGeometry(0.058, 0.049, 0.12, 12), mug, 0.73, 1.18, 0.14);
-    mesh(station, 'Asa de la taza', new THREE.TorusGeometry(0.039, 0.009, 6, 12), mug, 0.783, 1.18, 0.14);
+    const mugFallback = new THREE.Group();
+    station.add(mugFallback);
+    mesh(mugFallback, 'Taza de cerámica', new THREE.CylinderGeometry(0.058, 0.049, 0.12, 12), mug, 0.73, 1.18, 0.14);
+    mesh(mugFallback, 'Asa de la taza', new THREE.TorusGeometry(0.039, 0.009, 6, 12), mug, 0.783, 1.18, 0.14);
     world.coffeeMugPos = new THREE.Vector3(3.29, 1.24, -2.58);
+
+    const props = [
+        { url: '/models/garage-station/dresser.glb', name: 'Aparador', fallback: cabinetFallback, width: 1.88, height: 1.12, depth: 0.63, x: 0, y: 0, z: 0 },
+        { url: '/models/garage-station/boombox.glb', name: 'Radiocasete', fallback: radio, width: 0.72, height: 0.45, depth: 0.21, x: -0.49, y: 1.12, z: -0.035 },
+        { url: '/models/garage-station/coffee-maker.glb', name: 'Cafetera', fallback: coffeeFallback, width: 0.34, height: 0.48, depth: 0.33, x: 0.36, y: 1.12, z: -0.06 },
+        { url: '/models/modern-office/taza.glb', name: 'Taza', fallback: mugFallback, width: 0.15, height: 0.12, depth: 0.13, x: 0.73, y: 1.12, z: 0.14 }
+    ];
+    if (THREE.GLTFLoader) {
+        const loader = new THREE.GLTFLoader();
+        for (const prop of props) {
+            const install = source => {
+                if (station.parent !== room) return;
+                const model = source.clone(true);
+                const bounds = new THREE.Box3().setFromObject(model);
+                const size = bounds.getSize(new THREE.Vector3());
+                const center = bounds.getCenter(new THREE.Vector3());
+                if (!size.x || !size.y || !size.z) return;
+                model.scale.set(prop.width / size.x, prop.height / size.y, prop.depth / size.z);
+                model.position.set(prop.x - center.x * model.scale.x, prop.y - bounds.min.y * model.scale.y, prop.z - center.z * model.scale.z);
+                model.name = prop.name;
+                model.traverse(child => {
+                    if (!child.isMesh) return;
+                    child.castShadow = true;
+                    child.receiveShadow = true;
+                    if (prop.name === 'Radiocasete') {
+                        const softenMaterial = material => {
+                            const adjusted = material.clone();
+                            if (adjusted.isMeshStandardMaterial) {
+                                adjusted.metalness = Math.min(adjusted.metalness, 0.2);
+                                adjusted.roughness = Math.max(adjusted.roughness, 0.65);
+                                adjusted.emissive.setHex(0x555555);
+                                adjusted.emissiveMap = adjusted.map;
+                                adjusted.emissiveIntensity = 0.35;
+                            }
+                            return adjusted;
+                        };
+                        child.material = Array.isArray(child.material) ? child.material.map(softenMaterial) : softenMaterial(child.material);
+                    }
+                });
+                station.add(model);
+                prop.fallback.visible = false;
+                world.nextShadowRefresh = 0;
+            };
+            const cached = preloadedModels.get(prop.url);
+            if (cached) install(cached);
+            else loader.load(prop.url, gltf => install(gltf.scene), undefined, error => console.warn(`No se pudo cargar ${prop.name}:`, error));
+        }
+    }
 
 }

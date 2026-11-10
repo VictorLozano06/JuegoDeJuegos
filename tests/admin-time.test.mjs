@@ -22,9 +22,22 @@ test('admin jump changes the year without spending money or advancing weeks', ()
 
 test('admin jump rejects invalid, past and blocked dates without changes', () => {
     const g = game();
-    for (const year of [2005, 2004, 2201, 2010.5, NaN]) assert.equal(jumpToYear(g, year).success, false);
+    for (const year of [2005, 1981, 2201, 2010.5, NaN]) assert.equal(jumpToYear(g, year).success, false);
     g.financeState.procedurePending = true;
     assert.equal(jumpToYear(g, 2010).success, false);
     assert.equal(g.getHistoricalYear(), 2005);
     assert.deepEqual(g.announcements, []);
+});
+
+test('admin can return to an earlier year without rewinding progress or money', () => {
+    const g = game();
+    g.osUpdated2006 = true;
+    assert.equal(jumpToYear(g, 1990).success, true);
+    assert.equal(g.getHistoricalYear(), 1990);
+    assert.equal(g.funds, 25000);
+    assert.equal(g.month, 6);
+    assert.equal(g.week, 3);
+    assert.equal(g.osUpdated2006, false);
+    assert.equal(jumpToYear(g, 2010).success, true);
+    assert.equal(g.osUpdated2006, false);
 });

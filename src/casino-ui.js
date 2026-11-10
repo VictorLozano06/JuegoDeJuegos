@@ -12,15 +12,16 @@ const tables = [
 const animations = { slots: 1370, roulette: 2280, blackjack: 480 };
 const suits = ['spade', 'heart', 'club', 'diamond'];
 
-function slotMachine(reels, spinning) {
-    return `<div class="royale-machine ${spinning ? 'is-spinning' : ''}">
-        <div class="royale-marquee"><i></i><strong>NEÓN <em>777</em></strong><i></i></div>
+function slotMachine(reels, spinning, won) {
+    return `<div class="royale-machine ${spinning ? 'is-spinning' : ''} ${won ? 'machine-won' : ''}">
+        <div class="machine-crown"><span>CASINO ROYALE</span><div class="royale-marquee"><i></i><strong>NEÓN <em>777</em></strong><i></i></div><small>PREMIUM SLOT EXPERIENCE</small></div>
+        <div class="machine-lights" aria-hidden="true">${'<i></i>'.repeat(15)}</div>
         <div class="royale-reels" role="img" aria-label="${spinning ? 'Rodillos en giro' : `Rodillos: ${reels.join(', ')}`}">${reels.map((symbol, i) => {
             const track = spinning ? [...Array.from({ length: 10 + i * 3 }, (_, step) =>
                 SLOT_SYMBOLS[(step + i * 2) % SLOT_SYMBOLS.length]), symbol] : [symbol];
             return `<div class="royale-reel"><div class="reel-strip" style="--duration:${830 + i * 245}ms">${track.map(reelFace).join('')}</div></div>`;
         }).join('')}</div>
-        <div class="royale-paytable"><span><b>×8</b> Trío</span><span><b>×1</b> Pareja</span></div>
+        <div class="machine-console"><div class="royale-paytable"><span><small>TRÍO</small><b>×8</b></span><span><small>PAREJA</small><b>×1</b></span></div><div class="machine-led"><i></i><i></i><i></i></div><span class="machine-ready">${spinning ? 'EN JUEGO' : won ? 'PREMIO' : 'LISTA PARA JUGAR'}</span></div>
     </div>`;
 }
 
@@ -91,8 +92,9 @@ export function renderCasinoApp(container, game) {
             <div class="royale-layout">
                 <section class="royale-table table-${tab}">
                     <div class="royale-table-title"><div><p>${table.label}</p><h3>${table.name}</h3></div><span class="royale-state ${busy ? 'busy' : ''} ${busy ? '' : tone}">${status}</span></div>
-                    ${tab === 'slots' ? slotMachine(reels, busy) : tab === 'roulette' ? rouletteTable(choice, wheel, busy, disabled) : blackjackTable(hand, finalCards, motion, disabled)}
+                    ${tab === 'slots' ? slotMachine(reels, busy, !busy && result?.winnings > 0) : tab === 'roulette' ? rouletteTable(choice, wheel, busy, disabled) : blackjackTable(hand, finalCards, motion, disabled)}
                     <p class="royale-rules">${table.rules}</p>
+                    ${!busy && result?.winnings > 0 ? `<div class="royale-jackpot" role="status"><span aria-hidden="true">${casinoIcon('star')}</span><div><small>GANANCIA</small><strong>+${cash(result.winnings)}</strong></div><span aria-hidden="true">${casinoIcon('star')}</span></div>` : ''}
                     <div class="royale-result ${busy ? '' : tone}" role="status">${esc(busy ? 'La jugada está en curso.' : result?.message || (hand ? 'Pide carta o plántate.' : 'Prepara una apuesta para jugar.'))}</div>
                 </section>
                 <aside class="royale-bet" aria-label="Apuesta">

@@ -1,0 +1,7 @@
+Los modelos son gratuitos y están publicados con licencia CC0 1.0.
+
+Aparador PROFILE 140 de Innerscene: https://www.innerscene.com/tools/library/3d-parts/profile-140-six-drawer-dresser-6721514a
+Radiocasete de Thomas Paul Mouilleron, Poly Haven: https://www.innerscene.com/tools/library/3d-parts/boombox-a09ec4af
+Cafetera de filtro de Innerscene: https://www.innerscene.com/tools/library/3d-parts/drip-coffee-maker-5a9b6449
+
+La taza procede del recurso existente public/models/modern-office/taza.glb, documentado en su archivo ORIGEN.txt.

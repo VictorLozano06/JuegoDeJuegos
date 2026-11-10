@@ -57,7 +57,7 @@ function settle(game, stake, multiplier, description) {
     state(game).history.unshift({ message, year: game.getHistoricalYear() });
     state(game).history.length = Math.min(state(game).history.length, 12);
     game.notify?.();
-    return { success: true, message, outcome };
+    return { success: true, message, outcome, winnings: multiplier > 1 ? Math.floor(stake.value * (multiplier - 1)) : 0 };
 }
 export function spinSlots(game, stake, random = Math.random) {
     const reserved = reserve(game, stake); if (!reserved.success) return reserved;

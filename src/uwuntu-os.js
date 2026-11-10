@@ -352,6 +352,7 @@ export const UWUNTU_APPS = [
         category: 'Sistema',
         isCustomApp: true,
         requiresInstall: true,
+        availableYear: 2006,
         icon: APP_ICONS.vread,
         badgeColor: '#0ea5e9',
         defaultWidth: 960,
@@ -570,6 +571,7 @@ export class UwuntuOS {
             ];
         }
         this.trashItems = JSON.parse(localStorage.getItem('uwuntu_trash_items') || '[]');
+        this.desktopNotes = JSON.parse(localStorage.getItem('uwuntu_desktop_notes') || '[]');
         this.selectedDesktopIds = new Set();
         this.folderDialogTargetId = null;
 
@@ -585,7 +587,8 @@ export class UwuntuOS {
         this.vreadNotificationDismissed = sessionStorage.getItem('uwuntu_vread_dismissed') === 'true';
 
         // OS Update status (2006 Crystal Aero)
-        this.is2006Updated = localStorage.getItem('uwuntu_os_updated_2006') === 'true' || Boolean(this.game?.osUpdated2006);
+        if (this.getHistoricalYear() < 2006 && this.game) this.game.osUpdated2006 = false;
+        this.is2006Updated = Boolean(this.game?.osUpdated2006 ?? (localStorage.getItem('uwuntu_os_updated_2006') === 'true'));
 
         this.initDOM();
         this.setupEventListeners();
@@ -948,7 +951,8 @@ export class UwuntuOS {
     findNextFreeSlot(occupied = null) {
         const occupiedSet = occupied || new Set();
         if (!occupied) {
-            Object.values(this.iconPositions).forEach(pos => {
+            this.container.querySelectorAll('.uwuntu-desktop-item').forEach(item => {
+                const pos = this.iconPositions[item.dataset.itemId];
                 if (pos && typeof pos.x === 'number') {
                     occupiedSet.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
                 }
@@ -972,7 +976,8 @@ export class UwuntuOS {
 
         const occupiedSet = occupied || new Set();
         if (!occupied) {
-            Object.values(this.iconPositions).forEach(pos => {
+            this.container.querySelectorAll('.uwuntu-desktop-item').forEach(item => {
+                const pos = this.iconPositions[item.dataset.itemId];
                 if (pos && typeof pos.x === 'number') {
                     occupiedSet.add(`${Math.round(pos.x)},${Math.round(pos.y)}`);
                 }
@@ -1036,6 +1041,7 @@ export class UwuntuOS {
 
         // Workstation Tools (Filter apps that require installation from Store)
         UWUNTU_APPS.forEach(app => {
+            if (this.folders.some(folder => folder.appIds?.includes(app.id))) return;
             if (app.availableYear && this.getHistoricalYear() < app.availableYear) return;
             if (app.requiresInstall && !this.installedApps.has(app.id)) {
                 return;
@@ -1052,6 +1058,13 @@ export class UwuntuOS {
         });
 
         // User Folders
+        this.desktopNotes.forEach(note => {
+            items.push({
+                id: `desktop_note_${note.id}`, type: 'note', title: note.name,
+                icon: `<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 3h12l6 6v20H7zM19 3v7h6M11 16h10M11 21h10"/></svg>`,
+                accent: '#38bdf8', onOpen: () => this.openDesktopNote(note.id)
+            });
+        });
         this.folders.forEach(folder => {
             items.push({
                 id: `desktop_folder_${folder.id}`,
@@ -1104,8 +1117,9 @@ export class UwuntuOS {
                     <span class="icon-glare" aria-hidden="true"></span>
                     ${item.badgeText ? `<span class="icon-counter-badge">${item.badgeText}</span>` : ''}
                 </div>
-                <span class="desktop-icon-label">${item.title}</span>
+                <span class="desktop-icon-label"></span>
             `;
+            itemEl.querySelector('.desktop-icon-label').textContent = item.title;
 
             this.bindDesktopItemEvents(itemEl, item);
             grid.appendChild(itemEl);
@@ -1176,6 +1190,12 @@ export class UwuntuOS {
                         trashEl.classList.toggle('drop-target-active', isOverTrash);
                     }
                 }
+                if (item.type === 'app') {
+                    this.container.querySelectorAll('.uwuntu-desktop-item[data-item-type="folder"]').forEach(folderEl => {
+                        const rect = folderEl.getBoundingClientRect();
+                        folderEl.classList.toggle('drop-target-active', e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+                    });
+                }
             }
         };
 
@@ -1188,6 +1208,8 @@ export class UwuntuOS {
             const trashEl = this.container.querySelector('#desktop-item-trash');
             const isDroppedOnTrash = trashEl && trashEl.classList.contains('drop-target-active');
             trashEl?.classList.remove('drop-target-active');
+            const targetFolder = this.container.querySelector('.uwuntu-desktop-item[data-item-type="folder"].drop-target-active');
+            targetFolder?.classList.remove('drop-target-active');
 
             if (isDragging) {
                 isDragging = false;
@@ -1198,11 +1220,31 @@ export class UwuntuOS {
                     this.moveFolderToTrash(item.folderId);
                     return;
                 }
+                if (item.type === 'app' && targetFolder) {
+                    const folder = this.folders.find(entry => entry.id === targetFolder.dataset.folderId);
+                    if (folder) {
+                        const selected = dragOffsets.size ? [...dragOffsets.keys()] : [item.id];
+                        folder.appIds ||= [];
+                        selected.filter(id => id.startsWith('desktop_app_')).forEach(id => {
+                            const appId = id.slice('desktop_app_'.length);
+                            if (!folder.appIds.includes(appId)) folder.appIds.push(appId);
+                            this.selectedDesktopIds.delete(id);
+                        });
+                        localStorage.setItem('uwuntu_desktop_folders', JSON.stringify(this.folders));
+                        this.renderDesktopIcons();
+                        const body = this.openWindows.get(`folder_${folder.id}`)?.winEl.querySelector(`#body-folder_${folder.id}`);
+                        if (body) this.renderFolderWindowBody(body, folder);
+                        this.showWallpaperToast(`Aplicaciones movidas a «${folder.name}»`);
+                        return;
+                    }
+                }
 
                 // Snap to nearest free slot on the 108x104 grid, preventing overlapping
                 const movingIds = new Set(dragOffsets.size > 0 ? dragOffsets.keys() : [item.id]);
                 const currentOccupied = new Set();
-                Object.entries(this.iconPositions).forEach(([id, p]) => {
+                this.container.querySelectorAll('.uwuntu-desktop-item').forEach(el => {
+                    const id = el.dataset.itemId;
+                    const p = this.iconPositions[id];
                     if (!movingIds.has(id) && p && typeof p.x === 'number') {
                         currentOccupied.add(`${Math.round(p.x)},${Math.round(p.y)}`);
                     }
@@ -1998,6 +2040,8 @@ export class UwuntuOS {
 
     syncEraTheme() {
         const era = getEraForYear(this.getHistoricalYear());
+        if (typeof this.game.osUpdated2006 === 'boolean') this.is2006Updated = this.game.osUpdated2006;
+        this.container.classList.toggle('os-updated-2006', this.is2006Updated && this.getHistoricalYear() >= 2006);
         if (this.currentEra.id !== era.id) {
             this.container.classList.remove(this.currentEra.className);
             this.currentEra = era;
@@ -2050,11 +2094,8 @@ export class UwuntuOS {
         const toast = this.container.querySelector('#uwuntu-system-notification');
         if (!toast) return;
 
-        // Condition for Vread to be available:
-        // historical year >= 1990 OR game has >= 1 released games OR forced unlock
         const year = this.getHistoricalYear();
-        const hasReleasedGame = this.game.gamesHistory && this.game.gamesHistory.length > 0;
-        const isEligible = year >= 1990 || hasReleasedGame || localStorage.getItem('uwuntu_force_vread_unlock') === 'true';
+        const isEligible = year >= 2006;
 
         const isAlreadyInstalled = this.installedApps.has('app-vread');
 
@@ -2123,6 +2164,19 @@ export class UwuntuOS {
             window.showToast?.('[[DE_ICON_073]] ¡Sistema Operativo actualizado con éxito a Uwuntu XD 2006 Crystal Aero!', 'success');
 
             if (typeof onDone === 'function') onDone();
+            setTimeout(() => {
+                if (!this.isOpen) return;
+                const previous = document.activeElement;
+                const dialog = document.createElement('dialog');
+                dialog.className = 'admin-year-dialog';
+                dialog.setAttribute('aria-labelledby', 'os-update-news-title');
+                dialog.innerHTML = `<h2 id="os-update-news-title">Uwuntu XD 2006 actualizado</h2><p>El escritorio ya dispone de la apariencia Crystal Aero, ventanas con acabado de cristal y nuevos indicadores de actualización en la barra del sistema.</p><p>Desde 2006 también puedes descargar Vread desde la tienda para seguir la conversación sobre tus juegos.</p><div><button type="button" data-close>Continuar</button></div>`;
+                dialog.querySelector('[data-close]').addEventListener('click', () => dialog.close());
+                dialog.addEventListener('close', () => { dialog.remove(); if (previous?.isConnected) previous.focus(); }, { once: true });
+                document.body.appendChild(dialog);
+                dialog.showModal();
+                dialog.querySelector('[data-close]').focus();
+            }, 450);
         }, 1700);
     }
 
@@ -2800,8 +2854,51 @@ export class UwuntuOS {
         this.createWindow(folderApp);
     }
 
+    moveFolderItemToDesktop(folder, bodyEl, { appId, fileIndex, position }) {
+        let desktopId;
+        if (appId) {
+            if (!folder.appIds?.includes(appId)) return;
+            folder.appIds = folder.appIds.filter(id => id !== appId);
+            desktopId = `desktop_app_${appId}`;
+        } else {
+            if (!Number.isInteger(fileIndex) || !folder.files?.[fileIndex]) return;
+            const [file] = folder.files.splice(fileIndex, 1);
+            const id = globalThis.crypto?.randomUUID?.() || `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            this.desktopNotes.push({ ...file, id });
+            localStorage.setItem('uwuntu_desktop_notes', JSON.stringify(this.desktopNotes));
+            desktopId = `desktop_note_${id}`;
+        }
+        if (position) this.iconPositions[desktopId] = position;
+        localStorage.setItem('uwuntu_desktop_folders', JSON.stringify(this.folders));
+        this.renderDesktopIcons();
+        this.renderFolderWindowBody(bodyEl, folder);
+        this.container.querySelector(`[data-item-id="${desktopId}"]`)?.focus();
+    }
+
+    openDesktopNote(noteId) {
+        const note = this.desktopNotes.find(item => item.id === noteId);
+        if (!note) return;
+        const appId = `note_${noteId}`;
+        if (this.openWindows.has(appId)) {
+            this.restoreWindow(appId);
+            return;
+        }
+        this.createWindow({
+            id: appId, title: note.name, shortTitle: 'Nota', icon: APP_ICONS.guide,
+            badgeColor: '#38bdf8', defaultWidth: 540, defaultHeight: 380, isCustomApp: true,
+            renderContent: body => {
+                const content = document.createElement('pre');
+                content.className = 'desktop-note-content';
+                content.textContent = note.text || '';
+                body.appendChild(content);
+            }
+        });
+    }
+
     renderFolderWindowBody(bodyEl, folder) {
         const files = folder.files || [];
+        const folderApps = (folder.appIds || []).map(id => UWUNTU_APPS.find(app => app.id === id))
+            .filter(app => app && (!app.availableYear || this.getHistoricalYear() >= app.availableYear));
         bodyEl.innerHTML = `
             <div class="folder-window-view">
                 <!-- Address Bar & Toolbar -->
@@ -2831,7 +2928,7 @@ export class UwuntuOS {
 
                 <div class="folder-body-area">
                     <div class="folder-files-grid" id="folder-files-grid">
-                        ${files.length === 0 ? `
+                        ${files.length === 0 && folderApps.length === 0 ? `
                             <div class="folder-empty-state">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
                                 <p>Esta carpeta no contiene archivos aún.</p>
@@ -2843,6 +2940,12 @@ export class UwuntuOS {
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
                                 </div>
                                 <span class="file-tile-name">${file.name}</span>
+                                <button type="button" class="folder-app-restore" data-restore-note="${idx}">Al escritorio</button>
+                            </div>
+                        `).join('') + folderApps.map(app => `
+                            <div class="folder-file-tile folder-app-tile">
+                                <button type="button" class="folder-app-open" data-folder-app="${app.id}" aria-label="Abrir ${app.shortTitle}"><span class="file-tile-icon">${app.icon}</span><span class="file-tile-name">${app.shortTitle}</span></button>
+                                <button type="button" class="folder-app-restore" data-restore-app="${app.id}">Al escritorio</button>
                             </div>
                         `).join('')}
                     </div>
@@ -2858,6 +2961,53 @@ export class UwuntuOS {
                 </div>
             </div>
         `;
+
+        bodyEl.querySelectorAll('[data-folder-app]').forEach(button => button.addEventListener('click', () => this.launchApp(button.dataset.folderApp)));
+        bodyEl.querySelectorAll('[data-restore-app]').forEach(button => button.addEventListener('click', () => {
+            this.moveFolderItemToDesktop(folder, bodyEl, { appId: button.dataset.restoreApp });
+        }));
+        bodyEl.querySelectorAll('[data-restore-note]').forEach(button => button.addEventListener('click', event => {
+            event.stopPropagation();
+            this.moveFolderItemToDesktop(folder, bodyEl, { fileIndex: Number(button.dataset.restoreNote) });
+        }));
+        bodyEl.querySelectorAll('.folder-file-tile').forEach(tile => {
+            let start = null, ghost = null, dragged = false;
+            tile.addEventListener('pointerdown', event => {
+                if (event.button !== 0 || event.target.closest('[data-restore-app], [data-restore-note]')) return;
+                start = { x: event.clientX, y: event.clientY };
+                dragged = false;
+                const move = e => {
+                    if (!dragged && Math.hypot(e.clientX - start.x, e.clientY - start.y) > 6) {
+                        dragged = true;
+                        ghost = tile.cloneNode(true);
+                        ghost.classList.add('folder-drag-ghost');
+                        document.body.appendChild(ghost);
+                    }
+                    if (ghost) { ghost.style.left = `${e.clientX + 12}px`; ghost.style.top = `${e.clientY + 12}px`; }
+                };
+                const end = e => {
+                    window.removeEventListener('pointermove', move);
+                    window.removeEventListener('pointerup', end);
+                    window.removeEventListener('pointercancel', cancel);
+                    ghost?.remove();
+                    if (!dragged) return;
+                    const target = document.elementFromPoint(e.clientX, e.clientY);
+                    if (target?.closest('#uwuntu-desktop') && !target.closest('.uwuntu-window, .uwuntu-taskbar')) {
+                        const grid = this.container.querySelector('#uwuntu-icons-grid').getBoundingClientRect();
+                        const position = this.findNearestFreeSlot(e.clientX - grid.left - 44, e.clientY - grid.top - 40);
+                        const appId = tile.querySelector('[data-folder-app]')?.dataset.folderApp;
+                        const fileIndex = tile.dataset.fileIndex;
+                        this.moveFolderItemToDesktop(folder, bodyEl, appId ? { appId, position } : { fileIndex: Number(fileIndex), position });
+                    }
+                    setTimeout(() => { dragged = false; }, 0);
+                };
+                const cancel = () => { ghost?.remove(); window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', cancel); };
+                window.addEventListener('pointermove', move);
+                window.addEventListener('pointerup', end);
+                window.addEventListener('pointercancel', cancel);
+            });
+            tile.addEventListener('click', event => { if (dragged) { event.preventDefault(); event.stopImmediatePropagation(); } }, true);
+        });
 
         bodyEl.querySelector('#folder-new-note-btn')?.addEventListener('click', () => {
             const num = (folder.files?.length || 0) + 1;
@@ -3965,9 +4115,9 @@ function renderAdminAppContent(container, gameInstance) {
                 <div class="admin-controls-pane">
                     <div class="admin-box">
                         <div class="admin-box-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 15h8m-3-3 3 3-3 3"/></svg><span>Calendario</span></div>
-                        <label for="admin-target-year">Adelantar al año</label>
-                        <div class="admin-funds-input-group"><input type="number" id="admin-target-year" min="${(gameInstance.getHistoricalYear?.() || 1982) + 1}" max="2200" step="1" value="${(gameInstance.getHistoricalYear?.() || 1982) + 1}"><button type="button" class="admin-btn primary" id="admin-jump-year">Adelantar año</button></div>
-                        <p class="admin-year-help">Cambia la fecha sin simular las semanas intermedias, sus gastos ni sus eventos.</p>
+                        <label for="admin-target-year">Cambiar al año</label>
+                        <div class="admin-funds-input-group"><div class="admin-year-control"><button type="button" class="admin-year-step" data-year-step="-1" aria-label="Restar un año"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12"/></svg></button><input type="number" id="admin-target-year" min="1982" max="2200" step="1" value="${Math.min(2200, (gameInstance.getHistoricalYear?.() || 1982) + 1)}"><button type="button" class="admin-year-step" data-year-step="1" aria-label="Sumar un año"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12M10 4v12"/></svg></button></div><button type="button" class="admin-btn primary" id="admin-jump-year">Cambiar año</button></div>
+                        <p class="admin-year-help">Cambia la fecha sin simular semanas. Antes de 2006 se desinstala la actualización Crystal Aero.</p>
                         <p class="admin-year-error" id="admin-year-error" role="alert"></p>
                     </div>
                     <!-- Section: Finanzas -->
@@ -4091,13 +4241,21 @@ function renderAdminAppContent(container, gameInstance) {
         window.autosaveCurrentGame?.();
     };
 
+    container.querySelectorAll('[data-year-step]').forEach(button => button.addEventListener('click', () => {
+        const input = container.querySelector('#admin-target-year');
+        const currentValue = Number(input.value);
+        const base = input.value.trim() !== '' && Number.isFinite(currentValue) ? currentValue : gameInstance.getHistoricalYear();
+        input.value = String(Math.max(1982, Math.min(2200, Math.trunc(base) + Number(button.dataset.yearStep))));
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+    }));
+
     container.querySelector('#admin-jump-year')?.addEventListener('click', event => {
         const input = container.querySelector('#admin-target-year');
         const error = container.querySelector('#admin-year-error');
         const target = Number(input.value);
         const current = gameInstance.getHistoricalYear();
-        if (!Number.isSafeInteger(target) || target <= current || target > 2200) {
-            error.textContent = `Elige un año posterior a ${current} y hasta 2200.`;
+        if (!Number.isSafeInteger(target) || target < 1982 || target === current || target > 2200) {
+            error.textContent = `Elige un año distinto de ${current}, entre 1982 y 2200.`;
             input.focus();
             return;
         }
@@ -4106,15 +4264,17 @@ function renderAdminAppContent(container, gameInstance) {
         const dialog = document.createElement('dialog');
         dialog.className = 'admin-year-dialog';
         dialog.setAttribute('aria-labelledby', 'admin-year-confirm-title');
-        dialog.innerHTML = `<h2 id="admin-year-confirm-title">Adelantar el calendario</h2><p>La fecha pasará de <strong>${current}</strong> a <strong>${target}</strong>. Las semanas intermedias, sus gastos y sus eventos no se simularán.</p><div><button type="button" data-cancel>Cancelar</button><button type="button" data-confirm>Adelantar a ${target}</button></div>`;
+        dialog.innerHTML = `<h2 id="admin-year-confirm-title">Cambiar el calendario</h2><p>La fecha pasará de <strong>${current}</strong> a <strong>${target}</strong>. No se simularán semanas y la partida conservará sus avances.${target < 2006 && gameInstance.osUpdated2006 ? ' Se retirará la actualización Crystal Aero del ordenador.' : ''}</p><div><button type="button" data-cancel>Cancelar</button><button type="button" data-confirm>Cambiar a ${target}</button></div>`;
         dialog.querySelector('[data-cancel]').addEventListener('click', () => dialog.close());
         dialog.querySelector('[data-confirm]').addEventListener('click', () => {
             const result = jumpToYear(gameInstance, target);
             dialog.close();
             if (!result.success) { error.textContent = result.message; return; }
-            input.min = String(target + 1);
-            input.value = String(target + 1);
+            input.value = String(Math.min(2200, target + 1));
+            if (target < 2006) window.uwuntuOS?.closeWindow('app-vread');
             window.uwuntuOS?.syncEraTheme();
+            const updateBody = window.uwuntuOS?.openWindows.get('app-os-update')?.winEl.querySelector('#body-app-os-update');
+            if (updateBody) renderOSUpdateAppContent(updateBody, gameInstance, window.uwuntuOS);
             window.uwuntuOS?.renderDesktopIcons();
             window.uwuntuOS?.renderStartMenuItems();
             window.uwuntuOS?.checkSystemNotifications();
@@ -4687,6 +4847,7 @@ export const STORE_CATALOG = [
     {
         id: 'app-vread',
         name: 'Vread · Red Social y Comunidad',
+        availableYear: 2006,
         shortName: 'Vread',
         category: 'Redes & Comunidad',
         categoryKey: 'social',
@@ -4803,7 +4964,9 @@ export function renderStoreAppContent(container, gameInstance) {
             return matchesCat && matchesSearch;
         });
 
-        const heroApp = STORE_CATALOG.find(i => i.isHero) || STORE_CATALOG[0];
+        const year = os?.getHistoricalYear?.() ?? gameInstance.getHistoricalYear();
+        const availableCatalog = STORE_CATALOG.filter(item => !item.availableYear || year >= item.availableYear);
+        const heroApp = availableCatalog.find(i => i.isHero) || availableCatalog[0];
         const isHeroInstalled = installedSet.has(heroApp.id);
 
         container.innerHTML = `
