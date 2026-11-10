@@ -1,0 +1,19 @@
+.studio-radio-panel { position: fixed; right: 22px; bottom: 88px; z-index: 1250; width: min(420px, calc(100vw - 32px)); max-height: calc(100dvh - 110px); overflow: auto; padding: 18px; border: 1px solid #8c7655; border-radius: 14px; background: linear-gradient(145deg, #202b30, #111a21); color: #f4eee1; box-shadow: 0 18px 55px #000a; font-family: system-ui, sans-serif; }
+.studio-radio-panel * { box-sizing: border-box; }
+.studio-radio-panel header { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin-bottom: 16px; }
+.studio-radio-panel header span { font-size: 10px; color: #d9b77c; letter-spacing: .14em; font-weight: 800; }
+.studio-radio-panel h2 { margin: 3px 0 0; font-size: 24px; color: #fff4de; }
+.studio-radio-panel button { cursor: pointer; font: inherit; font-weight: 700; color: #fff6e4; background: #3a4b4d; border: 1px solid #70827f; border-radius: 7px; padding: 9px 12px; }
+.studio-radio-panel button:hover { background: #53615b; }
+.studio-radio-panel button:focus-visible, .studio-radio-panel input:focus-visible { outline: 2px solid #f3c783; outline-offset: 2px; }
+.studio-radio-panel header button { display: grid; place-items: center; padding: 7px; }
+.studio-radio-panel header svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; }
+.studio-radio-panel label { display: block; font-size: 12px; margin-bottom: 6px; color: #d6d9d0; }
+.studio-radio-input { display: flex; gap: 7px; }
+.studio-radio-input input { flex: 1; min-width: 0; padding: 10px; background: #0d171e; color: #fff; border: 1px solid #50666d; border-radius: 7px; font: inherit; }
+.studio-radio-error { color: #ffaaa2; font-size: 12px; }
+.studio-radio-video { margin-top: 12px; min-width: 200px; min-height: 200px; aspect-ratio: 16/9; }
+.studio-radio-video[hidden] { display: none; }
+.studio-radio-video iframe { display: block; width: 100%; height: 100%; min-height: 200px; border: 0; border-radius: 8px; }
+.studio-radio-hint { color: #b9c3bf; font-size: 12px; line-height: 1.45; margin: 10px 0 0; }
+@media (max-width: 480px) { .studio-radio-panel { right: 16px; bottom: 70px; } .studio-radio-input { flex-wrap: wrap; } .studio-radio-input input { min-width: 100%; } }

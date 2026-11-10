@@ -647,6 +647,7 @@ export function initializeDeviceNav(gameInstance) {
 
         btn.addEventListener('click', () => {
             if (app.isInternalApp && app.id === 'app-vread') {
+                if ((gameInstance || game).getHistoricalYear() < 2006) return;
                 openInternalVread();
                 return;
             }
@@ -2607,6 +2608,8 @@ export function initializeDeviceNav(gameInstance) {
         if (!currentGame) return;
 
         const year = currentGame.getHistoricalYear ? currentGame.getHistoricalYear() : (1981 + currentGame.year);
+        const vreadIcon = phone.querySelector('[data-app-id="app-vread"]');
+        if (vreadIcon) vreadIcon.style.display = year < 2006 ? 'none' : '';
         const era = year < 1990 ? 'retro' : year < 2006 ? 'pda' : year < 2016 ? 'early' : 'modern';
         phone.dataset.era = era;
 

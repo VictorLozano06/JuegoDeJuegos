@@ -28,6 +28,10 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
 import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
 import { EngineCreationModal } from './EngineCreationModal.js';
+import './office-move.css';
+import { openStudioRadio, closeStudioRadio } from './radio-player.js';
+
+window.addEventListener('studio-radio-open', openStudioRadio);
 
 /**
  * DEV EMPIRE 3D - Main Application Controller
@@ -155,6 +159,7 @@ async function bootGameApp() {
 
         // 1. Initialize 3D World Engine
         world = new WorldEngine('canvas-container');
+        world.loadingScreenActive = Boolean(loadingScreenInstance);
         world.onNodeClick(on3DNodeClicked);
 
         // Initialize Game Dev Tycoon Sequential Production Flow Controller
@@ -257,6 +262,7 @@ async function bootGameApp() {
             await preloader.loadAll(world);
             loadingScreenInstance.setComplete('¡Llegada al almacén de videojuegos! Texturas y modelos 3D preparados.');
             await loadingScreenInstance.waitForCompletion();
+            world.loadingScreenActive = false;
             loadingScreenInstance.hide();
         }
 
@@ -274,6 +280,7 @@ async function bootGameApp() {
     } catch (e) {
         console.error('CRITICAL BOOT ERROR:', e);
         window.__bootError = e.stack || e.message;
+        if (world) world.loadingScreenActive = false;
         if (loadingScreenInstance) loadingScreenInstance.setError();
     }
 }
@@ -416,6 +423,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
 }
 
 function returnToMainMenu() {
+    closeStudioRadio();
     if (appState !== STATE_PLAYING) return;
     if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
     appState = STATE_MAIN_MENU;
@@ -3397,10 +3405,41 @@ function openOfficePanel() {
 
 window.refreshOfficePanel = () => refreshOfficeManager(null);
 
+let officeMoveInProgress = false;
 function changeOffice(id, action) {
-    const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
-    refreshOfficeManager(result);
-    if (result.success && appliedSettings.autosave !== 'off') autosaveCurrentGame();
+    if (officeMoveInProgress) return;
+    const office = game.getOffices().find(item => item.id === id);
+    if (!office || !(action === 'activate' ? office.canActivate : office.canPurchase)) {
+        const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
+        refreshOfficeManager(result);
+        return;
+    }
+    officeMoveInProgress = true;
+    const overlay = document.createElement('div');
+    overlay.className = 'office-move-screen';
+    overlay.setAttribute('role', 'status');
+    overlay.setAttribute('aria-live', 'polite');
+    overlay.innerHTML = `<div class="office-move-art" aria-hidden="true"></div><div class="office-move-shade" aria-hidden="true"></div><div class="office-move-content"><p class="office-move-kicker">DEV EMPIRE <span> / </span> NUEVA SEDE</p><h2>Una nueva<br><em>etapa.</em></h2><p class="office-move-description">Las ideas viajan con nosotros. El equipo está en camino hacia su próximo estudio.</p><div class="office-move-destination"><span class="office-move-dot" aria-hidden="true"></span><div><small>PRÓXIMA PARADA</small><strong data-office-name></strong></div></div></div><div class="office-move-footer"><span>MUDANZA EN TRÁNSITO</span><span class="office-move-progress" aria-hidden="true"><i></i></span><span>PREPARANDO EL ESTUDIO</span></div>`;
+    overlay.querySelector('[data-office-name]').textContent = office.name;
+    document.body.appendChild(overlay);
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    setTimeout(() => {
+        try {
+            const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
+            refreshOfficeManager(result);
+            if (!result.success) { overlay.remove(); officeMoveInProgress = false; return; }
+            if (appliedSettings.autosave !== 'off') autosaveCurrentGame();
+            window.studioPhoneNav?.close(false);
+            window.uwuntuOS?.close();
+            closeAllModals();
+            setTimeout(() => { overlay.remove(); officeMoveInProgress = false; }, reducedMotion ? 80 : 1200);
+        } catch (error) {
+            overlay.remove();
+            officeMoveInProgress = false;
+            console.error('No se pudo completar la mudanza:', error);
+            showToast('No se pudo completar la mudanza. Revisa la oficina activa.', 'warn');
+        }
+    }, reducedMotion ? 80 : 900);
 }
 
 // --- REVIEWS MODAL ---

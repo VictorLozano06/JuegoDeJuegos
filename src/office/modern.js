@@ -83,6 +83,7 @@ export function buildModernOffice(world, THREE) {
     }
     box(room, 'Aparador de café', walnut, 2.35, 1.12, 0.72, 3.9, 0.56, BACK + 0.62, true);
     box(room, 'Encimera de café', timber, 2.43, 0.09, 0.76, 3.9, 1.16, BACK + 0.62);
+    world.addRadio(room, 3.04, 1.205, BACK + 0.61, true);
     const applianceBody = box(room, 'Cuerpo de cafetera', aluminum, 0.49, 0.43, 0.39, 4.18, 1.42, BACK + 0.61);
     const applianceFront = box(room, 'Frente de cafetera', graphite, 0.42, 0.24, 0.04, 4.18, 1.43, BACK + 0.83);
     const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.081, 0.07, 0.14, 10), ceramic);

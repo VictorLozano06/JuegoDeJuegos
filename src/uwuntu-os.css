@@ -733,6 +733,31 @@
     pointer-events: none;
 }
 
+.uwuntu-os .uwuntu-window.is-dragging {
+    transition: none;
+    will-change: transform;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.admin-year-help { color: #a7b8c6; font-size: 12px; line-height: 1.45; margin: 8px 0 0; }
+.admin-year-control { display: flex; flex: 1 1 150px; min-width: 0; overflow: hidden; border: 1px solid #235577; border-radius: 7px; background: #091422; }
+.admin-year-control #admin-target-year { flex: 1; min-width: 0; width: 100%; border: 0; border-radius: 0; text-align: center; font-variant-numeric: tabular-nums; appearance: textfield; -moz-appearance: textfield; }
+.admin-year-control #admin-target-year::-webkit-inner-spin-button, .admin-year-control #admin-target-year::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.admin-year-step { display: grid; place-items: center; flex: 0 0 34px; padding: 6px; border: 0; background: #17354b; color: #8ce2f2; cursor: pointer; }
+.admin-year-step svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+.admin-year-step:hover { background: #23506a; color: #fff; }
+.admin-year-step:focus-visible, .admin-year-control input:focus-visible { outline: 2px solid #75dff5; outline-offset: -2px; }
+.admin-year-error { color: #ffb4a7; font-size: 12px; margin: 6px 0 0; }
+.admin-year-dialog { max-width: min(460px, 90vw); padding: 24px; border: 1px solid #416079; border-radius: 14px; background: #111e2b; color: #edf6ff; box-shadow: 0 25px 70px #000a; }
+.admin-year-dialog::backdrop { background: #020810cc; }
+.admin-year-dialog h2 { margin: 0 0 12px; font-size: 21px; }
+.admin-year-dialog p { line-height: 1.5; color: #c4d1dc; }
+.admin-year-dialog div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.admin-year-dialog button { border: 1px solid #537083; border-radius: 8px; padding: 10px 14px; background: #213443; color: #fff; font: inherit; cursor: pointer; }
+.admin-year-dialog [data-confirm] { background: #057fa4; border-color: #49c9e9; }
+.admin-year-dialog button:focus-visible { outline: 2px solid #8deaff; outline-offset: 2px; }
+
 .uwuntu-window.is-maximized {
     top: 0 !important;
     left: 0 !important;
@@ -1560,6 +1585,30 @@
     border: 1px solid #5eead4;
     font-family: monospace;
 }
+
+/* 1982–1989: a restrained monochrome terminal-inspired desktop. */
+.uwuntu-era-classic { font-family: 'Courier New', monospace; }
+.uwuntu-era-classic .uwuntu-desktop { background: #06130e; }
+.uwuntu-era-classic .icon-glare { display: none; }
+.uwuntu-era-classic .uwuntu-wp-mesh { background: linear-gradient(135deg, #10192b55, #151b2744); }
+.uwuntu-era-classic .uwuntu-desktop-item { border-radius: 0; transition: none; }
+.uwuntu-era-classic .desktop-icon-frame { background: #172337e8; border: 1px solid #a9b9c8; box-shadow: 2px 2px 0 #0008; }
+.uwuntu-era-classic .desktop-icon-label { color: #f5f2e9; font: 700 12px 'Courier New', monospace; text-shadow: 1px 1px 3px #000; overflow-wrap: normal; word-break: normal; }
+.uwuntu-era-classic .uwuntu-desktop-item:hover,
+.uwuntu-era-classic .uwuntu-desktop-item.is-selected { background: #355579b3; border: 1px solid #c0d6e8; box-shadow: none; transform: none; }
+.uwuntu-era-classic .uwuntu-window { border: 2px solid #c9c4ad; background: #172337; box-shadow: 4px 4px 0 #0009; }
+.uwuntu-era-classic .uwuntu-window-titlebar { background: #354c66; color: #fff; border-color: #c9c4ad; }
+.uwuntu-era-classic .uwuntu-taskbar { background: #1b2839; border-top: 2px solid #b9c4c8; backdrop-filter: none; }
+.uwuntu-era-classic .uwuntu-start-menu { border-radius: 0; background: #1b2839; border: 2px solid #c9c4ad; backdrop-filter: none; }
+.uwuntu-desktop-item[data-item-type="folder"].drop-target-active { outline: 2px solid #79e3c2; background: #1a675cbb; }
+.folder-app-tile { height: auto; gap: 6px; }
+.folder-app-open { display: flex; flex-direction: column; align-items: center; gap: 5px; width: 100%; border: 0; background: transparent; color: inherit; cursor: pointer; }
+.folder-app-open .file-tile-icon svg { width: 32px; height: 32px; }
+.folder-app-restore { border: 1px solid #4a6a79; border-radius: 5px; padding: 4px 6px; color: #d6ebf3; background: #183346; font: inherit; font-size: 11px; cursor: pointer; }
+.folder-app-open:focus-visible, .folder-app-restore:focus-visible { outline: 2px solid #7de5ff; outline-offset: 2px; }
+.folder-drag-ghost { position: fixed; z-index: 10000; pointer-events: none; width: 105px; opacity: .8; background: #183346; border: 1px solid #79d8eb; box-shadow: 0 8px 24px #0008; }
+.folder-drag-ghost button { pointer-events: none; }
+.desktop-note-content { padding: 22px; white-space: pre-wrap; overflow-wrap: anywhere; color: #e5eef6; font: 14px/1.6 'Courier New', monospace; user-select: text; }
 
 /* --- ERA 2: DESKTOP (1990–1999) 3D Bevel 90s OS --- */
 .uwuntu-era-desktop .uwuntu-wp-mesh {

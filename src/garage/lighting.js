@@ -115,7 +115,7 @@ export function createGarageShellMaterials(THREE, {
 } = {}) {
     const bricks = brickTexture(THREE, backWidth, backHeight);
     const shutter = doorTexture(THREE, doorWidth, doorHeight);
-    return {
+    const materials = {
         brick: new THREE.MeshStandardMaterial({
             map: bricks, bumpMap: bricks, bumpScale: 0.021, roughness: 0.89,
         }),
@@ -128,6 +128,24 @@ export function createGarageShellMaterials(THREE, {
         timber: new THREE.MeshStandardMaterial({ color: 0x67452f, roughness: 0.84 }),
         trim: new THREE.MeshStandardMaterial({ color: 0x435254, metalness: 0.32, roughness: 0.65 }),
     };
+    const loader = new THREE.TextureLoader();
+    const base = `${import.meta.env.BASE_URL}models/garage-shell/materials/`;
+    function applySurface(material, name, repeatX, repeatY) {
+        for (const [kind, property] of [['Diffuse', 'map'], ['nor_gl', 'normalMap']]) {
+            loader.load(`${base}${name}-${kind}.jpg`, texture => {
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(repeatX, repeatY);
+                texture.anisotropy = 4;
+                if (property === 'map') texture.encoding = THREE.sRGBEncoding;
+                material[property] = texture;
+                if (property === 'map' && material.bumpMap) material.bumpMap = null;
+                material.needsUpdate = true;
+            });
+        }
+    }
+    applySurface(materials.brick, 'brick_wall_09', backWidth / 2.5, backHeight / 2.5);
+    applySurface(materials.floor, 'floor_tiles_04', 2.2, 1.7);
+    return materials;
 }
 
 /** Reuse the world's three lights and keep the sun as the only shadow caster. */
