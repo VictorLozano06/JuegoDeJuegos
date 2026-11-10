@@ -38,6 +38,7 @@ export const ASSET_CATALOG = {
         '/models/retro-monitor.glb',
         '/models/retro-keyboard.glb',
         '/models/retro-mouse.glb',
+        '/models/garage-shell/shutter/rollershutter_window_01_1k.gltf',
         '/models/garage-window/window.glb',
         '/models/garage-station/dresser.glb',
         '/models/garage-station/boombox.glb',
@@ -55,6 +56,10 @@ export const ASSET_CATALOG = {
         '/models/modern-office/teclado-nuevo.glb'
     ],
     wallpapers: [
+        '/models/garage-shell/materials/brick_wall_09-Diffuse.jpg',
+        '/models/garage-shell/materials/brick_wall_09-nor_gl.jpg',
+        '/models/garage-shell/materials/floor_tiles_04-Diffuse.jpg',
+        '/models/garage-shell/materials/floor_tiles_04-nor_gl.jpg',
         '/images/office-move-scene.png',
         '/wallpapers/wp_synthwave.jpg',
         '/wallpapers/wp_silicon.jpg',

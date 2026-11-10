@@ -126,6 +126,21 @@ export function buildGarageLayout(world, THREE) {
     box(room, 'Grosor del portón', trim, 0.14, WALL_HEIGHT, ROOM_DEPTH - 0.14, LEFT + 0.07, 0, 0.07);
     const shutter = plane(room, 'Chapa acanalada', door, ROOM_DEPTH - 0.14, WALL_HEIGHT, LEFT + 0.141, WALL_HEIGHT / 2, 0.07);
     shutter.rotation.y = Math.PI / 2;
+    const shutterUrl = '/models/garage-shell/shutter/rollershutter_window_01_1k.gltf';
+    const installShutter = source => {
+        const model = source.clone(true);
+        const graffiti = model.getObjectByName('rollershutter_window_01_graffiti');
+        if (graffiti) graffiti.visible = false;
+        model.name = 'Portón metálico';
+        model.rotation.y = Math.PI / 2;
+        model.scale.set((ROOM_DEPTH - 0.20) / 2.1, WALL_HEIGHT / 1.8507, 0.35);
+        model.position.set(LEFT + 0.15, 0, 0.07);
+        room.add(model);
+        shutter.visible = false;
+    };
+    const cachedShutter = preloadedModels.get(shutterUrl);
+    if (cachedShutter) installShutter(cachedShutter);
+    else if (THREE.GLTFLoader) new THREE.GLTFLoader().load(shutterUrl, gltf => installShutter(gltf.scene));
 
     box(room, 'Rodapié trasero', timber, ROOM_WIDTH - 0.15, 0.13, 0.055, 0.06, 0, BACK + 0.16);
     box(room, 'Dintel del portón', trim, 0.16, 0.15, ROOM_DEPTH - 0.16, LEFT + 0.17, WALL_HEIGHT - 0.15, 0.08);
@@ -149,7 +164,7 @@ export function buildGarageLayout(world, THREE) {
         landscape.dispose();
     });
     const oldWindowFrame = box(room, 'Marco de ventana', timber, 1.95, 0.84, 0.10, 2.74, 2.40, wallFace + 0.05);
-    plane(room, 'Cristal de ventana', glass, 1.77, 0.66, 2.74, 2.82, wallFace + 0.101);
+    const windowView = plane(room, 'Cristal de ventana', glass, 1.77, 0.66, 2.74, 2.82, wallFace + 0.101);
     const oldWindowDivider = box(room, 'Parteluz', timber, 0.07, 0.68, 0.025, 2.74, 2.48, wallFace + 0.11);
     const oldWindowSill = box(room, 'Alféizar', timber, 2.03, 0.08, 0.22, 2.74, 2.39, wallFace + 0.11);
     const windowUrl = '/models/garage-window/window.glb';
@@ -158,9 +173,12 @@ export function buildGarageLayout(world, THREE) {
             const frame = source.clone(true);
             frame.name = 'Ventana de madera';
             frame.scale.set(1.08, 0.53, 0.75);
-            frame.position.set(x, 2.40, wallFace + 0.20);
+            // The imported frame extends 0.105 units behind its origin.
+            // Place that rear face against the brick after scaling its depth.
+            frame.position.set(x, 2.40, wallFace + 0.105 * 0.75);
             room.add(frame);
         }
+        windowView.position.z = wallFace + 0.002;
         oldWindowFrame.visible = false;
         oldWindowDivider.visible = false;
         oldWindowSill.visible = false;
