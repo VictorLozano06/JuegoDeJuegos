@@ -38,9 +38,10 @@ const server = createServer(async (req, res) => {
     try {
         const chunks = [];
         let size = 0;
+        const limit = req.url === '/reply' ? 1_048_576 : 65_536;
         for await (const chunk of req) {
             size += chunk.length;
-            if (size > 65536) return reply(res, 413, { error: 'Solicitud demasiado grande.' });
+            if (size > limit) return reply(res, 413, { error: 'Solicitud demasiado grande.' });
             chunks.push(chunk);
         }
         const input = JSON.parse(Buffer.concat(chunks).toString('utf8') || '{}');
@@ -54,16 +55,16 @@ const server = createServer(async (req, res) => {
             do { code = makeCode(); } while (rooms.has(code));
             const lease = secret();
             const hostname = isIP(ip) === 6 ? `[${ip}]` : ip;
-            rooms.set(code, { address: `${input.protocol}://${hostname}:${input.port}/`, inviteKey: input.inviteKey, lease, expires: Date.now() + lifetime, pending: new Map() });
+            rooms.set(code, { address: `${input.protocol}://${hostname}:${input.port}/`, inviteKey: input.inviteKey, roomId: typeof input.roomId === 'string' ? input.roomId.slice(0, 32) : undefined, lease, expires: Date.now() + lifetime, pending: new Map() });
             return reply(res, 200, { code, lease, expiresIn: lifetime });
         }
         const code = typeof input.code === 'string' ? input.code.toUpperCase() : '';
         if (!/^[A-HJ-NP-Z2-9]{8}$/.test(code)) return reply(res, 400, { error: 'Código de sala no válido.' });
         const room = rooms.get(code);
         if (!room) return reply(res, 404, { error: 'Sala no encontrada o caducada.' });
-        if (req.url === '/lookup') return reply(res, 200, { address: room.address, inviteKey: room.inviteKey });
+        if (req.url === '/lookup') return reply(res, 200, { address: room.address, inviteKey: room.inviteKey, roomId: room.roomId });
         if (req.url === '/relay') {
-            if (!['join', 'state', 'score', 'leave'].includes(input.action) || !input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return reply(res, 400, { error: 'Solicitud no válida.' });
+            if (!['join', 'state', 'score', 'leave', 'message'].includes(input.action) || !input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return reply(res, 400, { error: 'Solicitud no válida.' });
             if (room.pending.size >= 50) return reply(res, 429, { error: 'La sala está ocupada.' });
             const id = secret();
             const timeout = setTimeout(() => {

@@ -192,6 +192,13 @@ export const APP_ICONS = {
 
 // 3. COMPLETE APPLICATIONS DIRECTORY
 export const UWUNTU_APPS = [
+    {
+        id: 'app-room-chat', title: 'Mensajes de la sala', shortTitle: 'Mensajes',
+        category: 'Sistema', isCustomApp: true, onlineOnly: true,
+        icon: '<svg viewBox="0 0 32 32" fill="none"><path d="M5 6h22v16H14l-6 5v-5H5z" fill="#1b6856" stroke="#9ce6cb" stroke-width="2"/><path d="M10 12h12M10 17h8" stroke="#c4f6e5" stroke-width="2" stroke-linecap="round"/></svg>',
+        badgeColor: '#3fbf96', defaultWidth: 460, defaultHeight: 420,
+        renderContent: container => renderRoomMessages(container, 'chat')
+    },
     // MERCADO
     {
         id: 'app-marketing',
@@ -1011,9 +1018,11 @@ export class UwuntuOS {
 
         // Workstation Tools (Filter apps that require installation from Store)
         UWUNTU_APPS.forEach(app => {
+            if (app.onlineOnly && !window.onlineCompetitionClient) return;
+            const onlineVread = app.id === 'app-vread' && window.onlineCompetitionClient;
             if (this.folders.some(folder => folder.appIds?.includes(app.id))) return;
-            if (app.availableYear && this.getHistoricalYear() < app.availableYear) return;
-            if (app.requiresInstall && !this.installedApps.has(app.id)) {
+            if (!onlineVread && app.availableYear && this.getHistoricalYear() < app.availableYear) return;
+            if (!onlineVread && app.requiresInstall && !this.installedApps.has(app.id)) {
                 return;
             }
             items.push({
@@ -1294,7 +1303,8 @@ export class UwuntuOS {
 
         const filterLower = searchFilter.toLowerCase();
         const filteredApps = UWUNTU_APPS.filter(app => {
-            if (app.availableYear && this.getHistoricalYear() < app.availableYear) return false;
+            if (app.onlineOnly && !window.onlineCompetitionClient) return false;
+            if (app.availableYear && this.getHistoricalYear() < app.availableYear && !(app.id === 'app-vread' && window.onlineCompetitionClient)) return false;
             if (app.requiresInstall && !this.installedApps.has(app.id)) {
                 return false;
             }
@@ -1656,8 +1666,9 @@ export class UwuntuOS {
 
     launchApp(appId) {
         const app = UWUNTU_APPS.find(a => a.id === appId);
-        if (!app) return;
-        if (app.availableYear && this.getHistoricalYear() < app.availableYear) {
+        if (!app || (app.onlineOnly && !window.onlineCompetitionClient)) return;
+        const onlineVread = app.id === 'app-vread' && window.onlineCompetitionClient;
+        if (!onlineVread && app.availableYear && this.getHistoricalYear() < app.availableYear) {
             this.showWallpaperToast(`«${app.shortTitle}» estará disponible en ${app.availableYear}.`);
             return;
         }
@@ -1669,7 +1680,7 @@ export class UwuntuOS {
         }
 
         // If app requires installation and is not yet installed
-        if (app.requiresInstall && !this.installedApps.has(app.id)) {
+        if (!onlineVread && app.requiresInstall && !this.installedApps.has(app.id)) {
             this.showWallpaperToast(`«${app.shortTitle || app.title}» no está instalada. Abriendo Store...`);
             this.openStore(app.id);
             return;
@@ -3130,6 +3141,56 @@ function getVreadLiveTickerItems(gameInstance) {
     ];
 }
 
+function renderRoomMessages(container, channel) {
+    const bridge = window.onlineCompetitionClient;
+    const isVread = channel === 'vread';
+    container.innerHTML = `<section class="uwuntu-room-messages"><h2>${isVread ? 'Vread · Estudios de la sala' : 'Mensajes de la sala'}</h2>
+        <ol aria-label="Mensajes recientes"></ol><form><label>Tu mensaje<input required maxlength="280" autocomplete="off"></label>
+        <button type="submit">${isVread ? 'Publicar' : 'Enviar'}</button></form><p role="status"></p></section>`;
+    const list = container.querySelector('ol');
+    const render = () => {
+        const messages = (bridge.messages || []).filter(message => message.channel === channel);
+        if (list.dataset.last === messages.at(-1)?.id) return;
+        list.dataset.last = messages.at(-1)?.id || '';
+        list.replaceChildren(...messages.map(message => {
+            const entry = document.createElement('li');
+            const author = document.createElement('strong');
+            author.textContent = message.author;
+            const body = document.createElement('p');
+            body.textContent = message.text;
+            entry.append(author, body);
+            return entry;
+        }));
+        if (!messages.length) {
+            const empty = document.createElement('li');
+            empty.textContent = 'Todavía no hay mensajes.';
+            list.append(empty);
+        }
+        list.scrollTop = list.scrollHeight;
+    };
+    render();
+    const refresh = () => {
+        if (list.isConnected) render();
+        else window.removeEventListener('online-messages', refresh);
+    };
+    window.addEventListener('online-messages', refresh);
+    const form = container.querySelector('form');
+    const input = form.querySelector('input');
+    const button = form.querySelector('button');
+    const status = container.querySelector('[role="status"]');
+    form.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!input.value.trim()) return;
+        button.disabled = true;
+        try {
+            await bridge.sendMessage(channel, input.value);
+            input.value = '';
+            status.textContent = isVread ? 'Publicación enviada.' : 'Mensaje enviado.';
+        } catch (error) { status.textContent = error.message; }
+        finally { button.disabled = false; input.focus(); }
+    });
+}
+
 function renderVreadAppContent(container, gameInstance) {
     const studioName = gameInstance.companyName || 'Tu Estudio';
     const studioHandle = studioName.normalize('NFD').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'estudio';
@@ -3988,6 +4049,16 @@ function renderVreadAppContent(container, gameInstance) {
     }, { passive: true });
 
     // Initial render of chips & timeline
+    if (window.onlineCompetitionClient) {
+        const discussion = document.createElement('details');
+        discussion.className = 'uwuntu-room-discussion';
+        const summary = document.createElement('summary');
+        summary.textContent = 'Publicaciones de la sala';
+        const feed = document.createElement('div');
+        discussion.append(summary, feed);
+        container.querySelector('.vread-app-header')?.after(discussion);
+        renderRoomMessages(feed, 'vread');
+    }
     renderChips();
     renderTimeline();
     updateLoadMore();

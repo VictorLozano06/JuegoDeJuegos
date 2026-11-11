@@ -6,7 +6,7 @@ import { ensureBasicEngine } from './basic-engine.js';
 const VERSION = 1;
 const SLOT_PREFIX = 'dev-empire:save:';
 const SETTINGS_KEY = 'dev-empire:settings';
-const RUNTIME_FIELDS = new Set(['listeners', 'isPaused']);
+const RUNTIME_FIELDS = new Set(['listeners', 'isPaused', 'onlineCompetition']);
 const MODEL_TYPES = { InHouseEngine, ScopeDAG, ScopeNode, TechnicalDebtModel, TechTreeManager };
 
 export const DEFAULT_SETTINGS = Object.freeze({

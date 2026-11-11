@@ -37,6 +37,7 @@
                 <div><strong id="match-title">Competición de estudios</strong><p id="match-status" role="status">Hasta cuatro jugadores.</p></div>
                 <div id="host-controls" class="controls" hidden><button type="button" id="start-competitive">Iniciar partida</button></div>
                 <button id="back-to-game" type="button" hidden>Volver al estudio</button>
+                <button id="new-match" type="button" class="secondary" hidden>Nueva competición</button>
             </section>
             <section id="invite-panel" class="invite" hidden>
                 <h3>Invitar jugadores</h3>
@@ -55,14 +56,29 @@
             <span id="game-mode"></span>
             <span id="game-status" role="status"></span>
             <details id="ranking" hidden><summary>Clasificación</summary><ol id="scores"></ol></details>
+            <details id="releases"><summary>Lanzamientos</summary><ul id="released-games"></ul></details>
+            <label id="clock-controls" hidden>Velocidad <select id="match-speed"><option value="0">Pausa</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option></select></label>
             <button id="back-to-room" type="button" class="secondary">Sala</button>
         </header>
         <div id="game-frame"></div>
     </section>
+    <dialog id="gala-dialog" aria-labelledby="gala-title">
+        <p class="section-label">PREMIOS DE LA INDUSTRIA</p>
+        <h2 id="gala-title"></h2>
+        <ul id="gala-nominees" class="players"></ul>
+        <p id="gala-result" role="status"></p>
+        <button id="gala-next" type="button">Abrir el sobre</button>
+        <button id="gala-back" type="button" class="secondary">Volver a la sala</button>
+    </dialog>
     <dialog id="leave-dialog" aria-labelledby="leave-title">
         <h2 id="leave-title">Salir de la partida</h2>
         <p>Se cerrará tu estudio online y saldrás de la sala.</p>
         <div class="controls"><button id="cancel-leave" type="button" class="secondary">Cancelar</button><button id="confirm-leave" type="button">Salir de la sala</button></div>
+    </dialog>
+    <dialog id="new-match-dialog" aria-labelledby="new-match-title">
+        <h2 id="new-match-title">Empezar otra competición</h2>
+        <p>Se sustituirá la competición guardada y todos empezarán con un estudio nuevo.</p>
+        <div class="controls"><button id="cancel-new-match" type="button" class="secondary" autofocus>Cancelar</button><button id="confirm-new-match" type="button">Empezar de nuevo</button></div>
     </dialog>
 </body>
 </html>

@@ -31,6 +31,7 @@ import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
 import { EngineCreationModal } from './EngineCreationModal.js';
 import { showAnnualAwardsCeremony } from './AnnualAwardsModal.js';
+import { applyAnnualAwards, AWARD_CATEGORIES } from './AnnualAwardsSystem.js';
 import { showPortProjectModal } from './PortProjectModal.js';
 import { getCommercialEngineVersion } from './CommercialEngineVersions.js';
 import './office-move.css';
@@ -49,8 +50,10 @@ let onlineGame = null;
 try {
     if (window.parent !== window) onlineGame = window.parent.onlineGameBridge ?? null;
 } catch { /* The game can also be embedded by another origin. */ }
+if (onlineGame) window.onlineCompetitionClient = onlineGame;
 let onlineSuspended = false;
-const competitiveSaveId = onlineGame?.mode === 'competitive' ? `online_${onlineGame.seat}` : null;
+const competitiveSaveId = onlineGame?.mode === 'competitive'
+    ? `online_${onlineGame.saveId ? onlineGame.saveId + '_' : ''}${onlineGame.seat}` : null;
 
 let world = null;
 let annualCeremonyOpen = false;
@@ -291,10 +294,51 @@ async function bootGameApp() {
         }
 
         if (onlineGame) {
+            game.onlineCompetition = true;
+            document.querySelectorAll('.speed-btn').forEach(button => {
+                button.disabled = true;
+                button.title = 'El anfitrión controla el tiempo desde la barra de la partida';
+            });
+            let nextCheckpoint = 0;
+            onlineGame.save = () => {
+                if (appState === STATE_PLAYING) autosaveCurrentGame();
+            };
             onlineGame.read = () => {
                 if (appState !== STATE_PLAYING) return null;
-                if (onlineGame.mode === 'coop') return { snapshot: saveSystem.exportSnapshot(game) };
-                return { score: { studio: game.companyName, funds: game.funds, releases: game.gamesHistory.length } };
+                if (Date.now() >= nextCheckpoint) {
+                    autosaveCurrentGame();
+                    nextCheckpoint = Date.now() + 10000;
+                }
+                const titles = game.gamesHistory.slice(0, 100).map(title => ({
+                    id: title.id, name: title.name, score: title.score, unitsSoldTotal: title.unitsSoldTotal,
+                    releaseIndustryWeek: title.releaseIndustryWeek, officeTierAtRelease: title.officeTierAtRelease,
+                    techPoints: title.techPoints, graphics: title.production?.work?.graphics,
+                    sound: title.production?.work?.sound, narrative: (title.production?.work?.story || 0) + (title.production?.work?.dialogues || 0)
+                }));
+                const rating = game.gamesHistory.reduce((sum, title) => sum + (title.score || 0), 0) / (game.gamesHistory.length || 1);
+                const sales = game.gamesHistory.reduce((sum, title) => sum + (title.unitsSoldTotal || 0), 0);
+                return { score: { studio: game.companyName, funds: game.funds, releases: game.gamesHistory.length, titles, rating, sales, fans: game.fans, week: game.getIndustryWeek() } };
+            };
+            onlineGame.sync = match => {
+                if (appState !== STATE_PLAYING || !match.hostPresent) return;
+                game.gameSpeed = match.speed;
+                document.querySelectorAll('.speed-btn').forEach(button => button.classList.toggle('active', Number(button.dataset.speed) === match.speed));
+                for (let i = 0; i < 12 && game.getIndustryWeek() < match.week; i++) {
+                    const before = game.getIndustryWeek();
+                    game.advanceCalendar();
+                    if (game.getIndustryWeek() === before) break;
+                    checkCalendarEvents();
+                }
+                const previousAwards = game.awardsWon?.length ?? 0;
+                for (const ceremony of match.ceremonies) {
+                    const categories = ceremony.categories.filter(category => category.winner?.seat === onlineGame.seat).map(category => {
+                        const config = AWARD_CATEGORIES.find(candidate => candidate.id === category.id);
+                        return { ...category, winner: { ...category.winner, id: category.winner.gameId, isPlayer: true },
+                            reward: { fans: config.fans, reputation: config.reputation, rp: config.rp, studioValue: config.reputation * 10000, salesMultiplier: config.multiplier, salesWeeks: config.weeks } };
+                    });
+                    applyAnnualAwards(game, { ...ceremony, categories });
+                }
+                if ((game.awardsWon?.length ?? 0) !== previousAwards) autosaveCurrentGame();
             };
             onlineGame.suspend = suspended => {
                 if (onlineSuspended === suspended) return;
@@ -486,6 +530,7 @@ async function visitParkBuilding(destination) {
 
 async function enterGameplay({ checkpoint = false } = {}) {
     if (appState !== STATE_MAIN_MENU) return;
+    game.onlineCompetition = Boolean(onlineGame);
     appState = STATE_TRANSITION;
     mainMenu.setBusy(true);
     mainMenu.hidePanel();
@@ -600,7 +645,7 @@ function autosaveCurrentGame() {
 function startSimulationLoops() {
     clearInterval(devInterval);
     clearInterval(calendarInterval);
-    if (game.isPaused || onlineSuspended) return;
+    if (onlineGame || game.isPaused || onlineSuspended) return;
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {
@@ -630,6 +675,7 @@ function syncExpoInvitation() {
 }
 
 function setGameSpeed(speed) {
+    if (onlineGame) return;
     game.gameSpeed = speed;
     document.querySelectorAll('.speed-btn').forEach(btn => {
         btn.classList.toggle('active', parseInt(btn.dataset.speed) === speed);

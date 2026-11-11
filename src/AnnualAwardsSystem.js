@@ -58,7 +58,7 @@ function ranking(c, id) {
 }
 
 /** Construye la gala sin modificar el estado de la partida. */
-export function createAnnualCeremony(game) {
+export function createAnnualCeremony(game, { includeFallbacks = true } = {}) {
     const year = currentYear(game), week = currentWeek(game);
     const titles = (game.gamesHistory || []).filter(title => isRecent(title, game, year, week))
         .map(title => candidate(title, game.companyName || 'Tu estudio', true,
@@ -69,7 +69,7 @@ export function createAnnualCeremony(game) {
                 (company.employees || []).length <= 4 || year - number(company.foundedYear) <= 1));
         }
     }
-    const fallbacks = fallbackCandidates(year);
+    const fallbacks = includeFallbacks ? fallbackCandidates(year) : [];
     const categories = AWARD_CATEGORIES.map(category => {
         const eligible = c => category.id === 'goty' ? c.score > 8.8 && c.sales >= 500 : category.id === 'debut' ? c.smallStudio && c.score > 8 : c.score > 0;
         const pool = titles.filter(eligible);
@@ -81,7 +81,7 @@ export function createAnnualCeremony(game) {
         const nominees = pool.sort((a, b) => ranking(b, category.id) - ranking(a, category.id) || String(a.id).localeCompare(String(b.id))).slice(0, 4);
         const winner = nominees[0];
         // No colocar siempre la tarjeta ganadora en primer lugar.
-        const rotation = (year + AWARD_CATEGORIES.indexOf(category)) % nominees.length;
+        const rotation = nominees.length ? (year + AWARD_CATEGORIES.indexOf(category)) % nominees.length : 0;
         nominees.push(...nominees.splice(0, rotation));
         const reward = winner?.isPlayer ? { fans: category.fans, reputation: category.reputation, rp: category.rp, studioValue: category.reputation * 10000, salesMultiplier: category.multiplier, salesWeeks: category.weeks } : null;
         return { id: category.id, name: category.name, nominees, winner, reward };

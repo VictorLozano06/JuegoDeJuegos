@@ -13,6 +13,7 @@ let busy = false;
 let inRoom = false;
 let relayCode = null;
 let relayInvite = null;
+let relayRoomId = null;
 const frameHost = $('#game-frame');
 const savedSessionKey = 'dev-empire-online-session';
 
@@ -22,14 +23,17 @@ function showGame(show) {
 }
 
 function closeGame() {
+    window.onlineGameBridge?.save?.();
     frame?.remove();
     frame = null;
     window.onlineGameBridge = null;
     showGame(false);
+    if (galaDialog.open) galaDialog.close();
 }
 
 function openGame(match) {
-    window.onlineGameBridge = { snapshot: match.snapshot, mode: match.mode, seat: session.seat };
+    window.onlineGameBridge = { mode: match.mode, seat: session.seat, saveId: match.saveId, messages: match.messages,
+        sendMessage: (channel, text) => request('message', { id: session.id, channel, text }) };
     frame = document.createElement('iframe');
     frame.title = 'Dev Empire 3D';
     frame.src = '/play/';
@@ -39,22 +43,82 @@ function openGame(match) {
 }
 
 function renderMatch(state) {
+    if (frame && playing?.saveId !== state.match?.saveId) closeGame();
     playing = state.match;
     $('#host-controls').hidden = !session.host || Boolean(playing);
+    $('#new-match').hidden = !session.host || !playing;
     if (!playing) return;
     revision = playing.revision;
     $('#match-title').textContent = 'Competición de estudios';
-    $('#game-mode').textContent = 'Competitivo';
+    $('#game-mode').textContent = `Competitivo · Semana ${playing.week}`;
     $('#match-status').textContent = 'La partida ha comenzado.';
     $('#back-to-game').hidden = false;
     if (!frame && !inRoom) openGame(playing);
     $('#ranking').hidden = false;
     $('#scores').replaceChildren(...playing.ranking.map(entry => {
         const item = document.createElement('li');
-        item.textContent = `${entry.studio} (${entry.player}) · ${entry.funds.toLocaleString('es-ES')} € · ${entry.releases} publicados`;
+        item.textContent = `${entry.studio} (${entry.player}) · ${entry.points} pts · ${entry.rating.toFixed(1)}/10 · ${entry.sales.toLocaleString('es-ES')} ventas · ${entry.fans.toLocaleString('es-ES')} fans · ${entry.awards} premios · ${entry.funds.toLocaleString('es-ES')} €`;
         return item;
     }));
+    const releases = playing.ranking.flatMap(entry => entry.titles.map(title => ({ ...title, studio: entry.studio })));
+    releases.sort((a, b) => b.releaseIndustryWeek - a.releaseIndustryWeek);
+    $('#released-games').replaceChildren(...(releases.length ? releases : [{ name: 'Aún no hay lanzamientos.' }]).map(title => {
+        const item = document.createElement('li');
+        item.textContent = title.studio ? `${title.name} · ${title.studio} · ${title.score.toFixed(1)}/10 · ${title.unitsSoldTotal.toLocaleString('es-ES')} ventas` : title.name;
+        return item;
+    }));
+    $('#clock-controls').hidden = !session.host;
+    $('#match-speed').value = String(playing.speed);
+    $('#match-speed').disabled = Boolean(playing.gala);
+    const bridge = window.onlineGameBridge;
+    if (bridge) {
+        bridge.messages = playing.messages;
+        bridge.sync?.(playing);
+        frame.contentWindow?.dispatchEvent(new Event('online-messages'));
+    }
+    renderGala();
 }
+
+const galaDialog = $('#gala-dialog');
+let lastGala = '';
+function renderGala() {
+    const gala = playing?.gala;
+    if (!gala || inRoom || !playing.hostPresent) {
+        if (galaDialog.open) galaDialog.close();
+        lastGala = '';
+        return;
+    }
+    const key = `${gala.year}:${gala.step}`;
+    if (lastGala === key && galaDialog.open) return;
+    lastGala = key;
+    const category = gala.categories[Math.floor(gala.step / 2)];
+    const revealed = gala.step % 2 === 1;
+    $('#gala-title').textContent = category?.name ?? `Resultados de la gala de ${gala.year}`;
+    $('#gala-nominees').replaceChildren(...(category ? category.nominees : gala.categories.map(item => item.winner)).map(title => {
+        const item = document.createElement('li');
+        item.textContent = `${title.name} · ${title.studio}`;
+        return item;
+    }));
+    $('#gala-result').textContent = revealed && category ? `Gana ${category.winner.name}, de ${category.winner.studio}.` :
+        session.host ? '' : 'Esperando al anfitrión.';
+    $('#gala-next').hidden = !session.host;
+    $('#gala-next').textContent = category ? revealed ? 'Continuar' : 'Abrir el sobre' : 'Cerrar la gala';
+    if (!galaDialog.open) galaDialog.showModal();
+}
+
+async function controlMatch(data, control) {
+    control.disabled = true;
+    try { await request('match-control', { id: session.id, ...data }); return true; }
+    catch (error) {
+        $(inRoom ? '#room-message' : '#game-status').textContent = error.message;
+        return false;
+    }
+    finally { control.disabled = false; void refresh(); }
+}
+$('#match-speed').addEventListener('change', event => void controlMatch({ action: 'speed', speed: Number(event.target.value) }, event.target));
+$('#gala-next').addEventListener('click', event => void controlMatch({ action: 'gala' }, event.target));
+$('#gala-back').addEventListener('click', () => $('#back-to-room').click());
+galaDialog.addEventListener('cancel', event => { event.preventDefault(); $('#back-to-room').click(); });
 
 const codeEntry = !hostKey && !invitation;
 $('#code-form').hidden = !codeEntry;
@@ -86,6 +150,7 @@ $('#code-form').addEventListener('submit', async event => {
             const room = await request('find-room', { code });
             relayCode = code.toUpperCase();
             relayInvite = room.inviteKey;
+            relayRoomId = room.roomId;
             $('#code-form').hidden = true;
             $('#join-form').hidden = false;
             $('#role-description').textContent = 'Sala encontrada. Introduce tu nombre para entrar.';
@@ -108,7 +173,7 @@ $('#return-to-menu').addEventListener('click', () => {
 });
 
 async function request(path, data) {
-    const throughRelay = relayCode && ['join', 'state', 'score', 'leave'].includes(path);
+    const throughRelay = relayCode && ['join', 'state', 'score', 'leave', 'message'].includes(path);
     const response = await fetch(throughRelay ? '/api/relay' : `/api/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -172,12 +237,12 @@ async function refresh() {
         const state = await request('state', { id: current.id, revision: frame ? revision : -1 });
         if (session === current) {
             render(state);
-            $('#game-status').textContent = '';
+            $('#game-status').textContent = playing && !playing.hostPresent ? 'Esperando al anfitrión…' : '';
             if (frame && !inRoom) {
-                frame.inert = false;
-                window.onlineGameBridge?.suspend?.(false);
+                frame.inert = Boolean(playing && !playing.hostPresent);
+                window.onlineGameBridge?.suspend?.(frame.inert);
             }
-            if (playing && frame && !inRoom) await publish();
+            if (playing?.hostPresent && frame) await publish();
         }
     } catch (error) {
         if (session !== current) return;
@@ -217,7 +282,9 @@ $('#join-form').addEventListener('submit', async event => {
     button.disabled = true;
     $('#join-error').textContent = '';
     try {
-        session = await request('join', { name: $('#player-name').value, hostKey, inviteKey: relayInvite || invitation });
+        const resumeKey = relayRoomId ? localStorage.getItem('dev-empire-member:' + relayRoomId) : null;
+        session = await request('join', { name: $('#player-name').value, hostKey, inviteKey: relayInvite || invitation, resumeKey });
+        if (session.roomId) localStorage.setItem('dev-empire-member:' + session.roomId, session.resumeKey);
         if (relayCode) session.relayCode = relayCode;
         sessionStorage.setItem(savedSessionKey, JSON.stringify(session));
         await enterRoom();
@@ -237,6 +304,7 @@ $('#back-to-room').addEventListener('click', () => {
     inRoom = true;
     window.onlineGameBridge?.suspend?.(true);
     showGame(false);
+    renderGala();
     $('#back-to-game').focus();
 });
 $('#back-to-game').addEventListener('click', () => {
@@ -244,13 +312,21 @@ $('#back-to-game').addEventListener('click', () => {
     if (!frame) openGame(playing);
     window.onlineGameBridge?.suspend?.(false);
     showGame(true);
+    renderGala();
     $('#back-to-room').focus();
 });
 
 async function publish() {
     const data = window.onlineGameBridge?.read?.();
-    if (data) await request('score', { id: session.id, ...data.score });
+    if (data) await request('score', { id: session.id, matchId: playing.saveId, ...data.score });
 }
+
+const newMatchDialog = $('#new-match-dialog');
+$('#new-match').addEventListener('click', () => newMatchDialog.showModal());
+$('#cancel-new-match').addEventListener('click', () => newMatchDialog.close());
+$('#confirm-new-match').addEventListener('click', async event => {
+    if (await controlMatch({ action: 'new' }, event.target)) newMatchDialog.close();
+});
 
 const leaveDialog = $('#leave-dialog');
 const leaveButton = $('#leave-room');
@@ -271,18 +347,21 @@ async function leaveRoom() {
     busy = true;
     if (current && frame && playing) {
         try { await publish(); }
-        catch (error) {
-            $('#room-message').textContent = error.message;
-            busy = false;
-            return;
-        }
+        catch { /* El cierre también funciona si el anfitrión está desconectado. */ }
     }
     showJoin();
     if (current) try { await request('leave', { id: current.id }); } catch { /* La sesión caducará automáticamente. */ }
     relayCode = null;
     relayInvite = null;
+    relayRoomId = null;
     busy = false;
 }
+window.addEventListener('pagehide', event => {
+    window.onlineGameBridge?.save?.();
+    if (!event.persisted && session?.host) {
+        navigator.sendBeacon('/api/leave', new Blob([JSON.stringify({ id: session.id })], { type: 'application/json' }));
+    }
+});
 
 function updateInvite() {
     const value = $('#public-address').value.trim();

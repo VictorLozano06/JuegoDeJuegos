@@ -6319,3 +6319,17 @@
     border: 1px solid rgba(255, 255, 255, 0.28) !important;
     box-shadow: 0 14px 42px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 22px rgba(14, 165, 233, 0.2) !important;
 }
+.uwuntu-room-messages {
+    display: grid;
+    grid-template-rows: auto minmax(5rem, 1fr) auto auto;
+    gap: .65rem;
+    min-height: 100%;
+    padding: 1rem;
+}
+.uwuntu-room-messages h2, .uwuntu-room-messages p { margin: 0; }
+.uwuntu-room-messages ol { max-height: 17rem; overflow: auto; list-style: none; padding: 0; margin: 0; }
+.uwuntu-room-messages li { padding: .55rem .7rem; border-bottom: 1px solid currentColor; overflow-wrap: anywhere; }
+.uwuntu-room-messages form { display: flex; align-items: end; gap: .5rem; }
+.uwuntu-room-messages label { flex: 1; min-width: 0; }
+.uwuntu-room-messages input { display: block; width: 100%; }
+.uwuntu-room-messages button, .uwuntu-room-messages input { padding: .45rem; font: inherit; }

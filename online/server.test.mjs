@@ -68,8 +68,24 @@ test('sala, permisos y versiones de partida', async () => {
         await post('leave', { id: fourth.id });
         assert.equal((await post('start', { id: guest.id, mode: 'coop' })).status, 403);
         assert.equal((await post('start', { id: host.id, mode: 'competitive' })).status, 200);
+        assert.equal((await post('match-control', { id: guest.id, action: 'speed', speed: 4 })).status, 403);
+        assert.equal((await post('match-control', { id: host.id, action: 'speed', speed: 2 })).status, 200);
+        await post('score', { id: host.id, studio: 'Estudio rico', funds: 1000000, releases: 0, week: 1 });
+        await post('score', { id: guest.id, studio: 'Estudio creativo', funds: 100, releases: 1, rating: 9.5, sales: 1000, week: 1,
+            titles: [{ id: 'game-a', name: 'Gran juego', score: 9.5, unitsSoldTotal: 1000, releaseIndustryWeek: 1 }] });
+        assert.equal((await post('message', { id: guest.id, channel: 'vread', text: 'Gran lanzamiento' })).status, 200);
+        const competition = (await post('state', { id: host.id })).body.match;
+        assert.equal(competition.ranking[0].titles[0].name, 'Gran juego');
+        assert.equal(competition.messages[0].author, 'Invitado');
+        assert.equal(competition.speed, 2);
+        await post('leave', { id: host.id });
+        const paused = (await post('state', { id: guest.id })).body.match;
+        assert.equal(paused.hostPresent, false);
+        assert.equal(paused.speed, 0);
+        const returning = (await post('join', { name: 'Anfitrión', hostKey: key })).body;
+        assert.equal(returning.seat, host.seat);
         await post('leave', { id: guest.id });
-        assert.equal((await post('state', { id: host.id })).body.players.length, 1);
+        assert.equal((await post('state', { id: returning.id })).body.players.length, 1);
     } finally {
         child.kill();
         await rm(folder, { recursive: true, force: true });

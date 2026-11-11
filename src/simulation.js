@@ -3713,7 +3713,7 @@ class TycoonGame {
             }
         }
         this.checkIndustryEvents();
-        if (this.month === 12 && this.week === 4 && !this.financeState.bankruptcy?.confirmed && !this.pendingAnnualCeremony && this.lastAnnualAwardsYear !== this.getHistoricalYear()) {
+        if (!this.onlineCompetition && this.month === 12 && this.week === 4 && !this.financeState.bankruptcy?.confirmed && !this.pendingAnnualCeremony && this.lastAnnualAwardsYear !== this.getHistoricalYear()) {
             this.triggerAnnualAwards();
         }
     }

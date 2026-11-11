@@ -37,7 +37,10 @@ button:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px 
 .game-bar { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; padding: .5rem .8rem; border-bottom: 1px solid #3c5b74; }
 .game-bar button { padding: .4rem .7rem; }
 #game-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
-#ranking ol { position: absolute; z-index: 2; background: #101d2d; color: #fff; padding: 1rem 1rem 1rem 2.4rem; margin: .5rem 0 0; border: 1px solid #49627a; border-radius: .5rem; }
+.game-bar details :is(ol, ul) { position: absolute; z-index: 2; inset-inline-end: 1rem; width: min(38rem, calc(100vw - 2rem)); max-height: 55vh; overflow: auto; background: #101d2d; color: #fff; padding: 1rem 1rem 1rem 2.4rem; margin: .5rem 0 0; border: 1px solid #49627a; border-radius: .5rem; }
+.game-bar details li + li { margin-top: .6rem; }
+.game-bar label { margin: 0; }
+.game-bar select { padding: .3rem; }
 dialog { max-width: min(30rem, calc(100% - 2rem)); color: #e8f1fb; background: #101d2d; border: 1px solid #49627a; border-radius: .8rem; padding: 1.5rem; }
 dialog::backdrop { background: #030812cc; }
 @media (max-width: 480px) { .join-row { flex-direction: column; }.room-heading { flex-direction: column; }.controls button { flex: 1 1 auto; } }
