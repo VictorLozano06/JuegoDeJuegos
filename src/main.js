@@ -396,15 +396,48 @@ function syncParkNavigation() {
     }));
 }
 
-function visitParkBuilding(destination) {
+let parkTransitionInProgress = false;
+async function visitParkBuilding(destination) {
     if (appState !== STATE_PLAYING || !world?.parkLocation || world.viewMode !== 'office') return;
+    if (parkTransitionInProgress) return;
     if (destination !== 'grounds' && !Object.hasOwn(PARK_BUILDINGS, destination)) return;
     if (destination === world.parkLocation) return;
+    const previousLocation = world.parkLocation;
+    const wasPaused = game.isPaused;
+    const loading = new LoadingScreen();
+    parkTransitionInProgress = true;
+    game.isPaused = true;
     closeStudioRadio();
-    world.buildOffice(world.currentEra, destination);
     soundEngine.playClick();
-    syncParkNavigation();
-    document.getElementById('park-location-title')?.focus();
+    loading.start();
+    loading.setProgress(.12);
+    world.loadingScreenActive = true;
+    try {
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        world.buildOffice(world.currentEra, destination);
+        await world.officeAssetsReady;
+        loading.setProgress(.85);
+        await world.prepareOfficeFrame();
+        loading.setComplete();
+        await loading.waitForCompletion();
+        syncParkNavigation();
+        document.getElementById('park-location-title')?.focus();
+    } catch (error) {
+        console.error('No se pudo cargar el destino del campus:', error);
+        try {
+            world.buildOffice(world.currentEra, previousLocation);
+            await world.prepareOfficeFrame();
+            syncParkNavigation();
+        } catch (restoreError) {
+            console.error('No se pudo restaurar el destino anterior:', restoreError);
+        }
+        showToast('No se ha podido cargar la oficina. Inténtalo de nuevo.', 'warn');
+    } finally {
+        world.loadingScreenActive = false;
+        loading.hide();
+        game.isPaused = wasPaused;
+        parkTransitionInProgress = false;
+    }
 }
 
 async function enterGameplay({ checkpoint = false } = {}) {

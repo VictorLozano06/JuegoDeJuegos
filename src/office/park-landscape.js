@@ -15,9 +15,11 @@ const hills = [
 
 export function parkGroundHeight(x, z) {
     const edge = Math.max(Math.abs(x), Math.abs(z));
-    if (edge < 47) return 0;
+    // The district extends beyond the bypass. Keep its building lots level
+    // and start the hills beyond the outermost lots.
+    if (edge < 72) return 0;
     const roadEdge = Math.abs(edge - PARK_BYPASS) - (PARK_SIDEWALK_HALF + 0.6);
-    const t = Math.max(0, Math.min((edge - 47) / 22, roadEdge / 11, 1));
+    const t = Math.max(0, Math.min((edge - 72) / 15, roadEdge / 11, 1));
     if (!t) return 0;
     let height = 0;
     for (const [hx, hz, peak, width, depth] of hills) {
@@ -97,7 +99,6 @@ export function buildParkGrass(THREE, park) {
                         Math.abs(x - plot.x) < plot.width / 2 + 0.22 && Math.abs(z - plot.z) < plot.depth / 2 + 0.22)) continue;
                     if (courtyard && Math.abs(Math.abs(x) - 7.8) < 1.78 && Math.abs(z - 8) < 1.28) continue;
                     if (courtyard && Math.abs(Math.abs(x) - 6.8) < 0.61 && Math.abs(z - 2.29) < 1.15) continue;
-                    if (courtyard && Math.abs(Math.abs(x) - 6.75) < 2.38 && Math.abs(z + 4.95) < 1.19) continue;
                     if (verge && Math.abs(x - 1.7) < 1.65 + buffer && z > 19.18 - buffer) continue;
                     if (verge && Math.abs(Math.abs(x) - 20.3) < 2.675 + buffer && Math.abs(z - 3.78) < 1.325 + buffer) continue;
                     if (verge && Math.abs(x - PARKING_LOT.x) < PARKING_LOT.width / 2 + buffer &&

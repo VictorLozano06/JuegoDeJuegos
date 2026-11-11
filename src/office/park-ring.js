@@ -213,7 +213,6 @@ export function buildCourtyardBuilding(THREE, group, kit, plot, color) {
     place(metal, .27, 1, depth / 2 + .14, .045, .45, .045);
     for (const side of [-1, 1]) {
         place(cedar, side * (width / 2 - .27), .37, depth / 2 + .30, .40, .48, .42);
-        place(mat(0x66865a), side * (width / 2 - .27), .73, depth / 2 + .30, .30, .30, .30);
     }
     if (plot.id) place(mat(color), 0, 2.05, depth / 2 + 0.66, 1.63, 0.05, 0.025);
     if (plot.id === 'studio') {

@@ -39,8 +39,6 @@ export function buildPeraPark(world, THREE) {
     const turfReady = loadParkSurface(THREE, park, lawn, 'turf', 76, 0x9cc77d);
     const paving = mat(0xbbb8a6);
     const stone = mat(0xd3cdbd);
-    const soil = mat(0x4b473b);
-    const groundCover = mat(0x657451);
     const { block } = kit;
     park.userData.refreshShadows = () => { world.nextShadowRefresh = 0; };
     buildParkTerrain(THREE, park, lawn);
@@ -60,10 +58,6 @@ export function buildPeraPark(world, THREE) {
         box('Acceso lateral', stone, x, 0.034, 3.78, 5.35, 0.068, 2.65);
     }
     for (const side of [-1, 1]) {
-        box('Parcela de expansión', soil, side * 6.75, 0.045, -4.95, 4.7, 0.09, 2.3);
-        for (let row = 0; row < 3; row++) {
-            block(groundCover, side * 6.75, 0.105, -5.62 + 0.63 * row, 4.22, 0.14, 0.28);
-        }
         for (const z of [-2.9, 4.95, 7.25]) {
             addParkBench(kit, side * (z === 7.25 ? 5.05 : 4.32), z, Math.PI / 2 * -side);
         }
@@ -81,6 +75,12 @@ export function buildPeraPark(world, THREE) {
         group.position.set(plot.x, 0, plot.z);
         park.add(group);
         const base = buildCourtyardBuilding(THREE, group, kit, plot, building?.color);
+        for (const side of [-1, 1]) {
+            assets.staticModel('succulent/succulent.gltf', {
+                x: plot.x + side * (plot.width / 2 - 0.27), y: 0.61,
+                z: plot.z + plot.depth / 2 + 0.30, width: 0.34, shadow: true
+            });
+        }
         if (!building) continue;
         base.userData.parkDestination = id;
         world.interactiveParkEntrances.push(base);
@@ -149,7 +149,50 @@ export function buildPeraPark(world, THREE) {
     fountain.name = 'Fuente de la plaza';
     fountain.position.set(0, 0.12, 0.9);
     park.add(fountain);
-    assets.movingModel('fountain', fountain, { width: 4.6 }, true);
+    assets.movingModel('stone-fountain', fountain, { width: 4.6 });
+    const waterMaterial = new THREE.MeshStandardMaterial({
+        color: 0x6fa5a4, metalness: 0.18, roughness: 0.22, transparent: true, opacity: 0.86
+    });
+    const upperWater = new THREE.Mesh(new THREE.CircleGeometry(0.72, 48), waterMaterial);
+    upperWater.name = 'Agua de la taza superior';
+    upperWater.rotation.x = -Math.PI / 2;
+    upperWater.position.y = 2.22;
+    fountain.add(upperWater);
+    const streamMaterial = new THREE.MeshStandardMaterial({
+        color: 0xb8e5df, metalness: 0.05, roughness: 0.16, transparent: true, opacity: 0.63
+    });
+    for (let i = 0; i < 4; i++) {
+        const angle = Math.PI / 4 + i * Math.PI / 2;
+        const direction = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle));
+        const point = (radius, height) => new THREE.Vector3(direction.x * radius, height, direction.z * radius);
+        const curve = new THREE.CatmullRomCurve3([
+            point(0.61, 1.765), point(0.69, 1.58), point(0.82, 1.18), point(0.95, 0.63)
+        ]);
+        const stream = new THREE.Mesh(new THREE.TubeGeometry(curve, 24, 0.028, 6, false), streamMaterial);
+        stream.name = 'Chorro de la fuente';
+        fountain.add(stream);
+    }
+    const ripples = [];
+    const rippleGeometry = new THREE.RingGeometry(0.96, 1, 64);
+    rippleGeometry.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 3; i++) {
+        const ripple = new THREE.Mesh(rippleGeometry, new THREE.MeshBasicMaterial({
+            color: 0xcce9e2, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide
+        }));
+        ripple.position.set(0.7, 0.65 + i * 0.001, 0);
+        ripple.name = 'Ondas del agua';
+        fountain.add(ripple);
+        ripples.push(ripple);
+    }
+    const animateWater = time => {
+        ripples.forEach((ripple, i) => {
+            const phase = (time * 0.19 + i / ripples.length) % 1;
+            ripple.scale.setScalar(0.15 + phase * 0.5);
+            ripple.material.opacity = Math.sin(phase * Math.PI) * 0.26;
+        });
+        streamMaterial.opacity = 0.56 + Math.sin(time * 3) * 0.07;
+    };
+    animateWater(0);
     const animateTraffic = buildParkDistrict(THREE, park, kit, assets);
     kit.flush();
     assets.finish([turfReady, foliageReady]);
@@ -157,6 +200,7 @@ export function buildPeraPark(world, THREE) {
     world.animatePark = reduceMotion ? null : time => {
         assets.animate(time);
         animateTraffic(time);
+        animateWater(time);
     };
 }
 

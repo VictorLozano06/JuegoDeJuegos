@@ -74,7 +74,7 @@ test('Pera Park connects three entrances to interiors and reuses the tier-three 
     assert.deepEqual([...new Set(world.interactiveParkEntrances.map(mesh => mesh.userData.parkDestination))],
         ['studio', 'consoles', 'lab']);
     assert.equal(world.desks.length, 0);
-    assert.equal(world.officeGroup.children[0].children.filter(mesh => mesh.name === 'Parcela de expansión').length, 2);
+    assert.equal(world.officeGroup.children[0].children.filter(mesh => mesh.name === 'Parcela de expansión').length, 0);
 
     world.buildOffice(4, 'studio');
     assert.deepEqual(world.desks.map(desk => desk.seatPos.toArray()), studioSeats);

@@ -1,4 +1,5 @@
 import { parkGroundHeight } from './park-landscape.js';
+import { PARK_BYPASS, PARK_SIDEWALK_HALF, PARK_STREET } from './park-streets.js';
 
 /** A mix of masonry offices, glass towers, and stepped residential blocks. */
 export function buildParkCity(kit, assets) {
@@ -25,7 +26,30 @@ export function buildParkCity(kit, assets) {
         [12, 'office-low'], [13, 'office-mid'], [16, 'office-low'], [17, 'office-mid'],
         [18, 'office-low'], [20, 'office-mid'], [22, 'office-low']
     ]);
-    for (const [index, [x, z, width, depth, height, type]] of blocks.entries()) {
+    const occupied = [];
+    const roads = [-PARK_BYPASS, -PARK_STREET, PARK_STREET, PARK_BYPASS];
+    const locate = (x, z, width, depth) => {
+        const halfWidth = width / 2 + 0.9;
+        const halfDepth = depth / 2 + 0.95;
+        const clear = (a, b) => Math.max(Math.abs(a) - halfWidth, Math.abs(b) - halfDepth) > PARK_STREET + PARK_SIDEWALK_HALF && roads.every(road =>
+            Math.abs(a - road) >= PARK_SIDEWALK_HALF + halfWidth &&
+            Math.abs(b - road) >= PARK_SIDEWALK_HALF + halfDepth) &&
+            occupied.every(plot => Math.abs(a - plot.x) >= halfWidth + plot.halfWidth + 0.3 ||
+                Math.abs(b - plot.z) >= halfDepth + plot.halfDepth + 0.3);
+        const candidates = [];
+        for (let dx = -32; dx <= 32; dx += 1) {
+            for (let dz = -32; dz <= 32; dz += 1) {
+                if (clear(x + dx, z + dz)) candidates.push([x + dx, z + dz, dx * dx + dz * dz]);
+            }
+        }
+        candidates.sort((a, b) => a[2] - b[2]);
+        if (!candidates.length) throw new Error('No hay espacio para un edificio del barrio.');
+        const [placedX, placedZ] = candidates[0];
+        occupied.push({ x: placedX, z: placedZ, halfWidth, halfDepth });
+        return [placedX, placedZ];
+    };
+    for (const [index, [originalX, originalZ, width, depth, height, type]] of blocks.entries()) {
+        const [x, z] = locate(originalX, originalZ, width, depth);
         const sourced = sourcedBuildings.get(index);
         if (sourced) {
             block(stone, x, 0.031, z, width + 1.25, 0.061, depth + 1.4);
@@ -74,7 +98,8 @@ export function buildParkCity(kit, assets) {
             }
         }
     }
+    const [towerX, towerZ] = locate(-11.7, -55.4, 8.9, 7.2);
     assets.staticModel('innerscene/office-tower', {
-        x: -11.7, y: parkGroundHeight(-11.7, -55.4), z: -55.4, width: 8.9, height: 19.2, depth: 7.2
+        x: towerX, y: parkGroundHeight(towerX, towerZ), z: towerZ, width: 8.9, height: 19.2, depth: 7.2
     });
 }
