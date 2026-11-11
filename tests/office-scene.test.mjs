@@ -51,6 +51,8 @@ test('the modern scene builds one founder workstation and four separate team wor
 
 test('the campus seats the founder and nine employees at distinct workstations', () => {
     const world = buildScene(3);
+    assert.equal(world.ambientLight.color.getHex(), 0xc7d8e0);
+    assert.equal(world.ambientLight.intensity, 0.85);
     assert.equal(world.desks.length, 10);
     assert.equal(world.desks.filter(desk => desk.role === 'founder').length, 1);
     assert.equal(world.desks.filter(desk => desk.role === 'employee').length, 9);
@@ -76,6 +78,8 @@ test('Pera Park connects three entrances to interiors and reuses the tier-three 
 
     world.buildOffice(4, 'studio');
     assert.deepEqual(world.desks.map(desk => desk.seatPos.toArray()), studioSeats);
+    assert.equal(world.ambientLight.color.getHex(), 0xc7d8e0);
+    assert.equal(world.ambientLight.intensity, 0.85);
     assert.equal(world.interactiveParkEntrances.length, 0);
 
     world.buildOffice(4, 'consoles');

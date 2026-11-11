@@ -47,3 +47,7 @@ Los préstamos tienen límites, cuotas, intereses, impagos y refinanciaciones ac
 La liquidación archiva proyectos e investigación, registra deudas y pagos, preserva los juegos y el historial, y solo transfiere IP con una compraventa real. Las franquicias sin comprador y los motores y kits sin mercado permanecen en el patrimonio de liquidación; no generan dinero ficticio. La plantilla afectada pasa al mercado laboral, con indemnizaciones pagadas según fondos y obligaciones impagadas registradas. El fundador se conserva con salario cero por compatibilidad de la partida. Es posible finalizar o continuar en modo histórico; la partida no se borra.
 
 La IA rival mantiene su propio procedimiento existente de nóminas y reestructuración, pero comparte el cálculo de liquidez para sus indicadores; no se ha sustituido su comportamiento por el del jugador. No hay aún mercado de motores o equipos ni creación de una segunda empresa tras la quiebra.
+
+## Ejecutable para Windows
+
+Descarga `Dev-Empire-3D-Windows.exe` desde las versiones (Releases) del repositorio y ejecútalo. Es una aplicación portátil; no necesita instalación. Para generarla localmente en Windows, ejecuta `npm ci` y `npm run dist:win`. El archivo se crea en `release/`. GitHub Actions también genera el ejecutable al ejecutar manualmente el flujo o publicar una etiqueta `v*`.

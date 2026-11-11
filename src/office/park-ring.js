@@ -9,8 +9,8 @@ export const COURTYARD_BUILDINGS = [
     { id: 'studio', x: 0, z: -10.1, width: 6.1, depth: 3.65, height: 4.55 },
     { id: 'consoles', x: -10.4, z: -2.45, width: 4.6, depth: 4.1, height: 3.65 },
     { id: 'lab', x: 10.4, z: -2.45, width: 4.65, depth: 4.05, height: 4.1 },
-    { x: -6.8, z: 4.42, width: 2.65, depth: 2.3, height: 2.26 },
-    { x: 6.8, z: 4.42, width: 2.65, depth: 2.3, height: 2.26 }
+    { x: -6.8, z: 4.42, width: 3.35, depth: 2.85, height: 2.9 },
+    { x: 6.8, z: 4.42, width: 3.35, depth: 2.85, height: 2.9 }
 ];
 const LEVELS = [0.31, 1.81, 3.31, 4.81];
 
@@ -112,15 +112,62 @@ export function buildParkRing(THREE, park, kit) {
     }
 }
 
+function courtyardTexture(THREE, kind) {
+    if (typeof document === 'undefined') return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    let seed = kind === 'stone' ? 104 : kind === 'wood' ? 205 : 306;
+    const random = () => {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        return seed / 4294967296;
+    };
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, 256, 256);
+    if (kind === 'glass') {
+        const shade = ctx.createLinearGradient(0, 0, 256, 256);
+        shade.addColorStop(0, 'rgba(255,255,255,.2)');
+        shade.addColorStop(.35, 'rgba(58,85,93,.32)');
+        shade.addColorStop(.55, 'rgba(220,239,226,.12)');
+        shade.addColorStop(1, 'rgba(40,62,68,.42)');
+        ctx.fillStyle = shade;
+        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillStyle = 'rgba(220,244,238,.10)';
+        ctx.beginPath();
+        ctx.moveTo(145, 0); ctx.lineTo(195, 0); ctx.lineTo(85, 256); ctx.lineTo(40, 256);
+        ctx.fill();
+    } else {
+        for (let i = 0; i < (kind === 'stone' ? 4500 : 950); i++) {
+            ctx.fillStyle = random() > .5 ? 'rgba(79,58,37,.08)' : 'rgba(255,255,255,.38)';
+            const x = random() * 256;
+            const y = random() * 256;
+            ctx.fillRect(x, y, kind === 'wood' ? 18 + random() * 60 : 1 + random() * 2, kind === 'wood' ? .7 + random() : 1 + random() * 2);
+        }
+        if (kind === 'wood') {
+            ctx.fillStyle = 'rgba(65,44,28,.16)';
+            for (let y = 0; y < 256; y += 32) ctx.fillRect(0, y, 256, 1);
+        }
+    }
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.encoding = THREE.sRGBEncoding;
+    texture.anisotropy = 4;
+    return texture;
+}
+
 export function buildCourtyardBuilding(THREE, group, kit, plot, color) {
     const { mat } = kit;
     const { width, depth, height } = plot;
     const metal = mat(0x465358, 'metal');
-    const stone = mat(0xc0b9a9);
+    const stone = mat(0xc0b9a9).clone();
     const dark = mat(0x333f42);
     const roof = mat(0x737c74);
-    const cedar = mat(0x8a6e57);
-    const glass = [mat(0x496367, 'glass'), mat(0x688384, 'glass'), mat(0x405961, 'glass')];
+    const cedar = mat(0x8a6e57).clone();
+    const glass = [0x496367, 0x688384, 0x405961].map(tint => mat(tint, 'glass').clone());
+    stone.map = courtyardTexture(THREE, 'stone');
+    cedar.map = courtyardTexture(THREE, 'wood');
+    const glassMap = courtyardTexture(THREE, 'glass');
+    glass.forEach(material => { material.map = glassMap; });
     const place = (material, x, y, z, w, h, d, shadow = false) => {
         const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
         mesh.position.set(x, y, z);
@@ -133,6 +180,11 @@ export function buildCourtyardBuilding(THREE, group, kit, plot, color) {
     place(stone, 0, 0.07, 0, width + 0.45, 0.14, depth + 0.45);
     place(plot.id === 'consoles' ? cedar : stone, 0, height + 0.21, 0, width + 0.31, 0.20, depth + 0.31);
     place(roof, 0, height + 0.34, 0, width - 0.1, 0.06, depth - 0.1);
+    // Recessed bands, sills and projecting canopies give each level depth.
+    for (const side of [-1, 1]) {
+        place(metal, side * (width / 2 - 0.12), height / 2 + .17, depth / 2 + .07, .09, height - .15, .12);
+        place(stone, 0, height + .11, side * (depth / 2 + .04), width + .2, .12, .13);
+    }
     const rows = plot.id ? 2 : 1;
     const cols = plot.id === 'studio' ? 6 : plot.id ? 4 : 2;
     const pitch = (width - 0.30) / cols;
@@ -149,10 +201,20 @@ export function buildCourtyardBuilding(THREE, group, kit, plot, color) {
             place(glass[row % 3], side * (width / 2 + 0.018), y, 0, 0.043, floor * 0.75, depth - 0.46);
             for (const z of [-0.48, 0.48]) place(metal, side * (width / 2 + 0.044), y, z, 0.054, floor * 0.77, 0.055);
         }
+        if (row < rows - 1) {
+            for (const side of [-1, 1]) {
+                place(stone, 0, .17 + (row + 1) * floor, side * (depth / 2 + .065), width + .04, .10, .12);
+            }
+        }
     }
     place(metal, 0, 0.99, depth / 2 + 0.073, 1.05, 1.82, 0.075);
     place(glass[1], 0, 0.99, depth / 2 + 0.113, 0.85, 1.63, 0.042);
     place(stone, 0, 2.05, depth / 2 + 0.30, 1.64, 0.11, 0.70);
+    place(metal, .27, 1, depth / 2 + .14, .045, .45, .045);
+    for (const side of [-1, 1]) {
+        place(cedar, side * (width / 2 - .27), .37, depth / 2 + .30, .40, .48, .42);
+        place(mat(0x66865a), side * (width / 2 - .27), .73, depth / 2 + .30, .30, .30, .30);
+    }
     if (plot.id) place(mat(color), 0, 2.05, depth / 2 + 0.66, 1.63, 0.05, 0.025);
     if (plot.id === 'studio') {
         place(mat(0x607152), -width * 0.23, height + 0.41, 0, width * 0.39, 0.08, depth * 0.70);

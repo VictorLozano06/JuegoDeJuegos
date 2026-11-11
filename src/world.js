@@ -3,6 +3,7 @@ import { applyOfficeLighting } from './garage/lighting.js';
 import { createRetroWorkstation } from './garage/workstation.js';
 import { buildModernOffice } from './office/modern.js';
 import { createModernPeripherals } from './office/peripherals.js';
+import { buildStudioThree } from './office/studio-three.js';
 import { buildPeraPark, buildParkReception, PARK_BUILDINGS } from './office/pera-park.js';
 import { OFFICE_CATALOG, STARTING_OFFICE } from './data/offices.js';
 import { animateEmployee, initializeEmployeeAnimation } from './characters/animation.js';
@@ -796,66 +797,7 @@ export class WorldEngine {
     }
 
     buildCyberCampusEra() {
-        const roomW = 19;
-        const roomD = 18;
-
-        // High-tech reflective carbon cyber floor
-        const floorGeo = new THREE.PlaneGeometry(roomW, roomD);
-        const floorMat = new THREE.MeshStandardMaterial({
-            color: 0x090d16,
-            roughness: 0.15,
-            metalness: 0.85
-        });
-        const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.rotation.x = -Math.PI / 2;
-        floor.receiveShadow = true;
-        this.officeGroup.add(floor);
-
-        // Cyber Grid Lines on floor
-        const grid = new THREE.GridHelper(roomW, 19, 0x285d68, 0x1e293b);
-        grid.scale.z = roomD / roomW;
-        grid.position.y = 0.01;
-        this.officeGroup.add(grid);
-
-        // Panoramic city night back wall
-        const backWall = new THREE.Mesh(
-            new THREE.BoxGeometry(roomW, 7.0, 0.4),
-            new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.3, metalness: 0.7 })
-        );
-        backWall.position.set(0, 3.5, -roomD / 2);
-        this.officeGroup.add(backWall);
-
-        const trim = new THREE.MeshStandardMaterial({ color: 0x304755, metalness: 0.55, roughness: 0.45 });
-        const accent = new THREE.MeshBasicMaterial({ color: 0x35c3c4 });
-        const panel = new THREE.MeshStandardMaterial({ color: 0x183c4b, metalness: 0.35, roughness: 0.55 });
-        const box = (name, material, size, position) => {
-            const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
-            mesh.name = name;
-            mesh.position.set(...position);
-            mesh.receiveShadow = true;
-            this.officeGroup.add(mesh);
-            return mesh;
-        };
-        box('Panel del puesto del fundador', panel, [4.4, 2.4, 0.12], [0, 2.8, -8.72]);
-        box('Luz del fundador', accent, [4.4, 0.055, 0.06], [0, 4.05, -8.62]);
-        for (const x of [-8.5, -4.8, 4.8, 8.5]) {
-            box('Columna del campus', trim, [0.14, 5.2, 0.16], [x, 2.6, -8.70]);
-            box('Línea luminosa', accent, [0.025, 4.5, 0.035], [x, 2.65, -8.60]);
-        }
-        for (const x of [-5.1, 0, 5.1]) {
-            box('Alfombra del equipo', panel, [3.15, 0.02, 10.1], [x, 0.02, 0.3]);
-        }
-
-        // One founder and nine team stations, with a clear aisle between rows.
-        this.createDesk(0, 0, -6.6, 'cyber', 0);
-        let index = 1;
-        for (const z of [-3.1, 0.35, 3.8]) {
-            for (const x of [-5.1, 0, 5.1]) this.createDesk(x, 0, z, 'cyber', index++);
-        }
-
-        this.createCoffeeStation(7.75, 0, -6.9);
-        this.addRadio(this.officeGroup, 7.2, 1.2, -6.9, true, Math.PI);
-        this.coffeeMugPos = new THREE.Vector3(8.15, 1.35, -6.8);
+        buildStudioThree(this, THREE);
     }
 
     addRadio(parent, x, y, z, createModel = false, rotation = 0) {
@@ -993,9 +935,9 @@ export class WorldEngine {
         // Heavy solid timber tabletop
         const topGeo = new THREE.BoxGeometry(2.3, 0.1, 1.2);
         const topMat = new THREE.MeshStandardMaterial({
-            color: isCyber ? 0x1f2937 : 0xf8fafc,
-            roughness: 0.3,
-            metalness: isCyber ? 0.6 : 0.1
+            color: isCyber ? 0x657b82 : 0xf8fafc,
+            roughness: isCyber ? 0.75 : 0.3,
+            metalness: 0.1
         });
         const tableTop = new THREE.Mesh(topGeo, topMat);
         tableTop.position.y = 1.35;

@@ -162,12 +162,13 @@ export function applyOfficeLighting(world) {
     }
     const garage = world.currentEra === 1 && !hologram;
     const modern = world.currentEra === 2 && !hologram;
+    const studio = !hologram && (world.currentEra === 3 || world.parkLocation === 'studio');
 
-    ambientLight.color.setHex(garage ? 0xffd5ab : modern ? 0xc0d4cf : park ? 0xc7ddec : 0x2d2432);
-    ambientLight.intensity = garage ? 0.64 : modern ? 0.60 : park ? 0.68 : hologram ? 0.35 : 0.55;
+    ambientLight.color.setHex(garage ? 0xffd5ab : modern ? 0xc0d4cf : park ? 0xc7ddec : studio ? 0xc7d8e0 : 0x2d2432);
+    ambientLight.intensity = garage ? 0.64 : modern ? 0.60 : park ? 0.68 : studio ? 0.85 : hologram ? 0.35 : 0.55;
 
     sunLight.color.setHex(garage ? 0xffe6c4 : modern ? 0xfff0d8 : park ? 0xffefd4 : 0xffdfba);
-    sunLight.intensity = garage ? 1.18 : park ? 1.22 : hologram ? 0.35 : 1.25;
+    sunLight.intensity = garage ? 1.18 : park ? 1.22 : studio ? 1.4 : hologram ? 0.35 : 1.25;
     if (garage) {
         // The high window is on the right side of the back wall.
         sunLight.position.set(5, 8, -5.5);

@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist:win": "npm run build && electron-builder --win portable --x64"
   },
   "repository": {
     "type": "git",
@@ -17,6 +18,26 @@
   "homepage": "https://github.com/VictorLozano06/JuegoDeJuegos#readme",
   "private": true,
   "devDependencies": {
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0",
     "vite": "^8.3.6"
+  },
+  "main": "electron-main.js",
+  "build": {
+    "appId": "com.devempire3d.game",
+    "productName": "Dev Empire 3D",
+    "files": [
+      "dist/**/*",
+      "electron-main.js"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "artifactName": "Dev-Empire-3D-Windows.exe"
+    }
   }
 }
