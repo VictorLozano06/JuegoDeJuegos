@@ -3,6 +3,18 @@ import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import { GameDevFlowController, ProductionLifecycleState, DevelopmentStageModal } from '../src/GameDevFlowController.js';
 
+test('abrir la confirmación de lanzamiento conserva el proyecto hasta publicar', () => {
+    let requested = 0;
+    const controller = new GameDevFlowController({ game: {}, onRelease: () => { requested++; return false; } });
+    const project = { name: 'Proyecto', stage: 4 };
+    controller.project = project;
+    controller.state = ProductionLifecycleState.STAGE_BUG_FIXING;
+    controller.releaseProject();
+    assert.equal(requested, 1);
+    assert.equal(controller.project, project);
+    assert.equal(controller.state, ProductionLifecycleState.STAGE_BUG_FIXING);
+});
+
 test('el contador espera la llegada y conserva el valor real en el proyecto', () => {
     let arrive;
     const controller = new GameDevFlowController({ game: {}, world: {

@@ -1,12 +1,34 @@
-const stepTitles = ['Identidad', 'Concepto', 'Plataformas', 'Tecnología', 'Financiación', 'Confirmación'];
+const stepTitles = ['Identidad', 'Concepto', 'Plataformas', 'Motor', 'Financiación', 'Confirmación'];
 const descriptions = [
     'Define el juego y la franquicia a la que pertenecerá.',
     'Elige la idea, el género y a quién quieres llegar.',
     'Escoge el hardware en el que debutará el juego.',
-    'Configura el motor y la arquitectura de producción.',
+    'Elige el motor con el que desarrollarás el proyecto.',
     'Decide cómo se financiará y venderá el proyecto.',
     'Autoriza la producción con todos los costes y riesgos a la vista.'
 ];
+
+// Los identificadores históricos permanecen estables aunque cambie el nombre visible.
+const platformImages = {
+    g64: 'Commodore 64', zx_spectrum: 'ZX SPECTRUM', msx: 'MSX', nes: 'NES',
+    amstrad_cpc: 'AMSTRAD CPC', amiga: 'Commodore Amiga', master_system: 'SEGA MASTER SYSTEM',
+    atari_7800: 'ATARI 7800', pc_engine: 'TurboGrafx16', genesis: 'SEGA GENESIS',
+    game_boy: 'GameBoy', lynx: 'ATARI LYNX', neo_geo: 'NeoGeo', snes: 'Super Nintendo',
+    game_gear: 'Sega Game Gear', '3do': '3DO Interactive Multiplayer', jaguar: 'Atari Jaguar',
+    saturn: 'Sega Saturn', playbox: 'PlayStation 1', virtual_boy: 'VirtualBoy', n64: 'Nintendo 64',
+    game_boy_color: 'GameBoy Color', dreamcast: 'Sega DreamCast', neo_geo_pocket: 'NeoGeo PocketColor',
+    ps2: 'PlayStation 2', gba: 'GameBoy Advance', gamecube: 'GameCube', xbox: 'Xbox',
+    ngage: 'Nokia NCage', ds: 'Nintendo DS', psp: 'PSP', xbox360: 'Xbox360', wii: 'Nintendo Wii',
+    ps3: 'PlayStation3', mobile: 'Movil', android: 'Movil', '3ds': 'Nintendo 3DS', vita: 'PSVita',
+    wii_u: 'Nintendo WiiU', ps4: 'PlayStation4', xbox_one: 'XboxONE', vrhelmet: 'OculusRift',
+    ninswitch: 'Nintendo Switch', ps5: 'PlayStation5', xbox_series: 'Xbox Series X',
+    steam_deck: 'Steam Deck', quest: 'Meta Quest', switch2: 'Nintendo Switch 2'
+};
+
+function platformImage(platform, year) {
+    const name = platform.id === 'pc' ? (year >= 2017 ? 'PC AÑOS 2017' : year >= 2010 ? 'PC AÑOS 2010' : 'PC AÑOS 80') : platformImages[platform.id];
+    return name ? `${import.meta.env.BASE_URL}platforms/${encodeURIComponent(name)}.png` : '';
+}
 
 export function initializePreproductionWizard({ game, getPipeline, getScope, getHistoricalTechs, getTechnologyNames, onChange }) {
     const modal = document.getElementById('modal-new-game');
@@ -14,7 +36,7 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
     const window = modal.querySelector('.preprod-window');
     const header = window.querySelector('.preprod-header');
     const original = [...form.children];
-    const [nameGroup, conceptFields, ipFields, synergy, platformFields, pipelineSection, financeSection, dagSection, submitWrap] = original;
+    const [nameGroup, conceptFields, ipFields, synergy, platformFields, pipelineSection, financeSection, submitWrap] = original;
     const progress = document.createElement('nav');
     progress.className = 'preprod-progress';
     progress.setAttribute('aria-label', 'Etapas de preproducción');
@@ -155,9 +177,10 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
     let platformSignature = '';
     function renderPlatforms() {
         const platforms = game.getPlatforms();
+        const year = game.getHistoricalYear();
         const signature = [...platformSelect.options].map(option => {
             const platform = platforms.find(item => item.id === option.value);
-            return `${option.value}:${option.disabled}:${platform?.marketShare}:${platform ? game.getDevKitCost(platform) : ''}`;
+            return `${option.value}:${option.disabled}:${platform?.name}:${platform?.marketShare}:${platform?.royaltyRate}:${year}:${platform ? game.getDevKitCost(platform) : ''}`;
         }).join('|');
         if (signature !== platformSignature) {
             platformSignature = signature;
@@ -167,14 +190,38 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
                 if (!platform) continue;
                 const cost = game.getDevKitCost(platform);
                 const card = document.createElement('button');
-                card.type = 'button'; card.className = 'preprod-choice';
+                card.type = 'button'; card.className = 'preprod-choice preprod-platform-card';
                 card.disabled = option.disabled;
                 card.dataset.value = platform.id;
+                const visual = document.createElement('span'); visual.className = 'platform-card-visual';
+                const imageUrl = platformImage(platform, year);
+                if (imageUrl) {
+                    const image = document.createElement('img');
+                    image.src = imageUrl; image.alt = ''; image.loading = 'lazy';
+                    image.addEventListener('error', () => { image.remove(); visual.classList.add('is-placeholder'); });
+                    visual.append(image);
+                } else visual.classList.add('is-placeholder');
+                const content = document.createElement('span'); content.className = 'platform-card-content';
+                const heading = document.createElement('span'); heading.className = 'platform-card-heading';
                 const label = document.createElement('strong'); label.textContent = platform.name;
-                const detail = document.createElement('small');
+                const badge = document.createElement('span'); badge.className = 'platform-card-badge';
+                badge.textContent = option.disabled ? 'Retirada' : (platform.type || 'Plataforma');
+                heading.append(label, badge);
                 const royalty = Math.round((platform.royaltyRate ?? platform.royalty ?? 0) * 100);
-                detail.textContent = `${platform.releaseYear || '—'} · DevKit $${cost.toLocaleString('es-ES')} · Regalías ${royalty}%${Number.isFinite(Number(platform.marketShare)) ? ` · Mercado ${(Number(platform.marketShare) * 100).toFixed(1)}%` : ''}${option.disabled ? ' · Retirada' : ''}`;
-                card.append(label, detail);
+                const metrics = document.createElement('span'); metrics.className = 'platform-card-metrics';
+                const share = Number(platform.marketShare);
+                for (const [title, value, tone] of [
+                    ['Coste del DevKit', `${cost.toLocaleString('es-ES')} €`, 'cost'],
+                    ['Índice de mercado', Number.isFinite(share) ? `${(share * 100).toFixed(1).replace('.', ',')} %` : '—', 'market'],
+                    ['Regalías', `${royalty} %`, 'royalty'],
+                    ['Lanzamiento', String(platform.releaseYear || '—'), 'year']
+                ]) {
+                    const metric = document.createElement('span'); metric.className = `platform-card-metric platform-card-metric--${tone}`;
+                    const metricLabel = document.createElement('span'); metricLabel.textContent = title;
+                    const metricValue = document.createElement('b'); metricValue.textContent = value;
+                    metric.append(metricLabel, metricValue); metrics.append(metric);
+                }
+                content.append(heading, metrics); card.append(visual, content);
                 card.addEventListener('click', () => {
                     platformSelect.value = platform.id;
                     platformSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -193,12 +240,7 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         platformEmpty.hidden = visibleCount !== 0;
     }
     platformSearch.addEventListener('input', renderPlatforms);
-    const architecture = document.createElement('details');
-    architecture.className = 'preprod-architecture';
-    const architectureSummary = document.createElement('summary');
-    architectureSummary.textContent = 'Configurar arquitectura y tecnologías';
-    architecture.append(architectureSummary, dagSection);
-    steps[3].section.append(pipelineSection, architecture);
+    steps[3].section.append(pipelineSection);
     pipelineSection.querySelector('h3').textContent = 'Motor de desarrollo';
     steps[4].section.append(financeSection);
     financeSection.querySelector('h3').textContent = 'Acuerdo de publicación';
@@ -277,14 +319,14 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         addSummary('Propiedad intelectual', mode.value === 'new' ? `Nueva IP: ${document.getElementById('preprod-new-ip-name').value.trim()}` : mode.value === 'existing' ? `${text('select-ip')} · ${text('select-ip-installment')}` : 'Juego independiente', 0);
         addSummary('Concepto', `${text('select-topic')} · ${text('select-genre')} · ${text('select-audience')}`, 1);
         addSummary('Lanzamiento', text('select-platform'), 2);
-        addSummary('Motor y alcance', `${pipe?.name || 'Sin motor'} · ${getScope().selectedNodeIds.size} nodos`, 3);
+        addSummary('Motor de desarrollo', pipe?.name || 'Sin motor', 3);
         addSummary('Tecnologías', getTechnologyNames?.(getHistoricalTechs())?.join(', ') || 'Sin módulos históricos adicionales', 3);
         addSummary('Publicación', `${document.querySelector('input[name="publishing-contract"]:checked')?.closest('label')?.querySelector('strong')?.textContent || 'Autopublicación'} · ${document.querySelector('input[name="business-model"]:checked')?.closest('label')?.querySelector('.business-model-title')?.textContent || 'Premium'}`, 4);
         addSummary('Postlanzamiento', `${text('select-post-launch-content')} · Parches ${document.getElementById('toggle-postlaunch-patches').checked ? 'sí' : 'no'} · Monetización ${text('select-monetization-style')}`, 4);
         addSummary('Coste inicial', money(budget.cost), 4);
         addSummary('Fondos disponibles', money(budget.funds), 4);
         addSummary('Anticipo / saldo previsto', `${money(budget.advance)} / ${money(budget.remaining)}`, 4);
-        addSummary('Deuda técnica estimada', `${pipe?.baseDebtFloor || 0} pts de base · fricción ${getScope().calculateFriction(pipe?.frictionMultiplier || 1).frictionPercent}%`, 3);
+        addSummary('Deuda técnica base', `${pipe?.baseDebtFloor || 0} pts`, 3);
         addSummary('Requisitos pendientes', [0, 1, 2, 3, 4].map(validate).filter(Boolean).join(' · ') || 'Ninguno', 3);
         const warning = document.createElement('p'); warning.className = 'preprod-help';
         warning.textContent = budget.funds < budget.cost ? 'Fondos insuficientes para autorizar la producción. El anticipo se abona después del pago inicial.' : 'Todos los costes se aplicarán al iniciar el desarrollo.';
@@ -315,7 +357,6 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
         steps[index].section.querySelector('h3').focus({ preventScroll: true });
     }
     function sync() {
-        architectureSummary.textContent = `Configurar arquitectura y tecnologías · ${getScope().selectedNodeIds.size} nodos`;
         choiceControls.forEach(render => render());
         if (current === 5) renderSummary();
         for (let i = 0; i < 5; i++) {

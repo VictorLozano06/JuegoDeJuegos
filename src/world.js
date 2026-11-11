@@ -392,8 +392,6 @@ export class WorldEngine {
         // Build Initial Era (Garage Diorama)
         this.buildOffice(1);
 
-        // Build Initial Holographic 3D Scope Architecture Tree (Default Hidden in Office)
-        this.initScopeDag();
         this.scopeDagGroup.visible = false;
 
         // Window resize handler

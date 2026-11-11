@@ -207,6 +207,7 @@
                 <div class="hud-sales-meta">
                     <strong id="hud-sales-title" class="hud-sales-title">Nombre del Juego</strong>
                     <div id="hud-sales-genre-topic" class="hud-sales-sub">Género • Tema (Plataforma)</div>
+                    <div id="hud-sales-price" class="hud-sales-sub"></div>
                 </div>
                 <div class="hud-sales-controls">
                     <div class="hud-sales-nav" id="hud-sales-nav-controls" style="display: none;">
@@ -234,6 +235,7 @@
 
                 <!-- Live Weekly Bar Chart Canvas -->
                 <div class="hud-sales-chart-wrap">
+                    <span id="hud-sales-sale-badge" class="hud-sale-badge" hidden></span>
                     <canvas id="hud-sales-canvas" width="260" height="92"></canvas>
                     <div class="hud-sales-chart-legend">
                         <span id="hud-sales-week-label">Semana 1 en el mercado</span>
@@ -274,9 +276,24 @@
                     <button type="button" class="hud-sales-btn btn-view-full" onclick="openFullChartFromWidget()" title="Abrir análisis y gráfica detallada">
                         [[DE_ICON_012]] Gráfica
                     </button>
+                    <button type="button" class="hud-sales-btn" id="hud-sales-discount-btn" aria-expanded="false" aria-controls="hud-sales-discount-panel">Aplicar descuento</button>
                     <button type="button" class="hud-sales-btn btn-retire" id="hud-sales-retire-btn" onclick="retireGameFromWidget()" title="Retirar permanentemente del mercado">
                         [[DE_ICON_013]] Retirar
                     </button>
+                </div>
+                <div id="hud-sales-discount-panel" class="hud-discount-panel" hidden>
+                    <strong>Campaña de rebajas</strong>
+                    <p id="hud-discount-status" role="status"></p>
+                    <label for="hud-discount-duration">Duración de la oferta</label>
+                    <select id="hud-discount-duration" aria-label="Duración de la oferta">
+                        <option value="1">1 semana</option><option value="2" selected>2 semanas</option>
+                        <option value="3">3 semanas</option><option value="4">4 semanas</option>
+                        <option value="5">5 semanas</option><option value="6">6 semanas</option>
+                        <option value="7">7 semanas</option><option value="8">8 semanas</option>
+                    </select>
+                    <div class="hud-discount-options" id="hud-discount-options"></div>
+                    <small>Importe estimado por copia tras comisiones, antes de otros gastos.</small>
+                    <button type="button" class="hud-sales-btn" id="hud-discount-end" hidden>Finalizar oferta</button>
                 </div>
             </div>
         </aside>
@@ -319,7 +336,6 @@
                     <span id="pts-hidden-debt-badge" class="badge-hidden-debt" hidden>(+<span id="pts-hidden-debt">0</span> oculta)</span>
                 </div>
                 <div class="project-buttons">
-                    <button id="btn-hud-open-dag" type="button">Arquitectura</button>
                     <button id="btn-toggle-refactor" type="button" aria-pressed="false">Refactorizar</button>
                     <button id="btn-release-game" type="button" class="release-btn" style="display:none">Publicar juego</button>
                 </div>
@@ -432,7 +448,6 @@
         <footer class="bottom-dock" hidden style="display: none !important;">
             <!-- Botones ocultos para compatibilidad con atajos de teclado y referencias existentes -->
             <button id="btn-new-game" class="dock-btn btn-primary-action" style="display: none;" title="Nuevo Proyecto (N)"><span>[[DE_ICON_027]]</span> Nuevo Videojuego</button>
-            <button id="btn-open-dag" class="dock-btn" style="display: none;" title="Árbol de Nodos & Deuda Técnica (G)"><span>[[DE_ICON_020]]</span> Grafo DAG</button>
             <button id="btn-research" class="dock-btn" style="display: none;" title="I+D & Motores (R)"><span>[[DE_ICON_006]]</span> I+D & Motores</button>
             <button id="btn-hire" class="dock-btn" style="display: none;" title="Personal & Energía (H)"><span>[[DE_ICON_031]]</span> Equipo & Personal</button>
 
@@ -458,9 +473,6 @@
             <button id="btn-edit-profile" class="dock-btn" title="Personalizar Estudio & Personaje (P)">
                 <span>[[DE_ICON_019]]</span> Tu Estudio
             </button>
-            <button id="btn-toggle-hologram" class="dock-btn" title="Alternar Vista de Mesa Holográfica 3D (G)">
-                <span>[[DE_ICON_020]]</span> Grafo 3D
-            </button>
             <button id="btn-upgrade-office" class="dock-btn" type="button" title="Comprar o cambiar la sede del estudio" aria-haspopup="dialog">
                 <span aria-hidden="true">[[DE_ICON_035]]</span> Oficinas
             </button>
@@ -469,31 +481,9 @@
             </button>
         </footer>
 
-        <!-- Floating 3D Holographic Viewport Overlay HUD -->
-        <div id="hologram-overlay-bar" class="hologram-hud-bar" style="display: none;">
-            <div class="hologram-hud-left">
-                <div class="hologram-live-beacon">
-                    <span class="beacon-dot"></span>
-                    <span class="beacon-pulse"></span>
-                </div>
-                <div>
-                    <div class="holo-hud-title">[[DE_ICON_020]] MESA HOLOGRÁFICA 3D ACTIVA</div>
-                    <div class="holo-hud-subtitle">Haz clic en los nodos para configurarlos • Tuberías y partículas muestran dependencias</div>
-                </div>
-            </div>
-            <div class="hologram-hud-right">
-                <button type="button" id="btn-holo-return-editor" class="btn-holo-action btn-holo-primary">
-                    <span>[[DE_ICON_036]]</span> Volver al Editor 2D
-                </button>
-                <button type="button" id="btn-holo-close" class="btn-holo-action btn-holo-secondary" title="Cerrar proyección y volver a la oficina">
-                    <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l10 10M13 3L3 13"/></svg> Cerrar Holograma
-                </button>
-            </div>
-        </div>
-
         <!-- Keyboard Shortcuts Hint Bar -->
         <div class="shortcut-bar">
-            <kbd>Espacio</kbd> Pausa | <kbd>1-4</kbd> Vel | <kbd>N</kbd> Nuevo Juego | <kbd>G</kbd> Grafo DAG | <kbd>P</kbd> Perfil | <kbd>R</kbd> I+D | <kbd>H</kbd> Personal | <kbd>C</kbd> Top 10 | <kbd>M</kbd> Audio | <kbd>Esc</kbd> Cerrar
+            <kbd>Espacio</kbd> Pausa | <kbd>1-4</kbd> Vel | <kbd>N</kbd> Nuevo Juego | <kbd>P</kbd> Perfil | <kbd>R</kbd> I+D | <kbd>H</kbd> Personal | <kbd>C</kbd> Top 10 | <kbd>M</kbd> Audio | <kbd>Esc</kbd> Cerrar
         </div>
     </div>
 
@@ -655,7 +645,25 @@
         </div>
     </div>
 
-    <!-- MODAL: NUEVO VIDEOJUEGO (CON ARQUITECTURA POR NODOS DAG) -->
+    <!-- MODAL: NUEVO VIDEOJUEGO (PREPRODUCCIÓN) -->
+    <div id="modal-launch-price" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="launch-price-title">
+        <div class="modal-window compact-menu launch-price-window">
+            <div class="modal-header"><div><p class="menu-kicker">DEV EMPIRE / LANZAMIENTO</p><h2 id="launch-price-title" class="modal-title">Precio de venta</h2></div><button type="button" class="modal-close" aria-label="Cancelar y volver al proyecto">&times;</button></div>
+            <form id="launch-price-form" class="launch-price-form">
+                <p>Define el precio de lanzamiento. La calidad final y la reputación del estudio influirán en la demanda.</p>
+                <div id="launch-price-control">
+                    <label for="launch-price-input">Precio de venta ($)</label>
+                    <div class="launch-price-input-row"><span aria-hidden="true">$</span><input id="launch-price-input" type="number" min="5" max="70" step="1" required inputmode="numeric"><span id="launch-price-category" class="launch-price-category"></span></div>
+                    <input id="launch-price-range" type="range" min="5" max="70" step="1" aria-label="Ajustar precio de venta">
+                    <p id="launch-price-reference" class="launch-price-reference"></p>
+                    <p id="launch-price-feedback" class="launch-price-feedback" role="status"></p>
+                </div>
+                <p id="launch-price-free" hidden>Este modelo es gratuito: los ingresos proceden de sus servicios y no de la venta de copias.</p>
+                <div class="launch-price-actions"><button type="button" class="dock-btn" id="launch-price-cancel">Cancelar</button><button type="submit" class="dock-btn btn-primary-action">Fijar precio y lanzar al mercado</button></div>
+            </form>
+        </div>
+    </div>
+
     <div id="modal-new-game" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="preprod-title">
         <div class="modal-window preprod-window">
             <div class="modal-header preprod-header">
@@ -748,331 +756,12 @@
                     </div>
                 </section>
 
-                <!-- SCOPE NODE TREE (DAG) & REAL-TIME METRICS -->
-                <div class="creator-section">
-                    <!-- Prominent 3D Holographic Projection Launcher -->
-                    <div class="holo-3d-launch-banner">
-                        <div class="holo-3d-launch-info">
-                            <span class="holo-3d-icon">[[DE_ICON_052]]</span>
-                            <div>
-                                <strong style="color: #fff; font-size: 14px; display: block;">Visualización Tridimensional (Opcional)</strong>
-                                <p style="color: var(--text-secondary); font-size: 11px; margin: 3px 0 0 0; line-height: 1.35;">
-                                    Por defecto la oficina se mantiene despejada. Pulsa para proyectar la mesa holográfica 3D y manipular el grafo flotante.
-                                </p>
-                            </div>
-                        </div>
-                        <button type="button" id="btn-dag-preview-3d" class="btn-highlight-holo">
-                            <span>[[DE_ICON_053]]</span> Ver Arquitectura en 3D
-                        </button>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin: 16px 0 12px 0;">
-                        <h3 class="creator-subtitle" style="margin-bottom: 0;"><span>[[DE_ICON_020]]</span> Árbol de Alcance y Arquitectura por Nodos (DAG)</h3>
-                    </div>
-
-                    <!-- Presets Bar -->
-                    <div class="dag-presets-bar">
-                        <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Presets Rápidos:</span>
-                        <button type="button" class="preset-btn" data-preset="indie" title="Scope ligero, código limpio, desarrollo rápido">[[DE_ICON_022]] Indie Ágil</button>
-                        <button type="button" class="preset-btn" data-preset="aa" title="Scope equilibrado, físicas y shaders">[[DE_ICON_001]] AA Equilibrado</button>
-                        <button type="button" class="preset-btn" data-preset="aaa" title="Ray Tracing, físicas destructibles y red avanzada">[[DE_ICON_024]] AAA Ambicioso</button>
-                        <button type="button" class="preset-btn" data-preset="qa" title="Prioridad en estabilidad y deuda técnica mínima">[[DE_ICON_021]] QA / Clean Code</button>
-                    </div>
-
-                    <!-- Live Architecture Metrics Dashboard -->
-                    <div class="dag-metrics-panel">
-                        <div class="workload-bars">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Desglose de Carga (Workload Breakdown)</span>
-                                <span id="workload-total-pts" style="font-size: 12px; font-weight: 800; color: var(--accent-cyan);">Total: 0 pts</span>
-                            </div>
-                            <div class="discipline-row">
-                                <span class="disc-name">[[DE_ICON_018]] Engine:</span>
-                                <div class="disc-bar-track"><div id="bar-eng" class="disc-bar-fill fill-eng" style="width: 40%;"></div></div>
-                                <span id="num-eng" class="disc-num">45 pts</span>
-                            </div>
-                            <div class="discipline-row">
-                                <span class="disc-name">[[DE_ICON_001]] Gameplay:</span>
-                                <div class="disc-bar-track"><div id="bar-game" class="disc-bar-fill fill-game" style="width: 50%;"></div></div>
-                                <span id="num-game" class="disc-num">60 pts</span>
-                            </div>
-                            <div class="discipline-row">
-                                <span class="disc-name">[[DE_ICON_020]] Red:</span>
-                                <div class="disc-bar-track"><div id="bar-net" class="disc-bar-fill fill-net" style="width: 20%;"></div></div>
-                                <span id="num-net" class="disc-num">25 pts</span>
-                            </div>
-                            <div class="discipline-row">
-                                <span class="disc-name">[[DE_ICON_019]] Arte:</span>
-                                <div class="disc-bar-track"><div id="bar-art" class="disc-bar-fill fill-art" style="width: 45%;"></div></div>
-                                <span id="num-art" class="disc-num">50 pts</span>
-                            </div>
-                            <div class="discipline-row">
-                                <span class="disc-name">[[DE_ICON_021]] QA:</span>
-                                <div class="disc-bar-track"><div id="bar-qa" class="disc-bar-fill fill-qa" style="width: 30%;"></div></div>
-                                <span id="num-qa" class="disc-num">35 pts</span>
-                            </div>
-                        </div>
-
-                        <!-- Radar Chart: Balance en 5 Disciplinas -->
-                        <div class="radar-chart-container" title="Balance de Arquitectura en 5 Disciplinas">
-                            <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Balance Disciplinas</div>
-                            <svg viewBox="0 0 160 160" class="radar-svg" id="dag-radar-svg">
-                                <polygon points="80,20 137,61 115,129 45,129 23,61" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                                <polygon points="80,35 123,66 106,116 54,116 37,66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                                <polygon points="80,50 109,71 98,104 62,104 51,71" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                                <polygon points="80,65 94,75 89,92 71,92 66,75" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                                <line x1="80" y1="80" x2="80" y2="20" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                                <line x1="80" y1="80" x2="137" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                                <line x1="80" y1="80" x2="115" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                                <line x1="80" y1="80" x2="45" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                                <line x1="80" y1="80" x2="23" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                                <polygon id="dag-radar-poly" points="80,45 115,70 100,115 60,115 45,70" fill="rgba(0, 210, 255, 0.28)" stroke="#00d2ff" stroke-width="2" stroke-linejoin="round" />
-                                <circle id="radar-dot-eng-1" cx="80" cy="45" r="3" fill="#38bdf8" />
-                                <circle id="radar-dot-game-1" cx="115" cy="70" r="3" fill="#facc15" />
-                                <circle id="radar-dot-net-1" cx="100" cy="115" r="3" fill="#c084fc" />
-                                <circle id="radar-dot-art-1" cx="60" cy="115" r="3" fill="#f472b6" />
-                                <circle id="radar-dot-qa-1" cx="45" cy="70" r="3" fill="#34d399" />
-                                <text x="80" y="13" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">ENG</text>
-                                <text x="142" y="63" fill="#facc15" font-size="8" font-weight="700" text-anchor="start">GAME</text>
-                                <text x="120" y="141" fill="#c084fc" font-size="8" font-weight="700" text-anchor="start">NET</text>
-                                <text x="40" y="141" fill="#f472b6" font-size="8" font-weight="700" text-anchor="end">ART</text>
-                                <text x="18" y="63" fill="#34d399" font-size="8" font-weight="700" text-anchor="end">QA</text>
-                            </svg>
-                        </div>
-
-                        <div class="friction-gauge">
-                            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Indicador de Fricción</div>
-                            <div id="metric-friction" class="friction-val low">+12%</div>
-                            <div id="metric-coupling" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Acoplamiento: 1.1x</div>
-                            <div id="metric-friction-badge" class="friction-badge-pill pill-optimo">Acoplamiento Óptimo</div>
-                        </div>
-
-                        <div class="tech-debt-gauge">
-                            <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Medidor de Deuda Técnica</div>
-                            <div class="tacometer-wrapper" style="width: 100px; margin: 0 auto;">
-                                <svg viewBox="0 0 100 55" class="tacometer-svg">
-                                    <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
-                                    <path d="M 10 50 A 40 40 0 0 1 26 21" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity="0.9" />
-                                    <path d="M 28 19 A 40 40 0 0 1 72 19" fill="none" stroke="#f59e0b" stroke-width="8" opacity="0.9" />
-                                    <path d="M 74 21 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" stroke-width="8" stroke-linecap="round" opacity="0.9" />
-                                    <line id="tech-debt-needle" x1="50" y1="50" x2="50" y2="16" stroke="#00d2ff" stroke-width="2.5" stroke-linecap="round" style="transform-origin: 50px 50px; transform: rotate(-90deg); transition: transform 0.4s ease;" />
-                                    <circle cx="50" cy="50" r="4.5" fill="#00d2ff" />
-                                </svg>
-                            </div>
-                            <div id="metric-base-debt" class="debt-val" style="color: #10b981; font-size: 20px;">0 pts</div>
-                            <div id="metric-debt-status" class="debt-status-tag tag-clean">[[DE_ICON_023]] Código Limpio</div>
-                            <div id="metric-royalties" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">0% Royalties</div>
-                        </div>
-                    </div>
-
-                    <div class="dag-category-block" id="historical-tech-section">
-                        <div class="dag-category-title">[[DE_ICON_063]] Tecnologías históricas investigadas</div>
-                        <p style="font-size:12px;color:var(--text-secondary)">Selecciona las tecnologías para este proyecto. Investiga nuevos módulos en I+D.</p>
-                        <div id="historical-tech-options" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:6px;margin:10px 0"></div>
-                        <div id="historical-tech-warning" role="alert" style="display:none;color:#ff6666;font-weight:700;margin:10px 0"></div>
-                        <button type="button" id="btn-historical-graph" class="dock-btn">[[DE_ICON_020]] Ver tecnologías históricas en 3D</button>
-                    </div>
-                    <!-- Clean Categorized 2D Architecture Nodes -->
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_054]]</span> Motor Gráfico & Renderizado</div>
-                        <div id="dag-nodes-render" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_055]]</span> Físicas & Dinámica de Colisiones</div>
-                        <div id="dag-nodes-physics" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_020]]</span> Netcode & Sincronización de Red</div>
-                        <div id="dag-nodes-net" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_056]]</span> Inteligencia Artificial & Lógica</div>
-                        <div id="dag-nodes-ai" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_045]]</span> Pipeline de Audio & Acústica</div>
-                        <div id="dag-nodes-audio" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_057]]</span> Contenido & Estructura de Mundo</div>
-                        <div id="dag-nodes-content" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <div class="dag-category-block">
-                        <div class="dag-category-title"><span>[[DE_ICON_049]]</span> Sistemas & Jugabilidad Avanzada</div>
-                        <div id="dag-nodes-systems" class="dag-nodes-grid"></div>
-                    </div>
-
-                    <!-- Backwards-compatibility hidden container -->
-                    <div id="dag-nodes-base" style="display: none;"></div>
-                </div>
-
                 <div style="margin-top: 24px; text-align: right;">
                     <button type="submit" class="dock-btn btn-primary-action" style="padding: 12px 28px; width: 100%; justify-content: center; font-size: 15px;">
                         INICIAR DESARROLLO
                     </button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- MODAL: PANEL INTERACTIVO DEDICADO DEL GRAFO DE NODOS Y DEUDA TÉCNICA (#modal-scope-dag) -->
-    <div id="modal-scope-dag" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="scope-menu-title">
-        <div class="modal-window compact-menu scope-menu empire-window">
-            <div class="modal-header">
-                <div><p class="menu-kicker">DEV EMPIRE / INGENIERÍA</p><h2 class="modal-title" id="scope-menu-title">Arquitectura</h2></div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button type="button" id="btn-dag-modal-view-3d" class="btn-highlight-holo" style="padding: 6px 14px; font-size: 12px;">
-                        <span>[[DE_ICON_053]]</span> Vista 3D
-                    </button>
-                    <button class="modal-close" type="button" aria-label="Cerrar">&times;</button>
-                </div>
-            </div>
-
-            <div class="menu-tabs" role="tablist" aria-label="Arquitectura">
-                <button type="button" role="tab" id="scope-tab-modules" aria-selected="true" aria-controls="scope-modules">Módulos</button>
-                <button type="button" role="tab" id="scope-tab-diagnostics" aria-selected="false" aria-controls="scope-diagnostics" tabindex="-1">Diagnóstico</button>
-            </div>
-            <div class="menu-scroll">
-                <section id="scope-modules" role="tabpanel" aria-labelledby="scope-tab-modules">
-                                <!-- Presets Bar -->
-            <div class="dag-presets-bar">
-                <span style="font-size: 12px; font-weight: 700; color: var(--text-secondary); margin-right: 6px;">Configuración rápida</span>
-                <button type="button" class="preset-btn" data-preset="indie" title="Scope ligero, código limpio, desarrollo rápido">[[DE_ICON_022]] Indie Ágil</button>
-                <button type="button" class="preset-btn" data-preset="aa" title="Scope equilibrado, físicas y shaders">[[DE_ICON_001]] AA Equilibrado</button>
-                <button type="button" class="preset-btn" data-preset="aaa" title="Ray Tracing, físicas destructibles y red avanzada">[[DE_ICON_024]] AAA Ambicioso</button>
-                <button type="button" class="preset-btn" data-preset="qa" title="Prioridad en estabilidad y deuda técnica mínima">[[DE_ICON_021]] QA / Clean Code</button>
-            </div>
-
-            <!-- DAG Nodes Groups in Modal: 7 Categorized Sections -->
-            <details class="dag-category-block" open><summary class="dag-category-title"><span>[[DE_ICON_054]]</span> Motor Gráfico & Renderizado</summary><div id="dag-modal-nodes-render" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_055]]</span> Físicas & Dinámica de Colisiones</summary><div id="dag-modal-nodes-physics" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_020]]</span> Netcode & Sincronización de Red</summary><div id="dag-modal-nodes-net" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_056]]</span> Inteligencia Artificial & Lógica</summary><div id="dag-modal-nodes-ai" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_045]]</span> Pipeline de Audio & Acústica</summary><div id="dag-modal-nodes-audio" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_057]]</span> Contenido & Estructura de Mundo</summary><div id="dag-modal-nodes-content" class="dag-nodes-grid"></div></details>
-
-            <details class="dag-category-block"><summary class="dag-category-title"><span>[[DE_ICON_049]]</span> Sistemas & Jugabilidad Avanzada</summary><div id="dag-modal-nodes-systems" class="dag-nodes-grid"></div></details>
-
-            <!-- Backwards-compatibility hidden container -->
-            <div id="dag-modal-nodes-base" style="display: none;"></div>
-
-
-                </section>
-                <section id="scope-diagnostics" role="tabpanel" aria-labelledby="scope-tab-diagnostics" hidden>
-                                <!-- Live Architecture Metrics Dashboard -->
-            <div class="dag-metrics-panel">
-                <div class="workload-bars">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                        <span style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Carga por disciplina</span>
-                        <span id="dag-modal-total-pts" style="font-size: 12px; font-weight: 800; color: var(--accent-cyan);">Total: 0 pts</span>
-                    </div>
-                    <div class="discipline-row">
-                        <span class="disc-name">[[DE_ICON_018]] Engine:</span>
-                        <div class="disc-bar-track"><div id="dag-modal-bar-eng" class="disc-bar-fill fill-eng" style="width: 20%;"></div></div>
-                        <span id="dag-modal-num-eng" class="disc-num">0 pts</span>
-                    </div>
-                    <div class="discipline-row">
-                        <span class="disc-name">[[DE_ICON_001]] Gameplay:</span>
-                        <div class="disc-bar-track"><div id="dag-modal-bar-game" class="disc-bar-fill fill-game" style="width: 20%;"></div></div>
-                        <span id="dag-modal-num-game" class="disc-num">0 pts</span>
-                    </div>
-                    <div class="discipline-row">
-                        <span class="disc-name">[[DE_ICON_020]] Red:</span>
-                        <div class="disc-bar-track"><div id="dag-modal-bar-net" class="disc-bar-fill fill-net" style="width: 20%;"></div></div>
-                        <span id="dag-modal-num-net" class="disc-num">0 pts</span>
-                    </div>
-                    <div class="discipline-row">
-                        <span class="disc-name">[[DE_ICON_019]] Arte:</span>
-                        <div class="disc-bar-track"><div id="dag-modal-bar-art" class="disc-bar-fill fill-art" style="width: 20%;"></div></div>
-                        <span id="dag-modal-num-art" class="disc-num">0 pts</span>
-                    </div>
-                    <div class="discipline-row">
-                        <span class="disc-name">[[DE_ICON_021]] QA:</span>
-                        <div class="disc-bar-track"><div id="dag-modal-bar-qa" class="disc-bar-fill fill-qa" style="width: 20%;"></div></div>
-                        <span id="dag-modal-num-qa" class="disc-num">0 pts</span>
-                    </div>
-                </div>
-
-                <!-- Radar Chart: Balance en 5 Disciplinas -->
-                <details class="scope-radar">
-                <summary>Ver equilibrio entre disciplinas</summary>
-                <div class="radar-chart-container" title="Balance de Arquitectura en 5 Disciplinas">
-                    <div style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 2px;">Equilibrio</div>
-                    <svg viewBox="0 0 160 160" class="radar-svg" id="dag-modal-radar-svg">
-                        <polygon points="80,20 137,61 115,129 45,129 23,61" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                        <polygon points="80,35 123,66 106,116 54,116 37,66" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                        <polygon points="80,50 109,71 98,104 62,104 51,71" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                        <polygon points="80,65 94,75 89,92 71,92 66,75" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
-                        <line x1="80" y1="80" x2="80" y2="20" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                        <line x1="80" y1="80" x2="137" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                        <line x1="80" y1="80" x2="115" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                        <line x1="80" y1="80" x2="45" y2="129" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                        <line x1="80" y1="80" x2="23" y2="61" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
-                        <polygon id="dag-modal-radar-poly" points="80,45 115,70 100,115 60,115 45,70" fill="rgba(0, 210, 255, 0.28)" stroke="#00d2ff" stroke-width="2" stroke-linejoin="round" />
-                        <circle id="radar-dot-eng-2" cx="80" cy="45" r="3" fill="#38bdf8" />
-                        <circle id="radar-dot-game-2" cx="115" cy="70" r="3" fill="#facc15" />
-                        <circle id="radar-dot-net-2" cx="100" cy="115" r="3" fill="#c084fc" />
-                        <circle id="radar-dot-art-2" cx="60" cy="115" r="3" fill="#f472b6" />
-                        <circle id="radar-dot-qa-2" cx="45" cy="70" r="3" fill="#34d399" />
-                        <text x="80" y="13" fill="#38bdf8" font-size="8" font-weight="700" text-anchor="middle">ENG</text>
-                        <text x="142" y="63" fill="#facc15" font-size="8" font-weight="700" text-anchor="start">GAME</text>
-                        <text x="120" y="141" fill="#c084fc" font-size="8" font-weight="700" text-anchor="start">NET</text>
-                        <text x="40" y="141" fill="#f472b6" font-size="8" font-weight="700" text-anchor="end">ART</text>
-                        <text x="18" y="63" fill="#34d399" font-size="8" font-weight="700" text-anchor="end">QA</text>
-                    </svg>
-                </div>
-                </details>
-
-                <div class="friction-gauge">
-                    <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700;">Indicador de Fricción</div>
-                    <div id="dag-modal-friction" class="friction-val low">+12%</div>
-                    <div id="dag-modal-coupling" style="font-size: 11px; color: var(--text-secondary); margin-top: 4px;">Acoplamiento: 1.1x</div>
-                    <div id="dag-modal-friction-badge" class="friction-badge-pill pill-optimo">Acoplamiento Óptimo</div>
-                </div>
-
-                <div class="tech-debt-gauge">
-                    <div style="font-size: 11px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Medidor de Deuda Técnica</div>
-                    <div class="tacometer-wrapper" style="width: 100px; margin: 0 auto;">
-                        <svg viewBox="0 0 100 55" class="tacometer-svg">
-                            <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="8" stroke-linecap="round" />
-                            <path d="M 10 50 A 40 40 0 0 1 26 21" fill="none" stroke="#10b981" stroke-width="8" stroke-linecap="round" opacity="0.9" />
-                            <path d="M 28 19 A 40 40 0 0 1 72 19" fill="none" stroke="#f59e0b" stroke-width="8" opacity="0.9" />
-                            <path d="M 74 21 A 40 40 0 0 1 90 50" fill="none" stroke="#ef4444" stroke-width="8" stroke-linecap="round" opacity="0.9" />
-                            <line id="dag-modal-debt-needle" x1="50" y1="50" x2="50" y2="16" stroke="#00d2ff" stroke-width="2.5" stroke-linecap="round" style="transform-origin: 50px 50px; transform: rotate(-90deg); transition: transform 0.4s ease;" />
-                            <circle cx="50" cy="50" r="4.5" fill="#00d2ff" />
-                        </svg>
-                    </div>
-                    <div id="dag-modal-debt-val" class="debt-val" style="color: #10b981; font-size: 20px;">0 pts</div>
-                    <div id="dag-modal-debt-status" class="debt-status-tag tag-clean">[[DE_ICON_023]] Código Limpio</div>
-                </div>
-            </div>
-
-            <!-- Active Refactor Sprint Action -->
-            <div class="scope-maintenance">
-                <div>
-                    <strong style="color: #fff; font-size: 14px;">Mantenimiento de Código Activo</strong>
-                    <div style="font-size: 12px; color: var(--text-secondary); margin-top: 2px;">Ordena a los ingenieros limpiar código para reducir -25 pts de deuda técnica y eliminar cuelgues antes del lanzamiento.</div>
-                </div>
-                <button type="button" id="btn-dag-modal-refactor" class="btn-refactor" title="Refactorizar deuda técnica">
-                    [[DE_ICON_058]] Refactorizar
-                </button>
-            </div>
-
-
-                </section>
-            </div>
-            <div class="menu-footer"><button type="button" class="menu-secondary" onclick="closeAllModals()">Volver al juego</button></div>
         </div>
     </div>
 
@@ -1367,109 +1056,59 @@
         </div>
     </div>
 
-    <!-- MODAL: I+D & TECH TREE PROGRESSION -->
+    <!-- MODAL: INVESTIGACIÓN DE TECNOLOGÍAS (ESTILO GAME DEV TYCOON) -->
     <div id="modal-research" class="modal-backdrop">
-        <div class="modal-window">
-            <div class="modal-header">
-                <div>
-                    <h2 class="modal-title"><span>[[DE_ICON_006]]</span> Laboratorio de I+D</h2>
-                    <p style="font-size: 12px; color: var(--text-secondary); margin: 3px 0 0 0;">Centro de innovación estratégica y desarrollo tecnológico del estudio</p>
+        <div class="modal-window modal-research-gdt">
+            <!-- Modal Header -->
+            <div class="modal-header research-gdt-header">
+                <div class="research-gdt-title-block">
+                    <h2 class="modal-title"><span>[[DE_ICON_006]]</span> Investigación</h2>
+                    <p class="research-gdt-subtitle">Tecnologías disponibles para investigar y desbloquear para tu estudio</p>
                 </div>
-                <button class="modal-close">&times;</button>
+                <div class="research-gdt-header-badges">
+                    <div class="research-badge-rp" title="Puntos de Investigación disponibles">
+                        <span class="research-badge-icon">[[DE_ICON_006]]</span>
+                        <strong id="rd-header-rp">0 RP</strong>
+                    </div>
+                    <div class="research-badge-year" title="Línea temporal histórica">
+                        <span class="research-badge-icon">[[DE_ICON_066]]</span>
+                        <span id="rd-header-year">Año 1982</span>
+                    </div>
+                    <button type="button" class="modal-close" aria-label="Cerrar">&times;</button>
+                </div>
             </div>
 
-            <!-- Modern Laboratory Navigation Bar -->
-            <nav class="research-nav" id="research-nav" aria-label="Secciones del laboratorio de I+D">
-                <button type="button" class="research-nav-btn active" data-tab="summary">
-                    <span>[[DE_ICON_006]]</span> Resumen
+            <!-- Active Research Banner (visible only when an investigation is running) -->
+            <div id="rd-active-banner" class="rd-active-banner" style="display: none;"></div>
+
+            <!-- Category Filter Bar -->
+            <div class="rd-filter-bar" id="rd-category-filters"></div>
+
+            <!-- Available Technologies List Container (Game Dev Tycoon Style) -->
+            <div class="rd-list-container" id="rd-available-container"></div>
+
+            <!-- Modal Footer: Researched Tech Toggle + Secondary Launchers -->
+            <div class="research-gdt-footer">
+                <button type="button" class="rd-btn-secondary" id="btn-toggle-unlocked-tech">
+                    <span>[[DE_ICON_149]]</span> Ver tecnologías ya investigadas (<span id="rd-unlocked-count">0</span>)
                 </button>
-                <button type="button" class="research-nav-btn" data-tab="map">
-                    <span>[[DE_ICON_020]]</span> Mapa Tecnológico
-                </button>
-                <button type="button" class="research-nav-btn" data-tab="labs">
-                    <span>[[DE_ICON_028]]</span> Laboratorios y Motores
-                </button>
-                <button type="button" class="research-nav-btn" data-tab="hardware">
-                    <span>[[DE_ICON_067]]</span> Ingeniería Inversa
-                </button>
-            </nav>
-
-            <!-- TAB 1: RESUMEN (VISTA PRINCIPAL JUGABLE) -->
-            <div id="research-tab-summary" class="research-tab-pane active">
-                <!-- 1. Cabecera estratégica compacta -->
-                <div id="rd-strategic-bar" class="rd-strategic-bar"></div>
-
-                <!-- 2. Panel Hero: Siguiente Avance Tecnológico -->
-                <div id="rd-hero-container" class="rd-hero-container"></div>
-
-                <!-- 3. Tecnologías Disponibles Ahora -->
-                <div class="rd-section-header">
-                    <div>
-                        <h3 class="rd-section-title"><span>[[DE_ICON_020]]</span> Tecnologías Disponibles Ahora</h3>
-                        <p class="rd-section-subtitle">Proyectos listos para investigación inmediata con tu equipo de ingenieros.</p>
-                    </div>
-                </div>
-                <div id="rd-available-container" class="rd-available-grid"></div>
-
-                <!-- 4. Resumen de Progresión Tecnológica del Estudio -->
-                <div id="rd-progression-container" class="rd-progression-panel"></div>
-            </div>
-
-            <!-- TAB 2: MAPA TECNOLÓGICO COMPLETO (VISTA SECUNDARIA / DAG) -->
-            <div id="research-tab-map" class="research-tab-pane">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                    <div>
-                        <h3 style="font-size: 15px; color: var(--accent-cyan); margin: 0;">Árbol de Arquitectura por Ramas Tecnológicas</h3>
-                        <p style="font-size: 12px; color: var(--text-secondary); margin: 2px 0 0 0;">
-                            Mapa completo de dependencias históricas. Selecciona cualquier nodo para examinar su ficha táctica.
-                        </p>
-                    </div>
-                </div>
-
-                <!-- Branch Filter Tabs -->
-                <div class="branch-filter-bar" id="branch-filter-tabs">
-                    <button class="branch-tab-btn active" data-branch="all">[[DE_ICON_020]] Todas las Ramas</button>
-                    <button class="branch-tab-btn" data-branch="graphics">[[DE_ICON_054]] Gráfico</button>
-                    <button class="branch-tab-btn" data-branch="story">[[DE_ICON_057]] Historia</button>
-                    <button class="branch-tab-btn" data-branch="engine">[[DE_ICON_049]] Motor</button>
-                    <button class="branch-tab-btn" data-branch="gameplay">[[DE_ICON_070]] Jugabilidad</button>
-                    <button class="branch-tab-btn" data-branch="dialogues">[[DE_ICON_024]] Diálogos</button>
-                    <button class="branch-tab-btn" data-branch="level_design">[[DE_ICON_055]] Nivel</button>
-                    <button class="branch-tab-btn" data-branch="ai">[[DE_ICON_056]] I.A.</button>
-                    <button class="branch-tab-btn" data-branch="world_design">[[DE_ICON_066]] Mundo</button>
-                    <button class="branch-tab-btn" data-branch="sound">[[DE_ICON_045]] Sonido</button>
-                </div>
-
-                <!-- Branches Content Container -->
-                <div id="tech-tree-branches-container" style="margin-bottom: 24px;"></div>
-            </div>
-
-            <!-- TAB 3: LABORATORIOS Y MOTORES -->
-            <div id="research-tab-labs" class="research-tab-pane">
-                <!-- Topic Research Launcher -->
-                <div class="topic-research-launcher-bar" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(251, 191, 36, 0.35); border-radius: 8px; padding: 8px 14px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 20px;">[[DE_ICON_028]]</span>
-                        <div>
-                            <strong style="color: #fff; font-size: 13px;">Laboratorio de Temáticas (Progresión por RP)</strong>
-                            <p style="color: var(--text-secondary); font-size: 11px; margin: 2px 0 0 0;">
-                                Desbloquea temáticas avanzadas (Cyberpunk, Terror, Zombis...) para tu catálogo.
-                            </p>
-                        </div>
-                    </div>
-                    <button type="button" class="dock-btn btn-primary-action" onclick="openTopicResearchModal()" style="font-weight: 700; padding: 6px 14px; font-size: 12px;">
-                        [[DE_ICON_028]] Investigar Nueva Temática
+                <div class="rd-footer-actions">
+                    <button type="button" class="rd-btn-secondary" onclick="openTopicResearchModal()">
+                        <span>[[DE_ICON_028]]</span> Investigar Temática
+                    </button>
+                    <button type="button" class="rd-btn-secondary" onclick="EngineCreationModal.open()">
+                        <span>[[DE_ICON_015]]</span> Crear Motor
                     </button>
                 </div>
-
-                <!-- Active In-house Engines & Creation Launcher -->
-                <div id="engine-management-container" style="margin-bottom: 20px;"></div>
             </div>
 
-            <!-- TAB 4: INGENIERÍA INVERSA -->
-            <div id="research-tab-hardware" class="research-tab-pane">
-                <!-- HARDWARE WORKBENCH: BANCO DE ANÁLISIS DE HARDWARE -->
-                <div id="hardware-workbench-container" class="hardware-workbench-container"></div>
+            <!-- Researched Technologies Drawer (hidden by default) -->
+            <div id="rd-unlocked-drawer" class="rd-unlocked-drawer" style="display: none;">
+                <div class="rd-unlocked-header">
+                    <h4><span>[[DE_ICON_149]]</span> Tecnologías Dominadas e Integradas</h4>
+                    <span class="rd-unlocked-subtitle">Módulos investigados que ya puedes usar en tus motores</span>
+                </div>
+                <div id="rd-unlocked-container" class="rd-unlocked-grid"></div>
             </div>
         </div>
     </div>
@@ -1917,6 +1556,14 @@
 
     <script type="module" src="/src/main.js"></script>
 
+    <dialog id="discount-end-dialog" class="game-dialog" aria-labelledby="discount-end-title" aria-describedby="discount-end-description">
+        <form id="discount-end-form">
+            <p class="menu-kicker">VENTAS / OFERTAS</p>
+            <h2 id="discount-end-title">Finalizar oferta</h2>
+            <p id="discount-end-description">La oferta de <strong id="discount-end-game-name"></strong> terminará y volverá el precio normal. Deberás esperar cinco semanas antes de iniciar otra oferta.</p>
+            <div class="dialog-actions"><button type="button" data-dialog-cancel autofocus>Volver</button><button type="submit">Finalizar oferta</button></div>
+        </form>
+    </dialog>
     <dialog id="retire-game-dialog" class="game-dialog" aria-labelledby="retire-game-title" aria-describedby="retire-game-description">
         <form id="retire-game-form">
             <p class="menu-kicker">CATÁLOGO / FIN DE VENTAS</p>

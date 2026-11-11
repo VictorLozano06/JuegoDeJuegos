@@ -828,10 +828,10 @@ export class GameDevFlowController {
     }
 
     releaseProject() {
+        // The release callback may open a confirmation dialog; retain the
+        // project and bug-fixing state until the user actually publishes.
+        if (typeof this.onRelease === 'function' && this.onRelease() === false) return;
         this.closeCurrentModal();
-        if (typeof this.onRelease === 'function') {
-            this.onRelease();
-        }
         this.project = null;
         this.state = ProductionLifecycleState.STATE_SETUP;
         this.updateTopHUD();
