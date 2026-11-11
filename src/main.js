@@ -30,6 +30,9 @@ import { TECH_TREE_NODES, calculateTechIncompatibility } from './data/techTreeDa
 import { LoadingScreen, AssetPreloader } from './loading-screen.js';
 import { GameDevFlowController, ProductionLifecycleState } from './GameDevFlowController.js';
 import { EngineCreationModal } from './EngineCreationModal.js';
+import { showAnnualAwardsCeremony } from './AnnualAwardsModal.js';
+import { showPortProjectModal } from './PortProjectModal.js';
+import { getCommercialEngineVersion } from './CommercialEngineVersions.js';
 import './office-move.css';
 import { openStudioRadio, closeStudioRadio } from './radio-player.js';
 
@@ -44,6 +47,25 @@ window.addEventListener('studio-radio-open', openStudioRadio);
 let gameDevFlow = null;
 
 let world = null;
+let annualCeremonyOpen = false;
+
+function openAnnualCeremony(ceremony) {
+    if (!ceremony || annualCeremonyOpen) return;
+    annualCeremonyOpen = true;
+    game.isPaused = true;
+    world?.syncTrophies?.(game.awardsWon || []);
+    showAnnualAwardsCeremony(ceremony, { onClose: () => {
+        annualCeremonyOpen = false;
+        game.pendingAnnualCeremony = null;
+        game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
+        game.notify();
+        if (appState === STATE_PLAYING && !game.isPaused) startSimulationLoops();
+        if (saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
+    } });
+}
+game.onAnnualAwards = openAnnualCeremony;
+game.onPortProjectCompleted = (project, title) => showToast(`Porteo de «${title.name}» a ${project.platformName} publicado.`, 'success');
+game.onPortProjectCancelled = project => showToast(`Se ha cancelado el porteo a ${project.platformName} y devuelto su coste.`, 'warn');
 let currentLiveSalesWidgetGameId = null;
 let isLiveSalesWidgetMinimized = false;
 let cancelReviewReveal = null;
@@ -93,11 +115,6 @@ game.onEngineRDCompleted = (engine) => {
     renderPipelineSelector();
     renderTechTree();
     showToast(`[[DE_ICON_024]] Motor "${engine.name}" compilado y añadido al selector de proyectos.`, 'success');
-};
-game.onEngineRPTick = (rpGain, leadIndex) => {
-    if (world && typeof world.spawnFloatingRP === 'function') {
-        world.spawnFloatingRP(leadIndex || 0, rpGain);
-    }
 };
 game.onPostMortemCompleted = (result, assignedIndex) => {
     if (result && result.success) {
@@ -503,13 +520,14 @@ async function enterGameplay({ checkpoint = false } = {}) {
     if (gameDevFlow) {
         gameDevFlow.showTopHUD();
     }
-    game.isPaused = Boolean(game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
+    game.isPaused = Boolean(game.pendingAnnualCeremony || game.financeState?.procedurePending || (game.financeState?.bankruptcy?.confirmed && game.financeState.bankruptcy.mode === 'end'));
     checkCalendarEvents();
     game.notify();
     mainMenu.hide();
     mainMenu.setBusy(false);
     if (checkpoint && saveSystem.getSettings().autosave !== 'off') autosaveCurrentGame();
     startSimulationLoops();
+    if (game.pendingAnnualCeremony) openAnnualCeremony(game.pendingAnnualCeremony);
     if (game.financeState?.procedurePending && !game.financeState?.bankruptcy?.confirmed) game.onBankruptcyProcedureRequired?.();
     else if (game.financeState?.bankruptcy?.confirmed) financeUI?.open();
 }
@@ -1567,7 +1585,7 @@ function renderPipelineSelector() {
                 : 0.5,
             unlockedNodes: engine.bakedNodes || []
         })),
-        ...commercial.filter(engine => historicalYear >= (engine.minYear || 1990)).map(engine => ({
+        ...commercial.filter(engine => historicalYear >= (engine.minYear || 1990)).map(base => getCommercialEngineVersion(base, historicalYear)).map(engine => ({
             ...engine,
             type: 'commercial',
             royaltyPercent: Math.round((engine.royaltyRate || 0) * 100),
@@ -1596,8 +1614,9 @@ function renderPipelineSelector() {
                     <span class="pipeline-badge ${isCommercial ? 'badge-commercial' : 'badge-inhouse'}">
                         ${isCommercial ? '[[DE_ICON_022]] Motor Comercial' : pipe.isBasic ? '[[DE_ICON_059]] Motor inicial' : '[[DE_ICON_059]] Motor Propio (In-House)'}
                     </span>
-                    <strong style="display: block; font-size: 14px; color: #fff; margin-bottom: 4px;">${pipe.name}</strong>
+                    <strong style="display: block; font-size: 14px; color: #fff; margin-bottom: 4px;">${pipe.name}${isCommercial ? ` · v${pipe.version} (${pipe.releaseYear})` : ''}</strong>
                     <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4;">${pipe.desc}</p>
+                    ${isCommercial ? `<p style="font-size:11px;color:var(--text-secondary)">Incluye: ${(pipe.historicalTechIds || []).map(id => TECH_TREE_NODES.find(node => node.id === id)?.name || id).join(', ')}</p>` : ''}
                 </div>
                 <div style="margin-top: 10px; font-size: 12px; font-weight: 700; color: ${isCommercial ? 'var(--accent-gold)' : 'var(--accent-green)'};">
                     ${isCommercial ? `Royalties: ${pipe.royaltyPercent}% | Deuda Base: ${pipe.baseDebtFloor} pts (Bloatware)` : pipe.isBasic ? 'Gratis | 0% royalties' : '0% Royalties | -50% Fricción | Licencias a Terceros'}
@@ -1645,12 +1664,12 @@ function renderBusinessModelSelector() {
     const container = document.getElementById('business-model-options');
     if (!container || !game || !scopeDAG) return;
     let selectedModel = document.querySelector('input[name="business-model"]:checked')?.value || 'premium';
-    const selectedNodes = Array.from(scopeDAG.selectedNodeIds);
+    const selectedNodes = [...scopeDAG.selectedNodeIds, ...(pipelineManager.getActivePipeline()?.type === 'commercial' ? pipelineManager.getActivePipeline().historicalTechIds || [] : [])];
     const options = game.getBusinessModelOptions(selectedNodes);
     if (!options.some(option => option.id === selectedModel && option.available)) selectedModel = 'premium';
     const year = game.getHistoricalYear();
     const note = document.getElementById('business-model-year-note');
-    if (note) note.textContent = `Año ${year}. Las opciones futuras muestran su fecha de desbloqueo; F2P exige nodo de red online investigado y seleccionado.`;
+    if (note) note.textContent = `Año ${year}. El juego online requiere tecnología investigada o incluida en el motor comercial.`;
     container.innerHTML = options.map(option => {
         const selected = selectedModel === option.id;
         const unavailable = !option.available;
@@ -1841,12 +1860,12 @@ function renderHistoricalTechOptions() {
         input.type = 'checkbox'; input.checked = selectedHistoricalTechs.has(node.id);
         input.addEventListener('change', () => {
             if (input.checked) selectedHistoricalTechs.add(node.id); else selectedHistoricalTechs.delete(node.id);
-            updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+            updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.type === 'commercial' ? [] : (pipelineManager.getActivePipeline()?.historicalTechIds || []))]);
         });
         label.append(input, document.createTextNode(`${node.name} (${node.eraYear})`));
         container.appendChild(label);
     });
-    updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.historicalTechIds || [])]);
+    updateHistoricalWarning('historical-tech-warning', [...selectedHistoricalTechs, ...(pipelineManager.getActivePipeline()?.type === 'commercial' ? [] : (pipelineManager.getActivePipeline()?.historicalTechIds || []))]);
 }
 
 function renderDAGNodes() {
@@ -2294,7 +2313,7 @@ function startProjectFromWizard() {
     };
 
     const result = commitPreproduction(game, {
-        name, topicId, genreId, platformId, targetAudience, dagConfig,
+        name, topicId, genreId, platformId, platformIds: preproductionWizard.getSelectedPlatformIds(), targetAudience, dagConfig,
         historicalTechIds: [...selectedHistoricalTechs],
         ipId: document.getElementById('select-ip').value || null,
         ipInstallmentType: document.getElementById('select-ip-installment').value,
@@ -2304,9 +2323,6 @@ function startProjectFromWizard() {
 
     if (result.success) {
         debtManager.setBaseDebt(activePipeline.baseDebtFloor);
-        if (activePipeline.type === 'commercial') {
-            (activePipeline.unlockedNodes || []).forEach(nodeId => techTreeManager.unlockTech(nodeId));
-        }
         if (world) {
             world.hideScopeDAG();
         }
@@ -5643,6 +5659,32 @@ function renderHistoryAndCharts() {
                 </div>
             </div>
         `;
+        if (!g.ipId && Number(g.score ?? g.pressScore) >= 7.5) {
+            const registerButton = document.createElement('button');
+            registerButton.type = 'button';
+            registerButton.className = 'staff-action-btn';
+            registerButton.textContent = 'Registrar como franquicia';
+            registerButton.addEventListener('click', () => {
+                const result = game.registerIP({ name: g.name, originalGameId: g.id });
+                showToast(result.message || (result.success ? 'Franquicia registrada.' : 'No se pudo registrar la franquicia.'), result.success ? 'success' : 'warn');
+                if (result.success) { refreshIPWizard(game); renderHistoryAndCharts(); }
+            });
+            card.querySelector('div[style*="gap: 6px"]')?.append(registerButton);
+        }
+        const portButton = document.createElement('button');
+        portButton.type = 'button';
+        portButton.className = 'staff-action-btn';
+        portButton.textContent = 'Crear port';
+        portButton.addEventListener('click', () => showPortProjectModal(game, g.id, {
+            onStarted: result => { showToast(result.message, 'success'); renderHistoryAndCharts(); }
+        }));
+        card.querySelector('div[style*="gap: 6px"]')?.append(portButton);
+        for (const project of (game.portProjects || []).filter(item => item.gameId === g.id)) {
+            const progress = document.createElement('p');
+            progress.className = 'preprod-help';
+            progress.textContent = `Porteo a ${project.platformName}: ${project.employeeName} · ${project.weeksRemaining} semanas restantes`;
+            card.firstElementChild?.append(progress);
+        }
         historyList.appendChild(card);
     });
 }
