@@ -372,6 +372,7 @@
     min-height: 0;
     max-height: none;
     align-content: start;
+    grid-auto-rows: max-content;
 }
 
 #modal-new-game .preprod-platforms .preprod-choice[hidden] { display: none; }
@@ -614,6 +615,66 @@
 #modal-new-game .preprod-choice { min-height: 62px; }
 #modal-new-game .preprod-choice:disabled,
 #modal-new-game .business-model-card.locked { opacity: .8; }
+
+/* Catálogo de plataformas: ilustración y datos comparables en cada fila. */
+#modal-new-game .preprod-platforms .preprod-platform-card {
+    display: grid;
+    grid-template-columns: 155px minmax(0, 1fr);
+    min-height: 145px;
+    height: auto;
+    gap: 20px;
+    align-items: center;
+    padding: 12px;
+    border-color: #314a5c;
+    background: linear-gradient(110deg, #1c3040, #172735);
+}
+#modal-new-game .platform-card-visual {
+    position: relative;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    width: 100%;
+    aspect-ratio: 1.35;
+    border-radius: 6px;
+    background: transparent;
+}
+#modal-new-game .platform-card-visual img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+}
+#modal-new-game .platform-card-visual.is-placeholder::after {
+    content: 'PLATAFORMA'; color: #647888; font-size: 10px; font-weight: 700; letter-spacing: .12em;
+}
+#modal-new-game .platform-card-content { display: block; min-width: 0; }
+#modal-new-game .platform-card-heading {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    padding-bottom: 9px; border-bottom: 1px solid #3a5060;
+}
+#modal-new-game .platform-card-heading strong { font-size: 18px; }
+#modal-new-game .platform-card-badge {
+    flex-shrink: 0; padding: 4px 8px; border-radius: 4px; background: #284353;
+    color: #a8dce8; font-size: 11px; font-weight: 700;
+}
+#modal-new-game .platform-card-metrics {
+    display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding-top: 10px;
+}
+#modal-new-game .platform-card-metric { display: block; min-width: 0; color: #b9cbd5; font-size: 12px; line-height: 1.35; }
+#modal-new-game .platform-card-metric b { display: block; margin-top: 3px; color: #f2f8fb; font-size: 15px; }
+#modal-new-game .platform-card-metric--cost b { color: #ffba80; }
+#modal-new-game .platform-card-metric--market b { color: #f7d277; }
+#modal-new-game .preprod-platforms .preprod-platform-card[aria-pressed="true"] {
+    border-color: var(--preprod-accent); background: #123146;
+}
+#modal-new-game .preprod-platform-card:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+@media (max-width: 700px) {
+    #modal-new-game .preprod-platforms .preprod-platform-card { grid-template-columns: 105px minmax(0, 1fr); min-height: 160px; gap: 12px; }
+    #modal-new-game .platform-card-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #modal-new-game .platform-card-heading { align-items: flex-start; flex-direction: column; }
+}
 #modal-new-game .creator-subtitle { font-size: 18px; line-height: 1.35; }
 #modal-new-game .creator-section { padding: 22px; }
 #modal-new-game .preprod-architecture > summary { font-size: 16px; padding: 18px 20px; }

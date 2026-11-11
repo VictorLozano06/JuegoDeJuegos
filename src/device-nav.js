@@ -52,49 +52,6 @@ const APP_CATALOG = [
         </svg>`
     },
     {
-        id: 'btn-open-dag',
-        dock: false,
-        label: 'Arquitectura',
-        colorClass: 'app--purple',
-        gradient: 'linear-gradient(145deg, #8b5cf6 0%, #4338ca 100%)',
-        shadowColor: 'rgba(139, 92, 246, 0.45)',
-        icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <rect x="7" y="7" width="14" height="13" rx="3.5" fill="#2e1065" stroke="#c4b5fd" stroke-width="2"/>
-            <rect x="27" y="7" width="14" height="13" rx="3.5" fill="#2e1065" stroke="#c4b5fd" stroke-width="2"/>
-            <rect x="17" y="27" width="14" height="13" rx="3.5" fill="#3730a3" stroke="#e0e7ff" stroke-width="2"/>
-            <!-- Data bus paths -->
-            <path d="M14 20v4.5h10M34 20v4.5H24" stroke="#a78bfa" stroke-width="2" stroke-dasharray="2 2"/>
-            <circle cx="24" cy="24.5" r="2.8" fill="#38bdf8"/>
-            <path d="M10 13h8M10 16h5M30 13h8M30 16h5M20 33h8M20 36h5" stroke="#ddd6fe" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>`
-    },
-    {
-        id: 'btn-toggle-hologram',
-        dock: true,
-        label: 'Grafo 3D',
-        shortLabel: 'Grafo 3D',
-        colorClass: 'app--teal-cyan',
-        gradient: 'linear-gradient(145deg, #06b6d4 0%, #0e7490 100%)',
-        shadowColor: 'rgba(6, 182, 212, 0.45)',
-        icon: `<svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <!-- Projector base plate -->
-            <ellipse cx="24" cy="41" rx="14" ry="4" fill="#083344" stroke="#22d3ee" stroke-width="1.4"/>
-            <!-- Hologram ray cone -->
-            <path d="M12 39l8-14m16 14l-8-14" stroke="#67e8f9" stroke-width="1.2" stroke-dasharray="2 2" opacity="0.6"/>
-            <!-- 3D Iso cube -->
-            <path d="M24 7l14 8v16l-14 8-14-8V15l14-8z" fill="#083344" stroke="#22d3ee" stroke-width="1.8" stroke-linejoin="round"/>
-            <path d="M10 15l14 8 14-8M24 23v16" stroke="#67e8f9" stroke-width="1.6"/>
-            <!-- Vertex nodes -->
-            <circle cx="24" cy="7" r="2.8" fill="#a5f3fc"/>
-            <circle cx="38" cy="15" r="2.8" fill="#a5f3fc"/>
-            <circle cx="38" cy="31" r="2.8" fill="#a5f3fc"/>
-            <circle cx="24" cy="39" r="2.8" fill="#a5f3fc"/>
-            <circle cx="10" cy="31" r="2.8" fill="#a5f3fc"/>
-            <circle cx="10" cy="15" r="2.8" fill="#a5f3fc"/>
-            <circle cx="24" cy="23" r="3.4" fill="#22d3ee" stroke="#fff" stroke-width="1.2"/>
-        </svg>`
-    },
-    {
         id: 'btn-liveops',
         dock: false,
         label: 'Live Ops',
@@ -493,9 +450,9 @@ export function initializeDeviceNav(gameInstance) {
                                         <circle cx="12" cy="12" r="3"></circle>
                                         <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
                                     </svg>
-                                    <span>Arquitectura DAG y Deuda</span>
+                                    <span>Deuda técnica</span>
                                 </h3>
-                                <p>Estructura tus juegos mediante nodos técnicos. Mantener la deuda técnica baja evita fallos críticos y optimiza los costes de soporte.</p>
+                                <p>Mantener la deuda técnica baja evita fallos críticos y optimiza los costes de soporte.</p>
                             </div>
                             <div class="guide-card">
                                 <h3>
@@ -518,7 +475,6 @@ export function initializeDeviceNav(gameInstance) {
                                 </h3>
                                 <ul class="guide-shortcuts-list">
                                     <li><kbd>N</kbd> <span>Nuevo proyecto</span></li>
-                                    <li><kbd>G</kbd> <span>Grafo / Arquitectura</span></li>
                                     <li><kbd>R</kbd> <span>Investigación (I+D)</span></li>
                                     <li><kbd>H</kbd> <span>Equipo & Personal</span></li>
                                     <li><kbd>C</kbd> <span>Top 10 y Ventas</span></li>
@@ -665,11 +621,6 @@ export function initializeDeviceNav(gameInstance) {
             }
             if (app.id === 'btn-hire') {
                 openInternalPersonnel();
-                return;
-            }
-            if (app.id === 'btn-open-dag') {
-                window.refreshArchitecturePanel?.();
-                openInternalArchitecture();
                 return;
             }
             if (app.id === 'btn-company-ip') {

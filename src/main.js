@@ -1,4 +1,5 @@
 import { profitWarning, formatGameProfit } from './profit-display.js';
+import { getPricingContext, evaluateLaunchPrice } from './PricingStrategySystem.js';
 import { formatHistoryAllocation } from './production-history-display.js';
 import { AREAS, ensureProduction } from './production.js';
 import { initializeUwuntuOS } from './uwuntu-os.js';
@@ -162,7 +163,6 @@ async function bootGameApp() {
         world = new WorldEngine('canvas-container');
         world.onParkDestination = visitParkBuilding;
         world.loadingScreenActive = Boolean(loadingScreenInstance);
-        world.onNodeClick(on3DNodeClicked);
 
         // Initialize Game Dev Tycoon Sequential Production Flow Controller
         gameDevFlow = new GameDevFlowController({
@@ -172,6 +172,7 @@ async function bootGameApp() {
             onRelease: () => {
                 const releaseBtn = document.getElementById('btn-release-game');
                 if (releaseBtn) releaseBtn.click();
+                return false;
             }
         });
         window.gameDevFlow = gameDevFlow;
@@ -181,9 +182,6 @@ async function bootGameApp() {
 
         // Sync initial character
         world.syncEmployees(game.employees);
-
-        // Initial 3D DAG render
-        world.renderScopeDAG3D(scopeDAG, pipelineManager.getActivePipeline());
 
         // 2. Setup UI Event Listeners & Keyboard Shortcuts
         setupUIControls();
@@ -209,7 +207,7 @@ async function bootGameApp() {
 
         // 3. Populate Modal Dropdowns & DAG Architecture
         populateProjectWizard();
-        initDAGArchitectureUI();
+        renderPipelineSelector();
         preproductionWizard = initializePreproductionWizard({
             game,
             getPipeline: () => pipelineManager.getActivePipeline(),
@@ -631,16 +629,6 @@ function setupKeyboardShortcuts() {
         } else if (key === 'c' || key === 'v') {
             openSalesPanel();
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        } else if (key === 'g') {
-            const modalDag = document.getElementById('modal-scope-dag');
-            if (window.studioPhoneNav?.isArchitectureOpen?.()) {
-                window.studioPhoneNav.returnHome();
-            } else if (modalDag && modalDag.classList.contains('active')) {
-                closeAllModals();
-            } else {
-                openArchitecturePanel();
-                if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-            }
         } else if (key === 'p') {
             openCompanyCreatorModal();
         } else if (key === 'm') {
@@ -876,26 +864,6 @@ function setupUIControls() {
         });
     }
 
-    const toggleHoloBtn = document.getElementById('btn-toggle-hologram');
-    if (toggleHoloBtn) {
-        toggleHoloBtn.addEventListener('click', () => {
-            if (!world) return;
-            if (world.scopeDagGroup && world.scopeDagGroup.visible) {
-                world.hideScopeDAG();
-                const holoHud = document.getElementById('hologram-overlay-bar');
-                if (holoHud) holoHud.style.display = 'none';
-                showToast('[[DE_ICON_035]] Proyección 3D apagada. Vista de oficina restaurada.', 'info');
-            } else {
-                const pipe = pipelineManager.getActivePipeline();
-                world.showScopeDAG(scopeDAG, pipe);
-                const holoHud = document.getElementById('hologram-overlay-bar');
-                if (holoHud) holoHud.style.display = 'flex';
-                showToast('[[DE_ICON_020]] Mesa Holográfica 3D activada.', 'info');
-            }
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-
     document.getElementById('btn-upgrade-office').addEventListener('click', () => {
         openOfficePanel();
         document.querySelector('#modal-offices .modal-close')?.focus();
@@ -1009,8 +977,56 @@ function setupUIControls() {
         });
     });
 
-    // Finish / Release Button
+    // Price confirmation is the final step before the existing release flow.
+    const launchPriceForm = document.getElementById('launch-price-form');
+    const launchPriceInput = document.getElementById('launch-price-input');
+    const launchPriceRange = document.getElementById('launch-price-range');
+    const pricingArguments = () => ({
+        project: game.currentProject,
+        employeeCount: game.employees?.length || 1,
+        officeTier: game.getActiveOffice?.()?.tier || 1,
+        reputation: game.reputation ?? game.vreadState?.reputation ?? 50,
+        reviewScore: 7
+    });
+    const updateLaunchPrice = () => {
+        const value = Number(launchPriceInput.value);
+        if (!launchPriceInput.validity.valid || !Number.isFinite(value)) return;
+        launchPriceRange.value = String(value);
+        const result = evaluateLaunchPrice({ ...pricingArguments(), price: value });
+        const category = document.getElementById('launch-price-category');
+        category.dataset.tone = result.isOverpriced ? 'risk' : result.isBargain ? 'bargain' : 'standard';
+        category.textContent = result.isOverpriced ? 'Riesgo de sobreprecio' : result.isBargain ? 'Precio accesible' : 'Estándar del mercado';
+        document.getElementById('launch-price-feedback').textContent = result.isOverpriced
+            ? 'Un precio elevado puede reducir considerablemente las ventas y provocar críticas.'
+            : result.isBargain ? 'Un precio accesible puede atraer a más jugadores, con menos ingreso por copia.'
+                : 'La valoración final puede modificar la demanda prevista.';
+    };
+    launchPriceInput.addEventListener('input', updateLaunchPrice);
+    launchPriceRange.addEventListener('input', () => { launchPriceInput.value = launchPriceRange.value; updateLaunchPrice(); });
+    document.getElementById('launch-price-cancel').addEventListener('click', closeAllModals);
     document.getElementById('btn-release-game').addEventListener('click', () => {
+        const project = game.currentProject;
+        if (!project) return;
+        const free = ['f2p', 'live_service'].includes(project.businessModel);
+        const context = getPricingContext(pricingArguments());
+        const existing = (game.activeSales || []).find(item => item.id === project.earlyAccessGameId);
+        launchPriceInput.value = String(Math.round(existing?.basePrice || project.launchPrice || context.expectedPrice));
+        launchPriceInput.disabled = free;
+        launchPriceRange.disabled = free;
+        document.getElementById('launch-price-control').hidden = free;
+        document.getElementById('launch-price-free').hidden = !free;
+        document.getElementById('launch-price-reference').textContent = `Referencia para este proyecto: $${context.recommendedMin}–$${context.recommendedMax}. La previsión usa una valoración de 7/10.`;
+        updateLaunchPrice();
+        openModal('modal-launch-price');
+        (free ? launchPriceForm.querySelector('[type="submit"]') : launchPriceInput).focus();
+    });
+    launchPriceForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!game.currentProject) return;
+        const isFree = ['f2p', 'live_service'].includes(game.currentProject.businessModel);
+        if (!isFree && !launchPriceInput.reportValidity()) return;
+        if (!isFree) game.currentProject.launchPrice = Number(launchPriceInput.value);
+        closeAllModals();
         if (world) {
             world.hideScopeDAG();
         }
@@ -1037,15 +1053,48 @@ function setupUIControls() {
             world.triggerLaunchConfetti();
             updateLiveSalesWidget();
             showReviewModal(releasedGame);
-            if (gameDevFlow) {
+            if (gameDevFlow && !game.currentProject) {
                 if (typeof gameDevFlow.removeWidget === 'function') {
                     gameDevFlow.removeWidget();
                 }
                 gameDevFlow.closeCurrentModal?.();
+                gameDevFlow.project = null;
                 gameDevFlow.state = ProductionLifecycleState.STATE_SETUP;
                 gameDevFlow.updateTopHUD?.();
             }
         }
+    });
+
+    const discountPanel = document.getElementById('hud-sales-discount-panel');
+    const discountButton = document.getElementById('hud-sales-discount-btn');
+    discountButton.addEventListener('click', () => {
+        discountPanel.hidden = !discountPanel.hidden;
+        discountButton.setAttribute('aria-expanded', String(!discountPanel.hidden));
+        updateLiveSalesWidget();
+    });
+    document.getElementById('hud-discount-options').addEventListener('click', event => {
+        const button = event.target.closest('button[data-discount]');
+        if (!button || !currentLiveSalesWidgetGameId) return;
+        const duration = Number(document.getElementById('hud-discount-duration').value);
+        const result = game.startDiscountCampaign(currentLiveSalesWidgetGameId, Number(button.dataset.discount), duration);
+        showToast(result.message, result.success ? 'success' : 'warn');
+        updateLiveSalesWidget();
+    });
+    let discountToEnd = null;
+    document.getElementById('hud-discount-end').addEventListener('click', () => {
+        const title = game.activeSales.find(item => item.id === currentLiveSalesWidgetGameId && item.discountCampaign);
+        if (!title) return;
+        discountToEnd = title.id;
+        document.getElementById('discount-end-game-name').textContent = title.name;
+        document.getElementById('discount-end-dialog').showModal();
+    });
+    document.getElementById('discount-end-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const result = game.endDiscountCampaign(discountToEnd);
+        discountToEnd = null;
+        document.getElementById('discount-end-dialog').close();
+        showToast(result.message, result.success ? 'success' : 'warn');
+        updateLiveSalesWidget();
     });
 
     // Toggle Refactor Mode (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
@@ -1434,121 +1483,6 @@ function updateWizardSynergyBadge() {
     `;
 }
 
-function renderHistoricalGraph(frame = false) {
-    const available = TECH_TREE_NODES.filter(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id));
-    if (!available.length) return false;
-    const minYear = Math.min(...available.map(n => n.eraYear));
-    const maxYear = Math.max(...available.map(n => n.eraYear));
-    const centerYear = (minYear + maxYear) / 2;
-    const categories = ['Graphics', 'Audio', 'Engine', 'Physics', 'AI', 'Network'];
-    const nodes = available.map(n => ({
-        ...n,
-        // 2.4 units per year exceeds the width of the 1.7-unit labels.
-        // Simultaneous nodes occupy separate vertical lanes within the category.
-        pos: [(n.eraYear - centerYear) * 2.4, 2 + categories.indexOf(n.category) * 3 + (n.position.z / 5) * 1.2, 0],
-        prerequisites: n.requiredNodes,
-        state: selectedHistoricalTechs.has(n.id) ? 'active' : 'available'
-    }));
-    world.renderScopeDAG3D(nodes, []);
-    if (frame) {
-        const width = Math.max(8, (maxYear - minYear) * 2.4 + 4);
-        const height = 21;
-        const halfFov = world.camera.fov * Math.PI / 360;
-        const distance = Math.max(height / (2 * Math.tan(halfFov)), width / (2 * Math.tan(halfFov) * world.camera.aspect)) + 10;
-        world.camera.far = Math.max(world.camera.far, distance + 80);
-        world.camera.updateProjectionMatrix();
-        world.controls.maxDistance = Math.max(35, distance + 20);
-        world.targetCamPos = world.cameraDagPos.clone().set(0, 10.5, distance);
-        world.targetLookAt = world.cameraDagTarget.clone().set(0, 10.5, 0);
-    }
-    return true;
-}
-
-function initDAGArchitectureUI() {
-    renderPipelineSelector();
-    renderDAGNodes();
-    updateDAGMetricsUI();
-
-    document.getElementById('btn-historical-graph')?.addEventListener('click', () => {
-        if (!world) return;
-        if (!TECH_TREE_NODES.some(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id))) { showToast('Investiga tecnologías históricas para verlas en el grafo.', 'warn'); return; }
-        closeAllModals();
-        world.showScopeDAG();
-        renderHistoricalGraph(true);
-        const hud = document.getElementById('hologram-overlay-bar');
-        if (hud) hud.style.display = 'flex';
-        showToast('Grafo histórico: selecciona módulos haciendo clic en ellos.', 'info');
-    });
-
-    // Preset buttons binding (works in both #modal-new-game and #modal-scope-dag)
-    document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const presetId = e.currentTarget.getAttribute('data-preset') || e.currentTarget.dataset.preset;
-            if (presetId) {
-                applyDAGPreset(presetId);
-            }
-        });
-    });
-
-    const btn3D = document.getElementById('btn-dag-preview-3d');
-    if (btn3D) {
-        btn3D.addEventListener('click', () => {
-            closeAllModals();
-            const activePipe = pipelineManager.getActivePipeline();
-            if (world) {
-                world.showScopeDAG(scopeDAG, activePipe);
-            }
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'flex';
-            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida. Haz clic en los nodos para configurarlos.', 'info');
-            if (soundEngine && soundEngine.playNodeToggle) {
-                soundEngine.playNodeToggle(true);
-            }
-        });
-    }
-
-    const btnModal3D = document.getElementById('btn-dag-modal-view-3d');
-    if (btnModal3D) {
-        btnModal3D.addEventListener('click', () => {
-            closeAllModals();
-            const activePipe = pipelineManager.getActivePipeline();
-            if (world) {
-                world.showScopeDAG(scopeDAG, activePipe);
-            }
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'flex';
-            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida.', 'info');
-            if (soundEngine && soundEngine.playNodeToggle) {
-                soundEngine.playNodeToggle(true);
-            }
-        });
-    }
-
-    const btnReturnEditor = document.getElementById('btn-holo-return-editor');
-    if (btnReturnEditor) {
-        btnReturnEditor.addEventListener('click', () => {
-            if (world) world.hideScopeDAG();
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'none';
-            renderDAGNodes();
-            updateDAGMetricsUI();
-            openModal('modal-new-game');
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-
-    const btnHoloClose = document.getElementById('btn-holo-close');
-    if (btnHoloClose) {
-        btnHoloClose.addEventListener('click', () => {
-            if (world) world.hideScopeDAG();
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'none';
-            showToast('[[DE_ICON_035]] Proyección apagada. Vista normal de oficina restaurada.', 'info');
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-}
-
 window.selectPipelineFromModal = function(pipeId) {
     const picked = pipelineManager.availablePipelines.find(p => p.id === pipeId);
     if (picked && picked.type === 'commercial' && game.getHistoricalYear() < (picked.minYear || 1990)) {
@@ -1561,9 +1495,6 @@ window.selectPipelineFromModal = function(pipeId) {
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
-    if (world && world.renderScopeDAG3D) {
-        world.renderScopeDAG3D(scopeDAG, activePipe);
-    }
     if (soundEngine && soundEngine.playClick) {
         soundEngine.playClick();
     }
@@ -2239,29 +2170,6 @@ function updateDAGMetricsUI() {
     // Update Discipline Balance Radar Charts
     updateRadarChart('dag-radar-poly', '1', workload);
     updateRadarChart('dag-modal-radar-poly', '2', workload);
-}
-
-function on3DNodeClicked(nodeId) {
-    if (nodeId.startsWith('tech_')) {
-        if (!techTreeManager.isUnlocked(nodeId)) return;
-        if (selectedHistoricalTechs.has(nodeId)) selectedHistoricalTechs.delete(nodeId); else selectedHistoricalTechs.add(nodeId);
-        renderHistoricalTechOptions();
-        const node = world.dagNodesMap.get(nodeId);
-        if (node) showToast(`${node.data.name}: ${selectedHistoricalTechs.has(nodeId) ? 'seleccionado' : 'retirado de la selección'}`, 'info');
-        renderHistoricalGraph();
-        return;
-    }
-    const toggleRes = scopeDAG.toggleNode(nodeId);
-    if (!toggleRes.success) {
-        showToast(toggleRes.reason, 'warn');
-        return;
-    }
-    renderDAGNodes();
-    updateDAGMetricsUI();
-    const pipe = pipelineManager.getActivePipeline();
-    world.renderScopeDAG3D(scopeDAG, pipe);
-    const nodeObj = scopeDAG.getNode(nodeId);
-    showToast(`[[DE_ICON_020]] Nodo "${nodeObj ? nodeObj.name : nodeId}" modificado en el DAG.`, 'info');
 }
 
 function setupStageTabs() {
@@ -6220,6 +6128,42 @@ function updateLiveSalesWidget() {
 
     document.getElementById('hud-sales-title').innerText = target.name || 'Videojuego';
     document.getElementById('hud-sales-genre-topic').innerText = `${target.genre || ''} • ${target.topic || ''} (${target.platform || 'PC'})`;
+    const campaign = target.discountCampaign;
+    const basePrice = Number(target.basePrice) || 0;
+    const currentPrice = target.businessModel === 'early_access' && !target.officialReleased
+        ? (Number(target.referencePrice) || basePrice) * 0.65
+        : campaign ? basePrice * (1 - campaign.percent / 100) : basePrice;
+    document.getElementById('hud-sales-price').textContent = basePrice > 0
+        ? `Precio: $${currentPrice.toFixed(2)}${campaign ? ` (antes $${basePrice.toFixed(2)})` : ''}` : 'Juego gratuito';
+    const saleBadge = document.getElementById('hud-sales-sale-badge');
+    saleBadge.hidden = !campaign;
+    saleBadge.textContent = campaign ? `OFERTA -${campaign.percent}% · ${campaign.weeksRemaining} sem.` : '';
+    const discountPanel = document.getElementById('hud-sales-discount-panel');
+    const discountBtn = document.getElementById('hud-sales-discount-btn');
+    if (discountPanel.dataset.gameId !== String(target.id)) {
+        discountPanel.dataset.gameId = target.id;
+        discountPanel.hidden = true;
+        discountBtn.setAttribute('aria-expanded', 'false');
+    }
+    if (!discountPanel.hidden) {
+        const status = game.getDiscountStatus(target.id);
+        document.getElementById('hud-discount-status').textContent = status.eligible
+            ? 'Elige la duración y el descuento para este juego.' : campaign
+                ? `Oferta activa: quedan ${campaign.weeksRemaining} ${campaign.weeksRemaining === 1 ? 'semana' : 'semanas'}.`
+                : (status.reason || 'La oferta no está disponible todavía.');
+        document.getElementById('hud-discount-duration').disabled = !status.eligible;
+        document.getElementById('hud-discount-end').hidden = !campaign;
+        const options = document.getElementById('hud-discount-options');
+        options.replaceChildren();
+        for (const percent of [15, 25, 50, 75]) {
+            const button = document.createElement('button');
+            button.type = 'button'; button.dataset.discount = String(percent); button.disabled = !status.eligible;
+            const amount = Math.max(0, basePrice * (1 - percent / 100) * (status.netPriceFactor ?? 1));
+            button.textContent = `−${percent}%`;
+            const estimate = document.createElement('span'); estimate.textContent = `$${amount.toFixed(2)} / copia`;
+            button.append(estimate); options.append(button);
+        }
+    }
 
     // Metrics
     const totalUnits = target.unitsSoldTotal || target.installationsTotal || 0;
@@ -6334,7 +6278,10 @@ function renderLiveSalesCanvas(target) {
 
         // Gradient & styling per bar type
         const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-        if (d.viralMultiplier > 1.25) {
+        if (d.discountPercent > 0) {
+            grad.addColorStop(0, '#f9d36a');
+            grad.addColorStop(1, '#bd761b');
+        } else if (d.viralMultiplier > 1.25) {
             // Viral hit / Streamer boost (Gold)
             grad.addColorStop(0, '#fbbf24');
             grad.addColorStop(1, '#b45309');

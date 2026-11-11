@@ -8,13 +8,35 @@ const descriptions = [
     'Autoriza la producción con todos los costes y riesgos a la vista.'
 ];
 
+// Los identificadores históricos permanecen estables aunque cambie el nombre visible.
+const platformImages = {
+    g64: 'Commodore 64', zx_spectrum: 'ZX SPECTRUM', msx: 'MSX', nes: 'NES',
+    amstrad_cpc: 'AMSTRAD CPC', amiga: 'Commodore Amiga', master_system: 'SEGA MASTER SYSTEM',
+    atari_7800: 'ATARI 7800', pc_engine: 'TurboGrafx16', genesis: 'SEGA GENESIS',
+    game_boy: 'GameBoy', lynx: 'ATARI LYNX', neo_geo: 'NeoGeo', snes: 'Super Nintendo',
+    game_gear: 'Sega Game Gear', '3do': '3DO Interactive Multiplayer', jaguar: 'Atari Jaguar',
+    saturn: 'Sega Saturn', playbox: 'PlayStation 1', virtual_boy: 'VirtualBoy', n64: 'Nintendo 64',
+    game_boy_color: 'GameBoy Color', dreamcast: 'Sega DreamCast', neo_geo_pocket: 'NeoGeo PocketColor',
+    ps2: 'PlayStation 2', gba: 'GameBoy Advance', gamecube: 'GameCube', xbox: 'Xbox',
+    ngage: 'Nokia NCage', ds: 'Nintendo DS', psp: 'PSP', xbox360: 'Xbox360', wii: 'Nintendo Wii',
+    ps3: 'PlayStation3', mobile: 'Movil', android: 'Movil', '3ds': 'Nintendo 3DS', vita: 'PSVita',
+    wii_u: 'Nintendo WiiU', ps4: 'PlayStation4', xbox_one: 'XboxONE', vrhelmet: 'OculusRift',
+    ninswitch: 'Nintendo Switch', ps5: 'PlayStation5', xbox_series: 'Xbox Series X',
+    steam_deck: 'Steam Deck', quest: 'Meta Quest', switch2: 'Nintendo Switch 2'
+};
+
+function platformImage(platform, year) {
+    const name = platform.id === 'pc' ? (year >= 2017 ? 'PC AÑOS 2017' : year >= 2010 ? 'PC AÑOS 2010' : 'PC AÑOS 80') : platformImages[platform.id];
+    return name ? `${import.meta.env.BASE_URL}platforms/${encodeURIComponent(name)}.png` : '';
+}
+
 export function initializePreproductionWizard({ game, getPipeline, getScope, getHistoricalTechs, getTechnologyNames, onChange }) {
     const modal = document.getElementById('modal-new-game');
     const form = document.getElementById('form-new-game');
     const window = modal.querySelector('.preprod-window');
     const header = window.querySelector('.preprod-header');
     const original = [...form.children];
-    const [nameGroup, conceptFields, ipFields, synergy, platformFields, pipelineSection, financeSection, dagSection, submitWrap] = original;
+    const [nameGroup, conceptFields, ipFields, synergy, platformFields, pipelineSection, financeSection, submitWrap] = original;
     const progress = document.createElement('nav');
     progress.className = 'preprod-progress';
     progress.setAttribute('aria-label', 'Etapas de preproducción');
@@ -155,9 +177,10 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
     let platformSignature = '';
     function renderPlatforms() {
         const platforms = game.getPlatforms();
+        const year = game.getHistoricalYear();
         const signature = [...platformSelect.options].map(option => {
             const platform = platforms.find(item => item.id === option.value);
-            return `${option.value}:${option.disabled}:${platform?.marketShare}:${platform ? game.getDevKitCost(platform) : ''}`;
+            return `${option.value}:${option.disabled}:${platform?.name}:${platform?.marketShare}:${platform?.royaltyRate}:${year}:${platform ? game.getDevKitCost(platform) : ''}`;
         }).join('|');
         if (signature !== platformSignature) {
             platformSignature = signature;
@@ -167,14 +190,38 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
                 if (!platform) continue;
                 const cost = game.getDevKitCost(platform);
                 const card = document.createElement('button');
-                card.type = 'button'; card.className = 'preprod-choice';
+                card.type = 'button'; card.className = 'preprod-choice preprod-platform-card';
                 card.disabled = option.disabled;
                 card.dataset.value = platform.id;
+                const visual = document.createElement('span'); visual.className = 'platform-card-visual';
+                const imageUrl = platformImage(platform, year);
+                if (imageUrl) {
+                    const image = document.createElement('img');
+                    image.src = imageUrl; image.alt = ''; image.loading = 'lazy';
+                    image.addEventListener('error', () => { image.remove(); visual.classList.add('is-placeholder'); });
+                    visual.append(image);
+                } else visual.classList.add('is-placeholder');
+                const content = document.createElement('span'); content.className = 'platform-card-content';
+                const heading = document.createElement('span'); heading.className = 'platform-card-heading';
                 const label = document.createElement('strong'); label.textContent = platform.name;
-                const detail = document.createElement('small');
+                const badge = document.createElement('span'); badge.className = 'platform-card-badge';
+                badge.textContent = option.disabled ? 'Retirada' : (platform.type || 'Plataforma');
+                heading.append(label, badge);
                 const royalty = Math.round((platform.royaltyRate ?? platform.royalty ?? 0) * 100);
-                detail.textContent = `${platform.releaseYear || '—'} · DevKit $${cost.toLocaleString('es-ES')} · Regalías ${royalty}%${Number.isFinite(Number(platform.marketShare)) ? ` · Mercado ${(Number(platform.marketShare) * 100).toFixed(1)}%` : ''}${option.disabled ? ' · Retirada' : ''}`;
-                card.append(label, detail);
+                const metrics = document.createElement('span'); metrics.className = 'platform-card-metrics';
+                const share = Number(platform.marketShare);
+                for (const [title, value, tone] of [
+                    ['Coste del DevKit', `${cost.toLocaleString('es-ES')} €`, 'cost'],
+                    ['Índice de mercado', Number.isFinite(share) ? `${(share * 100).toFixed(1).replace('.', ',')} %` : '—', 'market'],
+                    ['Regalías', `${royalty} %`, 'royalty'],
+                    ['Lanzamiento', String(platform.releaseYear || '—'), 'year']
+                ]) {
+                    const metric = document.createElement('span'); metric.className = `platform-card-metric platform-card-metric--${tone}`;
+                    const metricLabel = document.createElement('span'); metricLabel.textContent = title;
+                    const metricValue = document.createElement('b'); metricValue.textContent = value;
+                    metric.append(metricLabel, metricValue); metrics.append(metric);
+                }
+                content.append(heading, metrics); card.append(visual, content);
                 card.addEventListener('click', () => {
                     platformSelect.value = platform.id;
                     platformSelect.dispatchEvent(new Event('change', { bubbles: true }));
@@ -194,7 +241,6 @@ export function initializePreproductionWizard({ game, getPipeline, getScope, get
     }
     platformSearch.addEventListener('input', renderPlatforms);
     steps[3].section.append(pipelineSection);
-    if (dagSection) dagSection.style.display = 'none';
     pipelineSection.querySelector('h3').textContent = 'Motor de desarrollo';
     steps[4].section.append(financeSection);
     financeSection.querySelector('h3').textContent = 'Acuerdo de publicación';
