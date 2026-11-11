@@ -48,7 +48,8 @@ function projectedWeeklyCosts(game) {
  return (salaries+office*officeMultiplier+(year<1990?100:year<2000?700:1800)+(year>=1995?(game.era===3?3000:600):0))/4;
 }
 function liquidAssets(game) {
- let assetValue=0, realizableAssetValue=0;
+ // Award prestige is an intangible studio asset, not cash or a saleable IP.
+ let assetValue=nonnegative(game.awardsStudioValue), realizableAssetValue=0;
  for(const ip of game.ipState?.properties||[]) if(ip.ownerId==='player') {
   const value=nonnegative(typeof game.getIPValue==='function'?game.getIPValue(ip.id):0);
   assetValue+=value;

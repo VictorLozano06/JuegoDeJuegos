@@ -14,6 +14,7 @@ import { soundEngine } from './audio.js';
 import { DAG_CATALOG as SCOPE_NODES_CATALOG } from './dag_engine.js';
 import { game } from './simulation.js';
 import { preloadedModels } from './loading-screen.js';
+import { TrophyManager } from './TrophyManager.js';
 
 const THREE = window.THREE;
 const MAX_RENDER_PIXELS = 1_500_000;
@@ -731,6 +732,7 @@ export class WorldEngine {
         });
         for (const resource of resources) resource.dispose();
         this.officeGroup.clear();
+        this.trophyManager?.reset();
         this.animatePark = null;
         this.updateParkDetail = null;
         this.parkZoomDistance = null;
@@ -768,6 +770,7 @@ export class WorldEngine {
         } else {
             framing.build(this, THREE);
         }
+        this.syncTrophies(game.awardsWon);
         applyOfficeLighting(this);
         if (this.controls) this.controls.maxDistance = framing.maxDistance ?? 35;
         if (this.camera) {
@@ -796,6 +799,12 @@ export class WorldEngine {
 
     buildCyberCampusEra() {
         buildStudioThree(this, THREE);
+    }
+
+    syncTrophies(awards = game.awardsWon) {
+        if (!this.trophyManager) this.trophyManager = new TrophyManager(THREE, this.officeGroup);
+        this.trophyManager.sync(awards, this.currentEra, this.parkLocation);
+        this.needsStaticFrame = true;
     }
 
     addRadio(parent, x, y, z, createModel = false, rotation = 0) {
@@ -1387,6 +1396,10 @@ export class WorldEngine {
         // The loading screen has its own animation; do not render the hidden
         // office concurrently while its assets and shaders are being prepared.
         if (document.hidden || this.loadingScreenActive) return;
+
+        // Also catches saved-game loads that keep the current office unchanged.
+        const trophySignature = JSON.stringify([this.currentEra, this.parkLocation, game.awardsWon || []]);
+        if (this.trophyManager?.signature !== trophySignature) this.syncTrophies(game.awardsWon);
 
         const menuShot = this.menuCamera.active;
         // Keep the last office frame while these menus are open. Redraw on demand

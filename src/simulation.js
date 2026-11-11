@@ -18,6 +18,11 @@ import { sanitizeRivalTitles } from './gameNameGenerator.js';
 import { createFinanceState, getFinanceMetrics, getCreditOffer, requestLoan, refinanceLoan, updateFinanceWeek } from './financeSystem.js';
 import { cancelPlayerProject, reduceStaff, stopResearch, restructureCompany, prepareBankruptcy, confirmBankruptcy } from './bankruptcy.js';
 import { discountStatus, beginDiscountCampaign, DISCOUNT_COOLDOWN_WEEKS } from './SalesEngine.js';
+import { getMultiplatformQuote } from './MultiplatformManager.js';
+import { createAnnualCeremony, applyAnnualAwards } from './AnnualAwardsSystem.js';
+import { validateFranchiseRegistration, validateFranchiseProject, evaluateFranchiseRelease, franchiseTechnologyIds } from './FranchiseSystem.js';
+import { tickPorting } from './PortingPipeline.js';
+import { getCommercialEngineVersion } from './CommercialEngineVersions.js';
 
 /**
  * DEV EMPIRE 3D - Complete Tycoon Simulation Engine
@@ -527,6 +532,7 @@ class TycoonGame {
     registerIP(details = {}) {
         const originalGame = details.originalGameId ? this.gamesHistory.find(game => game.id === details.originalGameId) : null;
         if (details.originalGameId && !originalGame) return { success: false, message: 'No se encontró el juego original en el catálogo del estudio.' };
+        if (originalGame) { const validation = validateFranchiseRegistration(originalGame); if (!validation.success) return validation; }
         const originalMetadata = originalGame ? { originalGenre: originalGame.genreId || originalGame.genre, originalTopic: originalGame.topicId || originalGame.topic } : {};
         const result = registerIP(this.ipState, this.getIPOwner(), { ...details, ...originalMetadata, originalGame }, { year: this.getHistoricalYear(), ownedGames: this.gamesHistory });
         if (result.success) this.notify();
@@ -674,6 +680,19 @@ class TycoonGame {
         const year = this.getHistoricalYear();
         const multiplier = year < 1990 ? 1 : (year < 2000 ? 1.2 : 1.45);
         return Math.ceil(Math.max(0, Number(platform.devKitCost ?? platform.devCost) || 0) * multiplier);
+    }
+
+    purchaseDevKit(platformId) {
+        const platform = this.getPlatformById(platformId);
+        const quote = getMultiplatformQuote(this, [platformId]);
+        if (!platform || quote.invalid) return { success: false, message: 'La plataforma no está disponible.' };
+        if ((this.ownedDevKits || []).includes(platformId)) return { success: false, message: 'Ya tienes esta licencia.' };
+        const cost = this.getDevKitCost(platform);
+        if (this.funds < cost) return { success: false, message: 'Fondos insuficientes para comprar el DevKit.' };
+        this.funds -= cost;
+        (this.ownedDevKits ||= []).push(platformId);
+        this.notify();
+        return { success: true, cost, message: `DevKit de ${platform.name} adquirido.` };
     }
 
     registerPlatform(platformData) {
@@ -1173,7 +1192,7 @@ class TycoonGame {
 
     getBusinessModelOptions(selectedNodeIds = []) {
         const year = this.getHistoricalYear();
-        const hasOnline = selectedNodeIds.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id)) ||
+        const hasOnline = selectedNodeIds.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers', 'engine_crossplay'].includes(id)) ||
             (this.techTreeManager && (this.techTreeManager.isUnlocked('engine_online_play') || this.techTreeManager.isUnlocked('engine_dedicated_servers') || this.techTreeManager.isUnlocked('net_dedicated')));
         return [
             { id: 'premium', label: year < 1995 ? 'Premium físico (cartucho, casete o disquete)' : 'Premium tradicional', available: true, year: 1982, detail: 'Precio fijo y venta tradicional; soporte post lanzamiento opcional.' },
@@ -1619,8 +1638,9 @@ class TycoonGame {
                      (this.customEngines && this.customEngines.find(e => e.id === config.engineId));
         }
 
+        if (engine && (engine.id || '').startsWith('commercial_')) engine = getCommercialEngineVersion(engine, this.getHistoricalYear());
         const selectedNodes = config.selectedNodeIds || (config.dagConfig ? (config.dagConfig.selectedNodes || config.dagConfig.selectedNodeIds) : []) || [];
-        const engineNodes = (engine && (engine.bakedNodes || engine.unlockedNodes)) || [];
+        const engineNodes = [...(engine?.bakedNodes || engine?.unlockedNodes || []), ...(engine?.historicalTechIds || [])];
         const activeNodeSet = new Set([...selectedNodes, ...engineNodes]);
 
         const missing = [];
@@ -1633,7 +1653,8 @@ class TycoonGame {
                               activeNodeSet.has('pbr_lighting') ||
                               activeNodeSet.has('deferred_raytracing') ||
                               activeNodeSet.has('physics_2d3d') ||
-                              (engine && (engine.tier >= 2 || engine.id === 'commercial_unreal_pro' || engine.id === 'commercial_unity_apex')) ||
+                              [...activeNodeSet].some(id => /^graphics_3d_v\d+$/.test(id)) ||
+                              (engine && !(engine.id || '').startsWith('commercial_') && engine.tier >= 2) ||
                               (this.researchedTechs && this.researchedTechs.includes('graphics3d_v1')) ||
                               (this.techTreeManager && (this.techTreeManager.isUnlocked('render_raytracing') || this.techTreeManager.isUnlocked('render_3d')));
                 if (!has3D) {
@@ -1646,7 +1667,7 @@ class TycoonGame {
                                activeNodeSet.has('net_socket_sync') ||
                                activeNodeSet.has('client_prediction') ||
                                activeNodeSet.has('rollback_netcode') ||
-                               (engine && engine.id === 'commercial_unreal_pro') ||
+                               ['engine_online_play', 'engine_dedicated_servers', 'engine_crossplay'].some(id => activeNodeSet.has(id)) ||
                                (this.techTreeManager && (this.techTreeManager.isUnlocked('net_dedicated') || this.techTreeManager.isUnlocked('net_p2p')));
                 if (!hasNet) {
                     missing.push('Red y Servidores (Sockets UDP / P2P / Servidores Dedicados)');
@@ -1656,7 +1677,7 @@ class TycoonGame {
                 const hasMass = activeNodeSet.has('net_dedicated') ||
                                 activeNodeSet.has('rollback_netcode') ||
                                 activeNodeSet.has('net_socket_sync') ||
-                                (engine && engine.id === 'commercial_unreal_pro') ||
+                                ['engine_dedicated_servers', 'engine_crossplay'].some(id => activeNodeSet.has(id)) ||
                                 (this.techTreeManager && this.techTreeManager.isUnlocked('net_dedicated'));
                 if (!hasMass) {
                     missing.push('Servidores Masivos Dedicados (Capacidad 100+ jugadores simultáneos)');
@@ -1680,6 +1701,8 @@ class TycoonGame {
     // --- PROJECT CREATION & DEV CYCLES ---
     startNewGameProject(config) {
         if (this.currentProject) return { success: false, message: 'Ya hay un videojuego en desarrollo.' };
+        const franchiseValidation = validateFranchiseProject(this, config);
+        if (!franchiseValidation.success) return franchiseValidation;
         if (this.activeEngineRD) return { success: false, message: `[[DE_ICON_093]] Hay un motor de videojuegos en desarrollo ("${this.activeEngineRD.name}"). Espera a que finalice para iniciar un nuevo juego.` };
         // Validación de Modo Parche de Emergencia Post-Lanzamiento (Punto 5)
         if (this.isEmergencyPatchActive && this.emergencyPatchData) {
@@ -1694,11 +1717,16 @@ class TycoonGame {
         const genre = findGenre(config.genreId);
         const matchesCatalog = (value, item) => !value || [item.id, item.name, ...(item.aliases || [])].some(label => label.toLowerCase() === String(value?.id || value).toLowerCase());
         if (!matchesCatalog(config.topicId, topic) || !matchesCatalog(config.genreId, genre)) return { success: false, message: 'Selecciona una temática y un género válidos.' };
-        const platform = this.getPlatformById(config.platformId);
+        const platformIds = Array.isArray(config.platformIds) && config.platformIds.length ? [...new Set(config.platformIds)] : [config.platformId];
+        const platform = this.getPlatformById(platformIds[0]);
         if (!platform) return { success: false, message: 'La plataforma seleccionada aún no está disponible.' };
         if (platform.releaseYear != null && this.getHistoricalYear() < platform.releaseYear) return { success: false, message: `${platform.name} todavía no está disponible.` };
         if (platform.retireYear != null && this.getHistoricalYear() >= platform.retireYear) return { success: false, message: `${platform.name} ya está retirada.` };
         if (platform.status === 'RETIRED') return { success: false, message: `${platform.name} ya está retirada y no admite nuevos proyectos.` };
+        const platformsCheck = getMultiplatformQuote(this, platformIds);
+        if (platformsCheck.invalid) return { success: false, message: 'Una plataforma seleccionada no está disponible.' };
+        if (platformsCheck.missingDevKits.length) return { success: false, message: 'Adquiere antes los DevKits de las plataformas secundarias.' };
+        if (platformIds.length > 1 && (config.publishingContractType || config.publishingContract) === 'platform_exclusive') return { success: false, message: 'Un contrato exclusivo requiere una sola plataforma.' };
 
         const ip = config.ipId ? this.ipState.properties.find(item => item.id === config.ipId) : null;
         if (config.ipId && (!ip || ip.ownerId !== 'player')) return { success: false, message: 'La franquicia seleccionada no pertenece al estudio.' };
@@ -1761,9 +1789,10 @@ class TycoonGame {
         if (pipelineType === 'commercial' && engine && this.getHistoricalYear() < (engine.minYear || 1990)) {
             return { success: false, message: `Los motores comerciales generalistas estarán disponibles a partir de ${engine.minYear || 1990}. Desarrolla un motor propio para esta época.` };
         }
+        if (pipelineType === 'commercial') engine = getCommercialEngineVersion(engine, this.getHistoricalYear());
 
         const businessModel = config.businessModel || 'premium';
-        const selectedNodesForBusiness = config.selectedNodeIds || (config.dagConfig && config.dagConfig.selectedNodeIds) || [];
+        const selectedNodesForBusiness = [...(config.selectedNodeIds || (config.dagConfig && config.dagConfig.selectedNodeIds) || []), ...(pipelineType === 'commercial' ? engine.historicalTechIds : [])];
         if (this.getHistoricalYear() < 1995 && selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id))) {
             return { success: false, message: 'El juego online todavía no está disponible antes de 1995; elimina las funciones de red del proyecto.' };
         }
@@ -1781,20 +1810,22 @@ class TycoonGame {
         if (['dlc', 'season_pass'].includes(postLaunchContent) && this.getHistoricalYear() < 2005) {
             return { success: false, message: 'DLC y Season Pass estarán disponibles a partir de 2005.' };
         }
-        const hasOnlineForLive = selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers'].includes(id)) ||
+        const hasOnlineForLive = selectedNodesForBusiness.some(id => ['net_p2p', 'net_dedicated', 'engine_online_play', 'engine_dedicated_servers', 'engine_crossplay'].includes(id)) ||
             (this.techTreeManager && (this.techTreeManager.isUnlocked('engine_online_play') || this.techTreeManager.isUnlocked('engine_dedicated_servers') || this.techTreeManager.isUnlocked('net_dedicated')));
         if (businessModel === 'live_service' && !hasOnlineForLive) {
             return { success: false, message: 'Live-Service necesita funciones online investigadas en el estudio.' };
         }
 
         const historicalTechIds = [...new Set([...(config.historicalTechIds || []), ...((engine && engine.historicalTechIds) || [])])];
-        const historicalValidation = this.techTreeManager.validateSelection(historicalTechIds, this.getHistoricalYear());
+        const historicalValidation = this.techTreeManager.validateSelection(pipelineType === 'commercial' ? (config.historicalTechIds || []) : historicalTechIds, this.getHistoricalYear());
         if (!historicalValidation.valid) return { success: false, message: historicalValidation.errors.join(' ') };
-        const historicalIncompatibility = calculateTechIncompatibility(historicalTechIds);
-        const historicalBaseDebt = TECH_TREE_NODES.filter(node => historicalTechIds.includes(node.id)).reduce((sum, node) => sum + node.baseDebt, 0);
+        const historicalIncompatibility = calculateTechIncompatibility(pipelineType === 'commercial' ? (config.historicalTechIds || []) : historicalTechIds);
+        const debtTechIds = pipelineType === 'commercial' ? (config.historicalTechIds || []) : historicalTechIds;
+        const historicalBaseDebt = TECH_TREE_NODES.filter(node => debtTechIds.includes(node.id)).reduce((sum, node) => sum + node.baseDebt, 0);
+        const multiQuote = getMultiplatformQuote(this, platformIds, engine, [...historicalTechIds, ...(config.selectedNodeIds || config.dagConfig?.selectedNodeIds || [])]);
         const engineUpfrontCost = (engine && engine.licenseCost) ? engine.licenseCost : 0;
         const devKitCost = this.getDevKitCost(platform);
-        const totalDevCost = devKitCost + engineUpfrontCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
+        const totalDevCost = devKitCost + engineUpfrontCost + multiQuote.adaptationCost + (this.era === 1 ? 4000 : (this.era === 2 ? 14000 : 35000));
         if (this.funds < totalDevCost) {
             return { success: false, message: '¡Fondos insuficientes para costear el kit de desarrollo y licencias!' };
         }
@@ -1837,7 +1868,7 @@ class TycoonGame {
         if (typeof TechnicalDebtModel !== 'undefined') {
             const bloatwareFloor = (dagPipeline && dagPipeline.baseDebtFloor !== undefined) ? dagPipeline.baseDebtFloor : ((engine && engine.bloatwareDebtFloor) ? engine.bloatwareDebtFloor : 0);
             techDebtModel = new TechnicalDebtModel({
-                initialDebt: (bloatwareFloor + historicalBaseDebt) * historicalIncompatibility.multiplier,
+                initialDebt: (bloatwareFloor + historicalBaseDebt) * historicalIncompatibility.multiplier + multiQuote.additionalDebt,
                 baseBloatwareDebt: bloatwareFloor
             });
         }
@@ -1912,6 +1943,10 @@ class TycoonGame {
             topic: topic,
             genre: genre,
             platform: platform,
+            platformIds: multiQuote.ids,
+            multiplatformTimeMultiplier: multiQuote.timeMultiplier,
+            multiplatformAdaptationCost: multiQuote.adaptationCost,
+            multiplatformDebt: multiQuote.additionalDebt,
             targetAudience: config.targetAudience || 'Everyone',
             engine: engine,
             engineObj: engine,
@@ -2083,18 +2118,19 @@ class TycoonGame {
     advanceDevTick() {
         const p = this.currentProject;
         if (!p) return;
+        const portEmployeeIds = new Set((this.portProjects || []).map(port => port.employeeId));
         // Pause development progress during interactive stage input modals
         if (p.lifecycleState === 'STAGE_1_INPUT' || p.lifecycleState === 'STAGE_2_INPUT' || p.lifecycleState === 'STAGE_3_INPUT') {
             return;
         }
         if (p.stage >= 4 || p.lifecycleState === 'STAGE_BUG_FIXING') {
-            const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0);
+            const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0 && !portEmployeeIds.has(e.id));
             this.applyEmployeeWorkTick(this.workMode || 'normal');
             const qaStrength = staff.reduce((acc, e) => {
                 const isQA = /qa|tester|program|ingenier/i.test(e.role || '');
                 return acc + (isQA ? 2.5 : 1.0) * (Number(e.speed) || 1);
             }, 0);
-            const bugReduction = Math.max(1, qaStrength * 0.8);
+            const bugReduction = staff.length ? Math.max(1, qaStrength * 0.8) : 0;
             if (p.bugs > 0) {
                 p.bugs = Math.max(0, p.bugs - bugReduction);
             }
@@ -2109,7 +2145,7 @@ class TycoonGame {
         if (!prod || !prod.allocations || !prod.allocations[stage]) {
             return;
         }
-        const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0);
+        const staff = this.employees.filter(e => (e.sickWeeksRemaining || 0) <= 0 && !portEmployeeIds.has(e.id));
         this.applyEmployeeWorkTick(this.workMode || 'normal');
         const activeNodes = p.scopeDAG?.getActiveNodes() || [];
         let speed = 1;
@@ -2174,7 +2210,7 @@ class TycoonGame {
         if (staff.length && p.bugs > 0) p.bugs = Math.max(0, p.bugs - Math.max(0.5, weighted * 0.3));
         if (effort > 0 && Math.random() < (p.devMode === 'crunch' ? 0.4 : 0.25)) p.bugs += 1;
         const scope=Math.sqrt(Math.max(1,(p.disciplineWorkloads?.totalSum||105)/105));
-        const step=effort*10/scope;
+        const step=effort*10/scope/(p.multiplatformTimeMultiplier || 1);
         p.stageProgress=Math.min(100,(p.stageProgress||0)+step);
         p.overallProgress=Math.max(prod.legacyProgress||0,Math.min(100,((stage-1)*100+p.stageProgress)/3));
         const salaries = this.employees.reduce((sum,e)=>sum+(Number(e.salary)||0),0)/4;
@@ -2191,6 +2227,7 @@ class TycoonGame {
     finishAndReleaseGame(options = {}) {
         if (!this.currentProject) return null;
         const proj = this.currentProject;
+        const franchiseEffects = evaluateFranchiseRelease(this, proj);
         const existingEarlyAccessGame = options.existingGameId
             ? this.gamesHistory.find(item => item.id === options.existingGameId)
             : null;
@@ -2259,7 +2296,7 @@ class TycoonGame {
         const engineYear = proj.engineObj?.releaseYear ?? (proj.engineObj?.createdYear != null ? 1981 + proj.engineObj.createdYear : null);
         const engineAge = engineYear == null ? Infinity : Math.max(0, year - engineYear);
         const previous = (this.gamesHistory || []).find(game => game.id !== options.existingGameId);
-        const repeated = previous && (previous.genreId === proj.genre.id || previous.genre === proj.genre.name) &&
+        const repeated = proj.ipInstallmentType !== 'spin_off' && previous && (previous.genreId === proj.genre.id || previous.genre === proj.genre.name) &&
             (previous.topicId === proj.topic.id || previous.topic === proj.topic.name);
         const successes = (this.gamesHistory || []).filter(game => game.id !== options.existingGameId && game.score >= 8).length;
         const expectationPenalty = Math.min(1.5, successes * 0.18 + Math.max(0, year - 1981) * 0.012) +
@@ -2267,7 +2304,7 @@ class TycoonGame {
         const debtPenalty = currentRawDebt <= 15 ? 0 : currentRawDebt <= 35 ? 1 : Math.min(5, 3 + (currentRawDebt - 35) * 0.04);
         const enginePenalty = Number.isFinite(engineAge) ? Math.min(1.5, Math.max(0, engineAge - 2) * 0.2) : 0.5;
         const engineObsolescencePenalty = enginePenalty;
-        const repetitionPenalty = repeated ? 1.8 : 0;
+        const repetitionPenalty = repeated && proj.ipInstallmentType !== 'spin_off' ? 1.8 : 0;
         const quality = Math.min(1.45, pointsFactor) * 1.6 + sliderScoreFactor * 0.9;
         const affinity = (topicSynergy - 0.8) * 1.8 + (audienceFactor - 1) * 0.8;
         const baseScore = 5 + quality + affinity + Math.min(0.3, synergyBonus) + Math.min(0.15, trendBoost) -
@@ -2311,10 +2348,12 @@ class TycoonGame {
                 review.score = Math.max(2, Math.round((review.score - trailerDowngradePenalty) * 10) / 10);
             });
         }
+        if (franchiseEffects.reviewPenalty) reviews.forEach(review => { review.score = Math.max(0, Math.round((review.score - franchiseEffects.reviewPenalty) * 10) / 10); });
         reviews.forEach((review, index) => {
             if (review.score < 7) review.comment = ['Análisis técnico: ', 'Diseño y temática: ', 'Experiencia de juego: ', 'Valoración general: '][index] + weakness;
             else if (review.score < 9.5) review.comment = 'Un título sólido y divertido, aunque le falta un punto de innovación para ser legendario.';
         });
+        if (franchiseEffects.messages.length) reviews.forEach(review => { review.comment += ` ${franchiseEffects.messages.join(' ')}`; });
         const finalScore = Math.round((reviews.reduce((acc, review) => acc + review.score, 0) / 4) * 10) / 10;
         const isFreeRelease = ['f2p', 'live_service'].includes(proj.businessModel);
         const priceContext = {
@@ -2421,7 +2460,8 @@ class TycoonGame {
         const basePrice = isFreeRelease ? 0 : referencePrice;
         const eraSalesFactor = this.era === 1 ? 85 : (this.era === 2 ? 280 : 950);
         const launchPlatform = this.getPlatformById(proj.platform.id) || proj.platform;
-        const marketShareBonus = (launchPlatform.marketShare ?? 0.1) + 0.25;
+        const selectedPlatforms = (proj.platformIds || [proj.platform.id]).map(id => this.getPlatformById(id)).filter(Boolean);
+        const marketShareBonus = selectedPlatforms.reduce((sum, item) => sum + (item.marketShare ?? 0.1), 0) + 0.25;
         const trendSalesMultiplier = isTrendMatch ? 1.35 : 1.0;
         const releaseIP = proj.ipId ? this.ipState.properties.find(item => item.id === proj.ipId) : null;
         const ipBenefits = releaseIP ? getIPBenefits(releaseIP) : null;
@@ -2481,6 +2521,16 @@ class TycoonGame {
         const releasedGame = {
             id: 'game_' + Date.now(),
             releaseYear: this.getHistoricalYear(),
+            releaseIndustryWeek: this.getIndustryWeek(),
+            franchiseFirstWeekMultiplier: franchiseEffects.firstWeekMultiplier,
+            franchiseLaunchSalesMultiplier: franchiseEffects.salesMultiplier,
+            franchiseTechnologyIds: franchiseTechnologyIds(proj),
+            historicalTechIds: [...(proj.historicalTechIds || [])],
+            scopeNodeIds: (proj.scopeDAG?.getActiveNodes?.() || []).map(node => node.id),
+            production: proj.production ? { work: { ...proj.production.work }, phaseHistory: [...(proj.production.phaseHistory || [])] } : null,
+            sliders: proj.sliders,
+            officeTierAtRelease: this.getActiveOffice().tier,
+            studioAgeYears: this.year,
             ipId: proj.ipId || null,
             ipInstallmentType: proj.ipInstallmentType || null,
             ipReleaseType: proj.ipInstallmentType || null,
@@ -2491,6 +2541,8 @@ class TycoonGame {
             genreId: proj.genre.id,
             platform: proj.platform.name,
             platformId: proj.platform.id,
+            platformIds: [...(proj.platformIds || [proj.platform.id])],
+            launchPlatformIds: [...(proj.platformIds || [proj.platform.id])],
             targetAudience: proj.targetAudience,
             engine: (proj.engineObj && proj.engineObj.name) || (proj.engine && proj.engine.name) || 'Custom Engine',
             techPoints: proj.techPoints,
@@ -2598,7 +2650,7 @@ class TycoonGame {
             pipelineType: proj.pipelineType || 'inhouse',
             royaltyRate: (proj.engineObj && proj.engineObj.royaltyRate) || 0,
             platformRoyaltyRate: proj.platform.royaltyRate || 0,
-            launchMarketShare: launchPlatform.marketShare ?? 0.1,
+            launchMarketShare: selectedPlatforms.reduce((sum, item) => sum + (item.marketShare ?? 0.1), 0),
             platformRoyaltiesPaidTotal: 0,
             engineObsolescencePenalty,
             royaltiesPaidTotal: 0,
@@ -2702,6 +2754,7 @@ class TycoonGame {
         // Fan growth based on score
         const loyaltyMultiplier = userApproval >= 80 ? 1.2 : (userApproval < 70 ? 0.65 : 1);
         const newFans = Math.floor(Math.max(0, (finalScore - 4.5) * (this.era === 1 ? 25 : (this.era === 2 ? 65 : 180))) * loyaltyMultiplier * (pricing?.isBargain ? 1.2 : pricing?.isOverpriced ? 0.7 : 1));
+        releasedGame.franchiseFansGained = newFans;
         this.fans += newFans;
 
         // Launch learning RP bonus based on score and technical scope
@@ -3123,10 +3176,17 @@ class TycoonGame {
             const currentPlatform = this.getPlatformById(game.platformId || game.platform?.id);
             if (currentPlatform && game.launchMarketShare != null) {
                 // El mercado evoluciona con el año; al retirarse persiste una cola residual.
-                const shareFactor = Math.max(0.15, Math.min(2, (currentPlatform.marketShare + 0.05) / (game.launchMarketShare + 0.05)));
+                const currentShares = (game.launchPlatformIds || [currentPlatform.id]).map(id => this.getPlatformById(id)).filter(Boolean).reduce((sum, item) => sum + (item.marketShare ?? 0), 0);
+                const shareFactor = Math.max(0.15, Math.min(2, (currentShares + 0.05) / (game.launchMarketShare + 0.05)));
                 unitsThisWeek = Math.max(unitsThisWeek > 0 ? 1 : 0, Math.floor(unitsThisWeek * shareFactor));
             }
             if (activeDiscount && !isService) unitsThisWeek = Math.floor(unitsThisWeek * activeDiscount.multiplier);
+            if (saleWeek <= 4 && game.franchiseLaunchSalesMultiplier) unitsThisWeek = Math.floor(unitsThisWeek * game.franchiseLaunchSalesMultiplier);
+            if (saleWeek === 1 && game.franchiseFirstWeekMultiplier) unitsThisWeek = Math.floor(unitsThisWeek * game.franchiseFirstWeekMultiplier);
+            if (game.awardsSalesBoost?.weeksRemaining > 0) {
+                unitsThisWeek = Math.floor(unitsThisWeek * game.awardsSalesBoost.multiplier);
+                game.awardsSalesBoost.weeksRemaining--;
+            }
             if (game.weeksOnMarket <= 4 && !activeDiscount) {
                 game.initialPeakSales = Math.max(game.initialPeakSales || 0, unitsThisWeek);
             }
@@ -3194,7 +3254,7 @@ class TycoonGame {
             game.publisherSharePaid = (game.publisherSharePaid || 0) + publisherShare;
             game.revenueTotal += netRevenueThisWeek;
             game.grossRevenueTotal = (game.grossRevenueTotal || 0) + grossRevenueThisWeek;
-            game.profit = (game.upfrontOfferRevenue || 0) + game.revenueTotal - game.devCost - (game.productionPayrollCost || 0) - game.lifetimeServiceCosts - (game.contractLatePenalty || 0) - (game.physicalManufacturingCost || 0) - (game.marketingCostTotal || 0);
+            game.profit = (game.upfrontOfferRevenue || 0) + game.revenueTotal - game.devCost - (game.productionPayrollCost || 0) - game.lifetimeServiceCosts - (game.contractLatePenalty || 0) - (game.physicalManufacturingCost || 0) - (game.marketingCostTotal || 0) - (game.portDevelopmentCosts || 0);
             this.funds += netRevenueThisWeek;
             weeklyIncomeTotal += netRevenueThisWeek;
             if (isService && this.week === 4) {
@@ -3342,6 +3402,7 @@ class TycoonGame {
             ? (this.currentProject.devMode === 'crunch' || (mode === 'crunch' && this.currentProject.devMode !== 'refactor'))
             : mode === 'crunch';
         for (const employee of this.employees) {
+            if ((this.portProjects || []).some(port => port.employeeId === employee.id)) continue;
             if ((employee.sickWeeksRemaining || 0) > 0) continue;
             const energy = Math.max(0, Math.min(100, Number(employee.energy ?? employee.stamina ?? 100)));
             const resistance = Math.max(1, Math.min(100, Number(employee.stressResistance || 50)));
@@ -3461,7 +3522,6 @@ class TycoonGame {
                 this.month = 1;
                 this.year++;
                 advanceIPYear(this.ipState, this.getHistoricalYear());
-                if (!this.financeState.bankruptcy?.confirmed) this.triggerAnnualAwards();
                 if (this.getHistoricalYear() >= 2006 && !this.osUpdate2006Announced) {
                     this.osUpdate2006Announced = true;
                     this.createIndustryEvent('os_launch_2006');
@@ -3565,10 +3625,7 @@ class TycoonGame {
             const completed = this.activeEngineRD.totalWeeks - this.activeEngineRD.weeksRemaining;
             this.activeEngineRD.progress = Math.min(100, Math.floor((completed / this.activeEngineRD.totalWeeks) * 100));
 
-            // Technical R&D feedback: lead programmer earns +2 to +4 RP per week through architecture research
             const leadEmp = this.employees[this.activeEngineRD.leadProgrammerIndex] || this.employees[0];
-            const rpGain = Math.max(2, Math.floor(2 + ((leadEmp?.tech || 30) / 35)));
-            this.researchPoints += rpGain;
 
             // Generate design & tech points during engine development
             const leadTech = leadEmp?.tech || 35;
@@ -3576,10 +3633,6 @@ class TycoonGame {
             const designGained = Math.max(1, Math.floor(2 + Math.random() * 3));
             this.activeEngineRD.techPoints = (this.activeEngineRD.techPoints || 0) + techGained;
             this.activeEngineRD.designPoints = (this.activeEngineRD.designPoints || 0) + designGained;
-
-            if (typeof this.onEngineRPTick === 'function') {
-                this.onEngineRPTick(rpGain, this.activeEngineRD.leadProgrammerIndex, this.activeEngineRD);
-            }
 
             // Sync top status HUD
             if (typeof window !== 'undefined' && window.gameDevFlow && typeof window.gameDevFlow.updateTopHUD === 'function') {
@@ -3649,6 +3702,7 @@ class TycoonGame {
 
         tickRivals(this);
         this.processWeeklySales();
+        tickPorting(this);
         if (!this.financeState.bankruptcy?.confirmed) {
             const report = updateFinanceWeek(this);
             if (report.previousStatus !== report.status) this.onFinanceStatusChanged?.(report);
@@ -3659,26 +3713,19 @@ class TycoonGame {
             }
         }
         this.checkIndustryEvents();
+        if (this.month === 12 && this.week === 4 && !this.financeState.bankruptcy?.confirmed && !this.pendingAnnualCeremony && this.lastAnnualAwardsYear !== this.getHistoricalYear()) {
+            this.triggerAnnualAwards();
+        }
     }
 
     triggerAnnualAwards() {
-        const candidates = [...this.gamesHistory.filter(g => g.score >= 8.8)];
-        if (candidates.length > 0) {
-            const winner = candidates[0];
-            const prizeMoney = this.era === 1 ? 50000 : (this.era === 2 ? 180000 : 500000);
-            const prizeFans = this.era === 1 ? 300 : (this.era === 2 ? 900 : 2500);
-
-            this.fans += prizeFans;
-            this.funds += prizeMoney;
-
-            if (soundEngine) soundEngine.playLevelUp();
-            return {
-                won: true,
-                game: winner.name,
-                message: `[[DE_ICON_107]] ¡GLORIA TOTAL! "${winner.name}" ha ganado el galardón de JUEGO DEL AÑO (GOTY)! Recibes +${prizeMoney.toLocaleString('es-ES')} € y +${prizeFans} fans devotos.`
-            };
-        }
-        return null;
+        const ceremony = createAnnualCeremony(this);
+        applyAnnualAwards(this, ceremony);
+        this.lastAnnualAwardsYear = this.getHistoricalYear();
+        this.pendingAnnualCeremony = ceremony;
+        this.isPaused = true;
+        this.onAnnualAwards?.(ceremony);
+        return ceremony;
     }
 
     // --- OFFICE OWNERSHIP AND PROGRESSION ---
@@ -4787,7 +4834,7 @@ class TycoonGame {
 // A liquidated studio remains readable in historical mode, but cannot make
 // decisions through alternate UI entry points or direct simulation calls.
 const closedCompanyActions = [
-    'updateCompanyProfile', 'registerIP', 'linkGameToIP', 'setIPForSale', 'buyIP', 'sellIP',
+    'updateCompanyProfile', 'registerIP', 'linkGameToIP', 'setIPForSale', 'buyIP', 'sellIP', 'purchaseDevKit',
     'startNewGameProject', 'updateDevSliders', 'acceptProjectOffer', 'negotiateProjectOffer', 'rejectProjectOffer',
     'runProjectMarketing', 'sendStreamerKeys', 'resolveIndustryEvent', 'launchEarlyAccess', 'launchOfficialVersion',
     'enableCommunityWorkshop', 'publishModToolsUpdate', 'deployContentPatch', 'launchBattlePass', 'closeGameServers',
@@ -4799,7 +4846,7 @@ const closedCompanyActions = [
     'setProjectDevMode', 'refactorCodebase', 'refactorTechDebt', 'deployEmergencyPatch'
 ];
 const restrictedInvestments = new Set([
-    'registerIP', 'buyIP', 'startNewGameProject', 'runProjectMarketing', 'sendStreamerKeys',
+    'registerIP', 'buyIP', 'purchaseDevKit', 'startNewGameProject', 'runProjectMarketing', 'sendStreamerKeys',
     'upgradeOffice', 'purchaseOffice', 'hireEmployee', 'refreshCandidatePool', 'trainEmployee',
     'executeExpoAttendance', 'reverseEngineerHardware', 'createCustomEngine',
     'startInHouseEngineRD', 'upgradeInHouseEngine', 'enableCommunityWorkshop',

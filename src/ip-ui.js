@@ -1,3 +1,4 @@
+import { getFranchiseStatus, validateFranchiseRegistration } from './FranchiseSystem.js';
 // Interfaz de gestión de IP; los datos y las validaciones pertenecen a la simulación.
 let context;
 let activeTab = 'own';
@@ -25,6 +26,9 @@ export function refreshIPWizard(game) {
     (game.ipState?.properties || []).filter(ip => ip.ownerId === playerId).forEach(ip => select.add(new Option(ip.name, ip.id)));
     if ([...select.options].some(o => o.value === previous)) select.value = previous;
     type.disabled = !select.value;
+    const originalOption = [...type.options].find(option => option.value === 'original');
+    if (originalOption) originalOption.disabled = !!select.value;
+    if (select.value && type.value === 'original') type.value = 'sequel';
 }
 
 export function initializeIPUI({ game, openModal, showToast, genres = [], topics = [] }) {
@@ -62,19 +66,25 @@ export function initializeIPUI({ game, openModal, showToast, genres = [], topics
             if (select && [...select.options].some(o => o.value === value)) select.value = value;
         }
     });
-    document.getElementById('select-ip')?.addEventListener('change', e => { document.getElementById('select-ip-installment').disabled = !e.target.value; });
+    document.getElementById('select-ip')?.addEventListener('change', e => {
+        const type = document.getElementById('select-ip-installment');
+        type.disabled = !e.target.value;
+        const original = [...type.options].find(option => option.value === 'original');
+        if (original) original.disabled = !!e.target.value;
+        type.value = e.target.value ? 'sequel' : 'original';
+    });
     window.refreshIPPanel = render;
 }
 
 function registerForm() {
-    const games = (context.game.gamesHistory || []).filter(g => !g.ipId);
+    const games = (context.game.gamesHistory || []).filter(g => validateFranchiseRegistration(g).success);
     const cost = context.game.ipState?.settings?.registrationCost ?? 0;
-    return `<section class="ip-panel"><h3>Registrar nueva propiedad intelectual</h3><p>Crea una franquicia o regístrala a partir de un juego publicado sin franquicia. Coste de registro: ${money(cost)}.</p><form class="ip-form" data-ip-form="register"><div class="ip-form-grid"><div class="form-group"><label for="ip-name">Nombre</label><input id="ip-name" class="form-input" name="name" maxlength="100" required></div><div class="form-group"><label for="ip-original">Videojuego original (opcional)</label><select id="ip-original" name="originalGameId" class="form-select">${gameOptions(games,'Sin videojuego original')}</select></div><div class="form-group"><label for="ip-genre">Género original</label><select id="ip-genre" name="originalGenre" class="form-select">${options(context.genres)}</select></div><div class="form-group"><label for="ip-topic">Temática original</label><select id="ip-topic" name="originalTopic" class="form-select">${options(context.topics)}</select></div><div class="form-group"><label for="ip-brand">Identidad de marca</label><input id="ip-brand" class="form-input" name="brandIdentity" maxlength="120" placeholder="Ej.: aventura y exploración"></div><div class="form-group"><label for="ip-description">Descripción</label><textarea id="ip-description" class="form-input" name="description" maxlength="500"></textarea></div></div><button class="dock-btn btn-primary-action" type="submit">Registrar por ${money(cost)}</button></form></section>`;
+    return `<section class="ip-panel"><h3>Registrar franquicia oficial</h3><p>Selecciona un juego publicado sin franquicia con nota mínima de 7,5. Coste: ${money(cost)}.</p><form class="ip-form" data-ip-form="register"><div class="ip-form-grid"><div class="form-group"><label for="ip-name">Nombre</label><input id="ip-name" class="form-input" name="name" maxlength="100" required></div><div class="form-group"><label for="ip-original">Videojuego original</label><select id="ip-original" name="originalGameId" class="form-select" required>${gameOptions(games)}</select></div><div class="form-group"><label for="ip-genre">Género original</label><select id="ip-genre" name="originalGenre" class="form-select">${options(context.genres)}</select></div><div class="form-group"><label for="ip-topic">Temática original</label><select id="ip-topic" name="originalTopic" class="form-select">${options(context.topics)}</select></div><div class="form-group"><label for="ip-brand">Identidad de marca</label><input id="ip-brand" class="form-input" name="brandIdentity" maxlength="120" placeholder="Ej.: aventura y exploración"></div><div class="form-group"><label for="ip-description">Descripción</label><textarea id="ip-description" class="form-input" name="description" maxlength="500"></textarea></div></div><button class="dock-btn btn-primary-action" type="submit" ${games.length ? '' : 'disabled'}>Registrar por ${money(cost)}</button></form></section>`;
 }
 
 function renderOwn() {
     const all = owned();
-    const cards = all.map(ip => `<article class="ip-card"><h3>${text(ip.name)}</h3><p>${text(ip.brandIdentity || 'Sin identidad de marca definida')}</p>${stats(ip)}<p>Valor estimado: <strong>${money(ipValue(ip))}</strong></p><div class="ip-actions"><button type="button" class="dock-btn" data-ip-action="detail" data-id="${text(ip.id)}">Ver ficha</button></div></article>`).join('');
+    const cards = all.map(ip => { const state = getFranchiseStatus(context.game, ip); const color = state.status === 'saturado' ? '#f87171' : state.status === 'listo' ? '#86efac' : '#fcd34d'; return `<article class="ip-card"><h3>${text(ip.name)}</h3><p>${text(ip.brandIdentity || 'Sin identidad de marca definida')}</p><p style="color:${color}">● ${state.status === 'saturado' ? 'Mercado saturado' : state.status === 'listo' ? 'Lista para secuela' : state.status === 'descansando' ? 'Descansando' : 'Sin estrenar'} · ${state.weeksSince === null ? 'Sin lanzamiento' : `${state.weeksSince} semanas desde el último lanzamiento`}</p><p>Fans acumulados de la saga: ${state.fans.toLocaleString('es-ES')}</p>${stats(ip)}<p>Valor estimado: <strong>${money(ipValue(ip))}</strong></p><div class="ip-actions"><button type="button" class="dock-btn" data-ip-action="detail" data-id="${text(ip.id)}">Ver ficha</button></div></article>`; }).join('');
     const ip = all.find(p => p.id === selectedIP);
     return `<div class="ip-layout">${registerForm()}<section><h3>Mis franquicias</h3>${cards ? `<div class="ip-list">${cards}</div>` : '<div class="ip-empty">Todavía no tienes propiedades intelectuales registradas.</div>'}</section>${ip ? renderDetail(ip) : ''}</div>`;
 }

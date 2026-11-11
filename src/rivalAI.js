@@ -189,6 +189,7 @@ function progressProjects(co,game,year,rng){
   const eraFactor=year<1990?160:year<2010?350:950;
   const salesPotential=Math.max(30,Math.floor(Math.pow(score/2.2,3.85)*eraFactor*(project.marketShare+.25)*marketing*trend*benefit.salesMultiplier));
   const title={id:nextId('rival_game'),name:project.name,genre:project.genre,genreId:project.genreId,topic:project.topic,topicId:project.topicId,platform:project.platform,platformId:project.platformId,platformRoyaltyRate:project.platformRoyaltyRate,engineId:project.engineId,score,releaseYear:year,ipId:ip?.id||null,ipReleaseType:project.ipReleaseType,unitsSoldTotal:0,weeklySales:0,weeksOnMarket:0,salesPotential,price:year<1990?12:year<2010?28:55,revenueTotal:0};
+  title.releaseIndustryWeek=game.getIndustryWeek();
   co.games.unshift(title);if(ip)recordRelease(game.ipState,ip.id,title,companyGames(game),{year});
   co.reputation=clamp((co.reputation||50)+(score-5)*1.5,0,100);co.prestige=clamp((co.prestige||50)+(score-5),0,100);
   addHistory(co,game,'GAME_RELEASED',`Publicó ${title.name} con una nota de ${score}.`);finished.push(project.id);
