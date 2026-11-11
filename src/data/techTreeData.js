@@ -10,7 +10,7 @@ const rows = [
     // 1. GRÁFICO (graphics) - 16 características
     // ----------------------------------------------------
     ['graphics_2d_v1', 'Gráficos 2D V.1', 'graphics', 1982, 0, 0, [], 10],
-    ['graphics_2d_v2', 'Gráficos 2D V.2', 'graphics', 1984, 25, 1, ['graphics_2d_v1'], 50],
+    ['graphics_2d_v2', 'Gráficos 2D V.2', 'graphics', 1982, 25, 1, ['graphics_2d_v1'], 50],
     ['graphics_2d_v3', 'Gráficos 2D V.3', 'graphics', 1988, 50, 2, ['graphics_2d_v2'], 100],
     ['graphics_2d_v4', 'Gráficos 2D V.4', 'graphics', 1993, 80, 3, ['graphics_2d_v3'], 140],
     ['graphics_2d_v5', 'Gráficos 2D V.5', 'graphics', 1998, 120, 4, ['graphics_2d_v4'], 180],
@@ -30,7 +30,7 @@ const rows = [
     // 2. HISTORIA / MISIONES (story) - 11 características
     // ----------------------------------------------------
     ['story_linear', 'Historia lineal', 'story', 1982, 0, 0, [], 30],
-    ['story_branching', 'Historia ramificada', 'story', 1985, 25, 1, ['story_linear'], 50],
+    ['story_branching', 'Historia ramificada', 'story', 1982, 25, 1, ['story_linear'], 50],
     ['story_cutscenes_simple', 'Escenas sencillas', 'story', 1987, 25, 1, ['story_linear'], 30],
     ['story_cutscenes_advanced', 'Escenas avanzadas', 'story', 1993, 50, 2, ['story_cutscenes_simple'], 50],
     ['story_fmv', 'Vídeo de movimiento completo', 'story', 1994, 65, 3, ['story_cutscenes_advanced'], 100],
@@ -45,8 +45,8 @@ const rows = [
     // 3. MOTOR (engine) - 11 características
     // ----------------------------------------------------
     ['engine_save_game', 'Guardar Partida', 'engine', 1982, 0, 0, [], 10],
-    ['engine_local_multiplayer', 'Multijugador local', 'engine', 1984, 20, 1, ['engine_save_game'], 30],
-    ['engine_physics_basic', 'Física básica', 'engine', 1983, 20, 1, [], 50],
+    ['engine_local_multiplayer', 'Multijugador local', 'engine', 1982, 20, 1, ['engine_save_game'], 30],
+    ['engine_physics_basic', 'Física básica', 'engine', 1982, 20, 1, [], 50],
     ['engine_video_playback', 'Reproducción de vídeo', 'engine', 1993, 45, 2, [], 50],
     ['engine_physics_advanced', 'Física avanzada', 'engine', 1997, 70, 4, ['engine_physics_basic'], 140],
     ['engine_mod_support', 'Soporte de mods', 'engine', 1999, 50, 3, [], 30],
@@ -59,7 +59,7 @@ const rows = [
     // ----------------------------------------------------
     // 4. JUGABILIDAD (gameplay) - 8 características
     // ----------------------------------------------------
-    ['gameplay_tutorials', 'Tutoriales del juego', 'gameplay', 1984, 15, 1, [], 30],
+    ['gameplay_tutorials', 'Tutoriales del juego', 'gameplay', 1982, 15, 1, [], 30],
     ['gameplay_better_ux', 'Mejor experiencia de usuario', 'gameplay', 1986, 20, 1, ['gameplay_tutorials'], 30],
     ['gameplay_character_progression', 'Progreso de personaje', 'gameplay', 1987, 30, 2, [], 50],
     ['gameplay_skill_tree', 'Árbol de habilidades', 'gameplay', 1994, 55, 3, ['gameplay_character_progression'], 100],
@@ -71,7 +71,7 @@ const rows = [
     // ----------------------------------------------------
     // 5. DIÁLOGOS (dialogues) - 9 características
     // ----------------------------------------------------
-    ['dialogues_improved', 'Diálogos mejorados', 'dialogues', 1984, 15, 1, [], 10],
+    ['dialogues_improved', 'Diálogos mejorados', 'dialogues', 1982, 15, 1, [], 10],
     ['dialogues_tree', 'Árbol de diálogos', 'dialogues', 1988, 35, 2, ['dialogues_improved'], 50],
     ['dialogues_voice_acting', 'Doblaje de voz', 'dialogues', 1995, 65, 4, ['dialogues_tree'], 100],
     ['dialogues_body_lang_simple', 'Lenguaje corporal sencillo', 'dialogues', 1997, 65, 3, ['dialogues_tree'], 100],
@@ -84,7 +84,7 @@ const rows = [
     // ----------------------------------------------------
     // 6. DISEÑO DE NIVEL (level_design) - 7 características
     // ----------------------------------------------------
-    ['level_editor', 'Editor de niveles', 'level_design', 1984, 15, 1, [], 10],
+    ['level_editor', 'Editor de niveles', 'level_design', 1982, 15, 1, [], 10],
     ['level_easter_eggs', 'Huevos de Pascua', 'level_design', 1985, 15, 1, [], 30],
     ['level_minigames', 'Mini-juegos', 'level_design', 1987, 30, 2, [], 50],
     ['level_dynamic_environment', 'Entorno dinámico', 'level_design', 1996, 70, 4, ['level_minigames'], 100],
@@ -95,7 +95,7 @@ const rows = [
     // ----------------------------------------------------
     // 7. INTELIGENCIA ARTIFICIAL (ai) - 6 características
     // ----------------------------------------------------
-    ['ai_improved', 'I.A. Mejorada', 'ai', 1984, 25, 1, [], 50],
+    ['ai_improved', 'I.A. Mejorada', 'ai', 1982, 25, 1, [], 50],
     ['ai_companions', 'Compañeros I.A.', 'ai', 1993, 50, 3, ['ai_improved'], 50],
     ['ai_squad_tactics', 'Tácticas de escuadrón', 'ai', 2000, 85, 4, ['ai_companions'], 130],
     ['ai_dynamic_crowds', 'Multitudes dinámicas', 'ai', 2007, 110, 5, ['ai_improved'], 160],
@@ -117,7 +117,7 @@ const rows = [
     // 9. SONIDO (sound) - 7 características
     // ----------------------------------------------------
     ['sound_mono', 'Sonido Mono', 'sound', 1982, 0, 0, [], 30],
-    ['sound_stereo', 'Sonido Estéreo', 'sound', 1985, 25, 1, ['sound_mono'], 50],
+    ['sound_stereo', 'Sonido Estéreo', 'sound', 1982, 25, 1, ['sound_mono'], 50],
     ['sound_soundtrack_basic', 'Banda sonora', 'sound', 1987, 30, 2, ['sound_stereo'], 50],
     ['sound_surround', 'Sonido envolvente', 'sound', 1996, 65, 3, ['sound_stereo'], 100],
     ['sound_soundtrack_orchestral', 'Banda sonora orquestal', 'sound', 2002, 90, 4, ['sound_soundtrack_basic'], 140],

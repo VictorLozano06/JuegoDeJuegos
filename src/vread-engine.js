@@ -249,6 +249,16 @@ export function generateVreadFeed(game, rng = Math.random) {
     const rivalGames = rivals.flatMap(co => (co.games || []).filter(item => item?.name).map(item => ({ ...item, studio: co.name })));
     const starters = [...OPENERS], endings = [...ENDINGS], people = [...PROFILES];
     const generated = [];
+    const pricedTitle = playerGames.find(title => (title.weeksOnMarket || 0) <= 4 && (title.pricing?.isOverpriced || title.pricing?.isBargain));
+    if (pricedTitle) {
+        const price = Number(pricedTitle.basePrice || 0).toLocaleString('es-ES');
+        const name = cleanLegacyTitle(pricedTitle.name);
+        const text = pricedTitle.pricing.isOverpriced
+            ? `${name} puede estar bien, pero $${price} me parece demasiado para lo que ofrece.`
+            : `${name} por $${price} me parece una ganga. Merece que más gente lo pruebe.`;
+        generated.push({ id: `price-${pricedTitle.id}-${week}`, type: 'reviews', author: 'Precio Justo', handle: 'preciojusto',
+            time: 'Ahora', text, likes: 180, reposts: 24, replies: makeReplies(s, REPLIES.neutral, 3, rng, { exclude: ['preciojusto'] }) });
+    }
     const controversy = s.posts.find(post => post.impact?.backlash && week - post.week <= post.impact.duration && week >= post.week);
     if (controversy) {
         const reactions = [

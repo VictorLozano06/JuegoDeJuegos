@@ -1,4 +1,5 @@
 import { profitWarning, formatGameProfit } from './profit-display.js';
+import { getPricingContext, evaluateLaunchPrice } from './PricingStrategySystem.js';
 import { formatHistoryAllocation } from './production-history-display.js';
 import { AREAS, ensureProduction } from './production.js';
 import { initializeUwuntuOS } from './uwuntu-os.js';
@@ -162,7 +163,6 @@ async function bootGameApp() {
         world = new WorldEngine('canvas-container');
         world.onParkDestination = visitParkBuilding;
         world.loadingScreenActive = Boolean(loadingScreenInstance);
-        world.onNodeClick(on3DNodeClicked);
 
         // Initialize Game Dev Tycoon Sequential Production Flow Controller
         gameDevFlow = new GameDevFlowController({
@@ -172,6 +172,7 @@ async function bootGameApp() {
             onRelease: () => {
                 const releaseBtn = document.getElementById('btn-release-game');
                 if (releaseBtn) releaseBtn.click();
+                return false;
             }
         });
         window.gameDevFlow = gameDevFlow;
@@ -181,9 +182,6 @@ async function bootGameApp() {
 
         // Sync initial character
         world.syncEmployees(game.employees);
-
-        // Initial 3D DAG render
-        world.renderScopeDAG3D(scopeDAG, pipelineManager.getActivePipeline());
 
         // 2. Setup UI Event Listeners & Keyboard Shortcuts
         setupUIControls();
@@ -209,7 +207,7 @@ async function bootGameApp() {
 
         // 3. Populate Modal Dropdowns & DAG Architecture
         populateProjectWizard();
-        initDAGArchitectureUI();
+        renderPipelineSelector();
         preproductionWizard = initializePreproductionWizard({
             game,
             getPipeline: () => pipelineManager.getActivePipeline(),
@@ -631,16 +629,6 @@ function setupKeyboardShortcuts() {
         } else if (key === 'c' || key === 'v') {
             openSalesPanel();
             if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        } else if (key === 'g') {
-            const modalDag = document.getElementById('modal-scope-dag');
-            if (window.studioPhoneNav?.isArchitectureOpen?.()) {
-                window.studioPhoneNav.returnHome();
-            } else if (modalDag && modalDag.classList.contains('active')) {
-                closeAllModals();
-            } else {
-                openArchitecturePanel();
-                if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-            }
         } else if (key === 'p') {
             openCompanyCreatorModal();
         } else if (key === 'm') {
@@ -876,26 +864,6 @@ function setupUIControls() {
         });
     }
 
-    const toggleHoloBtn = document.getElementById('btn-toggle-hologram');
-    if (toggleHoloBtn) {
-        toggleHoloBtn.addEventListener('click', () => {
-            if (!world) return;
-            if (world.scopeDagGroup && world.scopeDagGroup.visible) {
-                world.hideScopeDAG();
-                const holoHud = document.getElementById('hologram-overlay-bar');
-                if (holoHud) holoHud.style.display = 'none';
-                showToast('[[DE_ICON_035]] Proyección 3D apagada. Vista de oficina restaurada.', 'info');
-            } else {
-                const pipe = pipelineManager.getActivePipeline();
-                world.showScopeDAG(scopeDAG, pipe);
-                const holoHud = document.getElementById('hologram-overlay-bar');
-                if (holoHud) holoHud.style.display = 'flex';
-                showToast('[[DE_ICON_020]] Mesa Holográfica 3D activada.', 'info');
-            }
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-
     document.getElementById('btn-upgrade-office').addEventListener('click', () => {
         openOfficePanel();
         document.querySelector('#modal-offices .modal-close')?.focus();
@@ -1009,8 +977,56 @@ function setupUIControls() {
         });
     });
 
-    // Finish / Release Button
+    // Price confirmation is the final step before the existing release flow.
+    const launchPriceForm = document.getElementById('launch-price-form');
+    const launchPriceInput = document.getElementById('launch-price-input');
+    const launchPriceRange = document.getElementById('launch-price-range');
+    const pricingArguments = () => ({
+        project: game.currentProject,
+        employeeCount: game.employees?.length || 1,
+        officeTier: game.getActiveOffice?.()?.tier || 1,
+        reputation: game.reputation ?? game.vreadState?.reputation ?? 50,
+        reviewScore: 7
+    });
+    const updateLaunchPrice = () => {
+        const value = Number(launchPriceInput.value);
+        if (!launchPriceInput.validity.valid || !Number.isFinite(value)) return;
+        launchPriceRange.value = String(value);
+        const result = evaluateLaunchPrice({ ...pricingArguments(), price: value });
+        const category = document.getElementById('launch-price-category');
+        category.dataset.tone = result.isOverpriced ? 'risk' : result.isBargain ? 'bargain' : 'standard';
+        category.textContent = result.isOverpriced ? 'Riesgo de sobreprecio' : result.isBargain ? 'Precio accesible' : 'Estándar del mercado';
+        document.getElementById('launch-price-feedback').textContent = result.isOverpriced
+            ? 'Un precio elevado puede reducir considerablemente las ventas y provocar críticas.'
+            : result.isBargain ? 'Un precio accesible puede atraer a más jugadores, con menos ingreso por copia.'
+                : 'La valoración final puede modificar la demanda prevista.';
+    };
+    launchPriceInput.addEventListener('input', updateLaunchPrice);
+    launchPriceRange.addEventListener('input', () => { launchPriceInput.value = launchPriceRange.value; updateLaunchPrice(); });
+    document.getElementById('launch-price-cancel').addEventListener('click', closeAllModals);
     document.getElementById('btn-release-game').addEventListener('click', () => {
+        const project = game.currentProject;
+        if (!project) return;
+        const free = ['f2p', 'live_service'].includes(project.businessModel);
+        const context = getPricingContext(pricingArguments());
+        const existing = (game.activeSales || []).find(item => item.id === project.earlyAccessGameId);
+        launchPriceInput.value = String(Math.round(existing?.basePrice || project.launchPrice || context.expectedPrice));
+        launchPriceInput.disabled = free;
+        launchPriceRange.disabled = free;
+        document.getElementById('launch-price-control').hidden = free;
+        document.getElementById('launch-price-free').hidden = !free;
+        document.getElementById('launch-price-reference').textContent = `Referencia para este proyecto: $${context.recommendedMin}–$${context.recommendedMax}. La previsión usa una valoración de 7/10.`;
+        updateLaunchPrice();
+        openModal('modal-launch-price');
+        (free ? launchPriceForm.querySelector('[type="submit"]') : launchPriceInput).focus();
+    });
+    launchPriceForm.addEventListener('submit', event => {
+        event.preventDefault();
+        if (!game.currentProject) return;
+        const isFree = ['f2p', 'live_service'].includes(game.currentProject.businessModel);
+        if (!isFree && !launchPriceInput.reportValidity()) return;
+        if (!isFree) game.currentProject.launchPrice = Number(launchPriceInput.value);
+        closeAllModals();
         if (world) {
             world.hideScopeDAG();
         }
@@ -1037,15 +1053,48 @@ function setupUIControls() {
             world.triggerLaunchConfetti();
             updateLiveSalesWidget();
             showReviewModal(releasedGame);
-            if (gameDevFlow) {
+            if (gameDevFlow && !game.currentProject) {
                 if (typeof gameDevFlow.removeWidget === 'function') {
                     gameDevFlow.removeWidget();
                 }
                 gameDevFlow.closeCurrentModal?.();
+                gameDevFlow.project = null;
                 gameDevFlow.state = ProductionLifecycleState.STATE_SETUP;
                 gameDevFlow.updateTopHUD?.();
             }
         }
+    });
+
+    const discountPanel = document.getElementById('hud-sales-discount-panel');
+    const discountButton = document.getElementById('hud-sales-discount-btn');
+    discountButton.addEventListener('click', () => {
+        discountPanel.hidden = !discountPanel.hidden;
+        discountButton.setAttribute('aria-expanded', String(!discountPanel.hidden));
+        updateLiveSalesWidget();
+    });
+    document.getElementById('hud-discount-options').addEventListener('click', event => {
+        const button = event.target.closest('button[data-discount]');
+        if (!button || !currentLiveSalesWidgetGameId) return;
+        const duration = Number(document.getElementById('hud-discount-duration').value);
+        const result = game.startDiscountCampaign(currentLiveSalesWidgetGameId, Number(button.dataset.discount), duration);
+        showToast(result.message, result.success ? 'success' : 'warn');
+        updateLiveSalesWidget();
+    });
+    let discountToEnd = null;
+    document.getElementById('hud-discount-end').addEventListener('click', () => {
+        const title = game.activeSales.find(item => item.id === currentLiveSalesWidgetGameId && item.discountCampaign);
+        if (!title) return;
+        discountToEnd = title.id;
+        document.getElementById('discount-end-game-name').textContent = title.name;
+        document.getElementById('discount-end-dialog').showModal();
+    });
+    document.getElementById('discount-end-form').addEventListener('submit', event => {
+        event.preventDefault();
+        const result = game.endDiscountCampaign(discountToEnd);
+        discountToEnd = null;
+        document.getElementById('discount-end-dialog').close();
+        showToast(result.message, result.success ? 'success' : 'warn');
+        updateLiveSalesWidget();
     });
 
     // Toggle Refactor Mode (Punto 4: [[[DE_ICON_112]] Refactorizar Código])
@@ -1434,121 +1483,6 @@ function updateWizardSynergyBadge() {
     `;
 }
 
-function renderHistoricalGraph(frame = false) {
-    const available = TECH_TREE_NODES.filter(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id));
-    if (!available.length) return false;
-    const minYear = Math.min(...available.map(n => n.eraYear));
-    const maxYear = Math.max(...available.map(n => n.eraYear));
-    const centerYear = (minYear + maxYear) / 2;
-    const categories = ['Graphics', 'Audio', 'Engine', 'Physics', 'AI', 'Network'];
-    const nodes = available.map(n => ({
-        ...n,
-        // 2.4 units per year exceeds the width of the 1.7-unit labels.
-        // Simultaneous nodes occupy separate vertical lanes within the category.
-        pos: [(n.eraYear - centerYear) * 2.4, 2 + categories.indexOf(n.category) * 3 + (n.position.z / 5) * 1.2, 0],
-        prerequisites: n.requiredNodes,
-        state: selectedHistoricalTechs.has(n.id) ? 'active' : 'available'
-    }));
-    world.renderScopeDAG3D(nodes, []);
-    if (frame) {
-        const width = Math.max(8, (maxYear - minYear) * 2.4 + 4);
-        const height = 21;
-        const halfFov = world.camera.fov * Math.PI / 360;
-        const distance = Math.max(height / (2 * Math.tan(halfFov)), width / (2 * Math.tan(halfFov) * world.camera.aspect)) + 10;
-        world.camera.far = Math.max(world.camera.far, distance + 80);
-        world.camera.updateProjectionMatrix();
-        world.controls.maxDistance = Math.max(35, distance + 20);
-        world.targetCamPos = world.cameraDagPos.clone().set(0, 10.5, distance);
-        world.targetLookAt = world.cameraDagTarget.clone().set(0, 10.5, 0);
-    }
-    return true;
-}
-
-function initDAGArchitectureUI() {
-    renderPipelineSelector();
-    renderDAGNodes();
-    updateDAGMetricsUI();
-
-    document.getElementById('btn-historical-graph')?.addEventListener('click', () => {
-        if (!world) return;
-        if (!TECH_TREE_NODES.some(n => n.eraYear <= game.getHistoricalYear() && techTreeManager.isUnlocked(n.id))) { showToast('Investiga tecnologías históricas para verlas en el grafo.', 'warn'); return; }
-        closeAllModals();
-        world.showScopeDAG();
-        renderHistoricalGraph(true);
-        const hud = document.getElementById('hologram-overlay-bar');
-        if (hud) hud.style.display = 'flex';
-        showToast('Grafo histórico: selecciona módulos haciendo clic en ellos.', 'info');
-    });
-
-    // Preset buttons binding (works in both #modal-new-game and #modal-scope-dag)
-    document.querySelectorAll('.preset-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            const presetId = e.currentTarget.getAttribute('data-preset') || e.currentTarget.dataset.preset;
-            if (presetId) {
-                applyDAGPreset(presetId);
-            }
-        });
-    });
-
-    const btn3D = document.getElementById('btn-dag-preview-3d');
-    if (btn3D) {
-        btn3D.addEventListener('click', () => {
-            closeAllModals();
-            const activePipe = pipelineManager.getActivePipeline();
-            if (world) {
-                world.showScopeDAG(scopeDAG, activePipe);
-            }
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'flex';
-            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida. Haz clic en los nodos para configurarlos.', 'info');
-            if (soundEngine && soundEngine.playNodeToggle) {
-                soundEngine.playNodeToggle(true);
-            }
-        });
-    }
-
-    const btnModal3D = document.getElementById('btn-dag-modal-view-3d');
-    if (btnModal3D) {
-        btnModal3D.addEventListener('click', () => {
-            closeAllModals();
-            const activePipe = pipelineManager.getActivePipeline();
-            if (world) {
-                world.showScopeDAG(scopeDAG, activePipe);
-            }
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'flex';
-            showToast('[[DE_ICON_020]] Mesa Holográfica 3D encendida.', 'info');
-            if (soundEngine && soundEngine.playNodeToggle) {
-                soundEngine.playNodeToggle(true);
-            }
-        });
-    }
-
-    const btnReturnEditor = document.getElementById('btn-holo-return-editor');
-    if (btnReturnEditor) {
-        btnReturnEditor.addEventListener('click', () => {
-            if (world) world.hideScopeDAG();
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'none';
-            renderDAGNodes();
-            updateDAGMetricsUI();
-            openModal('modal-new-game');
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-
-    const btnHoloClose = document.getElementById('btn-holo-close');
-    if (btnHoloClose) {
-        btnHoloClose.addEventListener('click', () => {
-            if (world) world.hideScopeDAG();
-            const holoHud = document.getElementById('hologram-overlay-bar');
-            if (holoHud) holoHud.style.display = 'none';
-            showToast('[[DE_ICON_035]] Proyección apagada. Vista normal de oficina restaurada.', 'info');
-            if (soundEngine && soundEngine.playClick) soundEngine.playClick();
-        });
-    }
-}
-
 window.selectPipelineFromModal = function(pipeId) {
     const picked = pipelineManager.availablePipelines.find(p => p.id === pipeId);
     if (picked && picked.type === 'commercial' && game.getHistoricalYear() < (picked.minYear || 1990)) {
@@ -1561,9 +1495,6 @@ window.selectPipelineFromModal = function(pipeId) {
     renderPipelineSelector();
     renderDAGNodes();
     updateDAGMetricsUI();
-    if (world && world.renderScopeDAG3D) {
-        world.renderScopeDAG3D(scopeDAG, activePipe);
-    }
     if (soundEngine && soundEngine.playClick) {
         soundEngine.playClick();
     }
@@ -2241,29 +2172,6 @@ function updateDAGMetricsUI() {
     updateRadarChart('dag-modal-radar-poly', '2', workload);
 }
 
-function on3DNodeClicked(nodeId) {
-    if (nodeId.startsWith('tech_')) {
-        if (!techTreeManager.isUnlocked(nodeId)) return;
-        if (selectedHistoricalTechs.has(nodeId)) selectedHistoricalTechs.delete(nodeId); else selectedHistoricalTechs.add(nodeId);
-        renderHistoricalTechOptions();
-        const node = world.dagNodesMap.get(nodeId);
-        if (node) showToast(`${node.data.name}: ${selectedHistoricalTechs.has(nodeId) ? 'seleccionado' : 'retirado de la selección'}`, 'info');
-        renderHistoricalGraph();
-        return;
-    }
-    const toggleRes = scopeDAG.toggleNode(nodeId);
-    if (!toggleRes.success) {
-        showToast(toggleRes.reason, 'warn');
-        return;
-    }
-    renderDAGNodes();
-    updateDAGMetricsUI();
-    const pipe = pipelineManager.getActivePipeline();
-    world.renderScopeDAG3D(scopeDAG, pipe);
-    const nodeObj = scopeDAG.getNode(nodeId);
-    showToast(`[[DE_ICON_020]] Nodo "${nodeObj ? nodeObj.name : nodeId}" modificado en el DAG.`, 'info');
-}
-
 function setupStageTabs() {
     // Legacy support fallback
 }
@@ -2343,7 +2251,7 @@ function startProjectFromWizard() {
     const workload = scopeDAG.calculateWorkload(activePipeline.frictionMultiplier);
 
     const dagConfig = {
-        selectedNodeIds: Array.from(scopeDAG.selectedNodeIds),
+        selectedNodeIds: Array.from(scopeDAG.selectedNodeIds || []),
         friction: friction,
         workload: workload,
         pipeline: activePipeline
@@ -4427,302 +4335,153 @@ function setupResearchSections() {
     });
 }
 
-function renderResearchSummary(mgr, historicalYear) {
-    const strategicBar = document.getElementById('rd-strategic-bar');
-    const heroContainer = document.getElementById('rd-hero-container');
-    const availableContainer = document.getElementById('rd-available-container');
-    const progressionContainer = document.getElementById('rd-progression-container');
-    if (!strategicBar || !heroContainer || !availableContainer || !progressionContainer) return;
+/* =========================================================================
+   VENTANA DE INVESTIGACIÓN DE TECNOLOGÍAS (ESTILO GAME DEV TYCOON)
+   Catálogo vertical limpio de características listas para investigar.
+   Normas: 0 emojis de sistema, paleta glassmorphism de Dev Empire 3D.
+   ========================================================================= */
 
-    // 1. Strategic Telemetry Bar
-    let eraTag = 'Era 8-bit';
-    let nextEraInfo = '1990 (Era 16/32-bit)';
-    if (historicalYear >= 2015) {
-        eraTag = 'Era Moderna';
-        nextEraInfo = 'Era Actual';
-    } else if (historicalYear >= 2000) {
-        eraTag = 'Era 2000+';
-        nextEraInfo = '2015 (Era Moderna)';
-    } else if (historicalYear >= 1990) {
-        eraTag = 'Era 16/32-bit';
-        nextEraInfo = '2000 (Era 2000+)';
-    }
+let activeTechCategoryFilter = 'all';
 
-    const unlockedCount = mgr.getUnlockedCount();
-    const totalCount = mgr.getTotalCount();
-    const masteryPercent = Math.round((unlockedCount / totalCount) * 100);
-    const activeRes = game.activeResearch;
-
-    strategicBar.innerHTML = `
-        <div class="rd-stat-card">
-            <div class="rd-stat-icon">[[DE_ICON_006]]</div>
-            <div class="rd-stat-info">
-                <div class="rd-stat-label">Puntos de I+D</div>
-                <div class="rd-stat-value">${game.researchPoints.toLocaleString()} RP</div>
-                <div class="rd-stat-sub">Se obtienen al desarrollar y completar tareas</div>
-            </div>
-        </div>
-        <div class="rd-stat-card">
-            <div class="rd-stat-icon gold">[[DE_ICON_066]]</div>
-            <div class="rd-stat-info">
-                <div class="rd-stat-label">Línea Temporal</div>
-                <div class="rd-stat-value">Año ${historicalYear}</div>
-                <div class="rd-stat-sub">${eraTag}</div>
-            </div>
-        </div>
-        <div class="rd-stat-card">
-            <div class="rd-stat-icon green">[[DE_ICON_059]]</div>
-            <div class="rd-stat-info">
-                <div class="rd-stat-label">Dominio Tecnológico</div>
-                <div class="rd-stat-value">${unlockedCount} / ${totalCount}</div>
-                <div class="rd-stat-sub">${masteryPercent}% dominado</div>
-            </div>
-        </div>
-        <div class="rd-stat-card">
-            <div class="rd-stat-icon purple">${activeRes ? '[[DE_ICON_075]]' : '[[DE_ICON_149]]'}</div>
-            <div class="rd-stat-info">
-                <div class="rd-stat-label">Estado del Laboratorio</div>
-                <div class="rd-stat-value">${activeRes ? 'En Desarrollo' : 'Equipo Listo'}</div>
-                <div class="rd-stat-sub">${activeRes ? `"${activeRes.nodeName}" (${activeRes.weeksRemaining} sem)` : 'Listo para nuevo avance'}</div>
-            </div>
-        </div>
-    `;
-
-    // 2. Compute downstream unlocks map
-    const downstreamMap = new Map();
-    mgr.catalog.forEach(node => {
-        const reqs = node.requiredNodes || node.prerequisites || [];
-        reqs.forEach(reqId => {
-            if (!downstreamMap.has(reqId)) downstreamMap.set(reqId, []);
-            downstreamMap.get(reqId).push(node);
-        });
-    });
-
-    // 3. Available nodes to research RIGHT NOW
-    const availableNodes = mgr.catalog
-        .filter(n => {
-            const st = mgr.getNodeState(n.id, historicalYear);
-            return st.canResearch;
-        })
-        .sort((a, b) => {
-            const downA = (downstreamMap.get(a.id) || []).length;
-            const downB = (downstreamMap.get(b.id) || []).length;
-            if (downB !== downA) return downB - downA;
-            return (a.costRP || 30) - (b.costRP || 30);
-        });
-
-    // 4. Hero Next Advance
-    let heroNode = availableNodes[0];
-    if (!heroNode) {
-        heroNode = mgr.catalog
-            .filter(n => !mgr.isUnlocked(n.id))
-            .sort((a, b) => (a.minYear || 1982) - (b.minYear || 1982))[0];
-    }
-
-    if (heroNode) {
-        const heroState = mgr.getNodeState(heroNode.id, historicalYear);
-        const heroDownstream = downstreamMap.get(heroNode.id) || [];
-        const heroUnlocksHtml = heroDownstream.length > 0
-            ? heroDownstream.slice(0, 3).map(n => `<span class="rd-unlock-chip">Habilita: ${n.name}</span>`).join('')
-            : '<span class="rd-unlock-chip">Módulo de producción de alta calidad</span>';
-
-        const branchNames = {
-            graphics: 'Gráfico', story: 'Historia / Misiones', engine: 'Motor', gameplay: 'Jugabilidad',
-            dialogues: 'Diálogos', level_design: 'Diseño de Nivel', ai: 'Inteligencia Artificial',
-            world_design: 'Diseño de Mundo', sound: 'Sonido',
-            render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
-            audio: 'Sonido', content: 'Historia / Misiones', systems: 'Motor'
-        };
-        const branchLabel = branchNames[heroNode.category] || heroNode.category;
-        const canAfford = game.researchPoints >= (heroNode.costRP || 30);
-        const isBusy = !!game.activeResearch;
-
-        let actionBtnText = `[[DE_ICON_006]] Investigar avance (${heroNode.costRP || 30} RP)`;
-        let actionDisabled = false;
-
-        if (isBusy) {
-            actionBtnText = `[[DE_ICON_075]] Laboratorio en curso (${activeRes.weeksRemaining} sem)`;
-            actionDisabled = true;
-        } else if (!heroState.canResearch) {
-            actionBtnText = heroState.isHistoricalLock
-                ? `[[DE_ICON_093]] Bloqueada hasta Año ${heroNode.minYear}`
-                : `[[DE_ICON_093]] Prerrequisitos pendientes`;
-            actionDisabled = true;
-        } else if (!canAfford) {
-            actionBtnText = `[[DE_ICON_006]] Faltan RP (${game.researchPoints} / ${heroNode.costRP || 30} RP)`;
-            actionDisabled = true;
-        }
-
-        heroContainer.innerHTML = `
-            <div class="rd-hero-card">
-                <div class="rd-hero-kicker">
-                    [[DE_ICON_006]] Recomendación Estratégica del Laboratorio
-                </div>
-                <div class="rd-hero-layout">
-                    <div class="rd-hero-main">
-                        <div class="rd-hero-title-row">
-                            <span class="rd-hero-branch-badge">${branchLabel}</span>
-                            <h2 class="rd-hero-title">${heroNode.name}</h2>
-                        </div>
-                        <p class="rd-hero-desc">
-                            ${heroNode.desc || 'Optimiza el rendimiento del motor, amplía el alcance de los proyectos y desbloquea nuevas capacidades de producción.'}
-                        </p>
-                        <div class="rd-hero-unlocks">
-                            <strong style="color: #cbd5e1;">Impacto en I+D:</strong>
-                            ${heroUnlocksHtml}
-                        </div>
-                        <div class="rd-hero-meta-row">
-                            <div class="rd-hero-meta-item">Coste I+D: <strong>${heroNode.costRP || 30} RP</strong></div>
-                            <div class="rd-hero-meta-item">Coste en Motor: <strong>${heroNode.costK || 10}K Cr.</strong></div>
-                            <div class="rd-hero-meta-item">Aparición histórica: <strong>Año ${heroNode.minYear || 1982}</strong></div>
-                        </div>
-                    </div>
-                    <div class="rd-hero-action">
-                        <button type="button" class="rd-btn-hero" id="btn-hero-research" ${actionDisabled ? 'disabled' : ''} onclick="window.startTechResearch('${heroNode.id}')">
-                            ${actionBtnText}
-                        </button>
-                        <small style="color: #94a3b8; font-size: 11px;">
-                            ${canAfford && !isBusy && heroState.canResearch ? 'Inicia la investigación inmediata con tu equipo' : 'Requiere finalizar el proyecto actual y tener RP suficientes'}
-                        </small>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else {
-        heroContainer.innerHTML = `
-            <div class="rd-hero-card">
-                <div class="rd-hero-kicker">[[DE_ICON_149]] Catálogo Completo Dominado</div>
-                <h2 class="rd-hero-title">¡Liderazgo Tecnológico Absoluto!</h2>
-                <p class="rd-hero-desc">Has investigado todas las tecnologías conocidas hasta la fecha. El estudio está a la vanguardia de la industria.</p>
-            </div>
-        `;
-    }
-
-    // 5. Available Technologies Grid
-    if (availableNodes.length === 0) {
-        availableContainer.innerHTML = `
-            <div style="grid-column: 1 / -1; padding: 24px; text-align: center; background: rgba(15, 23, 42, 0.5); border: 1px dashed rgba(255, 255, 255, 0.1); border-radius: 10px;">
-                <p style="color: #94a3b8; font-size: 13px; margin: 0 0 10px 0;">
-                    No hay otras tecnologías listas para investigar en este momento histórico (${historicalYear}).
-                </p>
-                <button type="button" class="dock-btn btn-primary-action" onclick="window.switchLabTab('map')" style="font-weight: 700; margin: 0 auto;">
-                    [[DE_ICON_020]] Explorar Mapa Tecnológico para ver Prerrequisitos
-                </button>
-            </div>
-        `;
-    } else {
-        availableContainer.innerHTML = availableNodes.map(node => {
-            const down = downstreamMap.get(node.id) || [];
-            const unlocksSnippet = down.length > 0
-                ? `<div class="rd-card-unlocks">Habilita: <strong>${down.map(d => d.name).slice(0, 2).join(', ')}${down.length > 2 ? ` (+${down.length - 2})` : ''}</strong></div>`
-                : '';
-            const canAfford = game.researchPoints >= (node.costRP || 30);
-            const isBusy = !!game.activeResearch;
-            const branchNames = {
-                graphics: 'Gráfico', story: 'Historia', engine: 'Motor', gameplay: 'Jugabilidad',
-                dialogues: 'Diálogos', level_design: 'Nivel', ai: 'IA',
-                world_design: 'Mundo', sound: 'Sonido',
-                render: 'Gráfico', physics: 'Jugabilidad', netcode: 'Motor', net: 'Motor',
-                audio: 'Sonido', content: 'Historia', systems: 'Motor'
-            };
-            const branch = branchNames[node.category] || node.category;
-
-            return `
-                <div class="rd-card branch-${node.category}">
-                    <div>
-                        <div class="rd-card-top">
-                            <span class="rd-card-branch">[[DE_ICON_006]] ${branch}</span>
-                            <span class="rd-card-cost">${node.costRP || 30} RP</span>
-                        </div>
-                        <h4 class="rd-card-title">${node.name}</h4>
-                        <p class="rd-card-desc">${node.desc || 'Módulo arquitectónico para videojuegos y motores.'}</p>
-                        ${unlocksSnippet}
-                    </div>
-                    <div class="rd-card-footer">
-                        <span class="rd-card-debt">Motor: <span>${node.costK || 10}K Cr.</span></span>
-                        <button type="button" class="rd-btn-investigate" ${!canAfford || isBusy ? 'disabled' : ''} onclick="window.startTechResearch('${node.id}')">
-                            ${isBusy ? 'Ocupado' : !canAfford ? 'Faltan RP' : 'Investigar'}
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
-    }
-
-    // 6. Studio Technology Progression (9 Categorías del Motor de Videojuegos)
-    const branches = [
-        { id: 'graphics', name: 'Gráfico', icon: '[[DE_ICON_054]]', match: ['graphics', 'render', 'Graphics'] },
-        { id: 'story', name: 'Historia / Misiones', icon: '[[DE_ICON_057]]', match: ['story', 'content'] },
-        { id: 'engine', name: 'Motor', icon: '[[DE_ICON_049]]', match: ['engine', 'systems', 'Engine'] },
-        { id: 'gameplay', name: 'Jugabilidad', icon: '[[DE_ICON_070]]', match: ['gameplay', 'physics', 'Physics'] },
-        { id: 'dialogues', name: 'Diálogos', icon: '[[DE_ICON_024]]', match: ['dialogues'] },
-        { id: 'level_design', name: 'Diseño de Nivel', icon: '[[DE_ICON_055]]', match: ['level_design'] },
-        { id: 'ai', name: 'Inteligencia Artificial', icon: '[[DE_ICON_056]]', match: ['ai', 'AI'] },
-        { id: 'world_design', name: 'Diseño de Mundo', icon: '[[DE_ICON_066]]', match: ['world_design'] },
-        { id: 'sound', name: 'Sonido', icon: '[[DE_ICON_045]]', match: ['sound', 'audio', 'Audio'] }
-    ];
-
-    let leadingBranch = null;
-    let maxUnlocked = -1;
-
-    const branchCardsHtml = branches.map(b => {
-        const inBranch = mgr.catalog.filter(n => b.match.includes(n.category));
-        const total = inBranch.length || 1;
-        const unlocked = inBranch.filter(n => mgr.isUnlocked(n.id)).length;
-        const pct = Math.round((unlocked / total) * 100);
-
-        if (unlocked > maxUnlocked) {
-            maxUnlocked = unlocked;
-            leadingBranch = b.name;
-        }
-
-        return `
-            <div class="rd-branch-bar-card branch-${b.id}">
-                <div class="rd-branch-bar-header">
-                    <span class="rd-branch-bar-name">${b.icon} ${b.name}</span>
-                    <span class="rd-branch-bar-count">${unlocked}/${total} (${pct}%)</span>
-                </div>
-                <div class="rd-progress-track">
-                    <div class="rd-progress-fill" style="width: ${pct}%;"></div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    progressionContainer.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
-            <div>
-                <h4 style="font-size: 15px; font-weight: 800; color: #fff; margin: 0;">
-                    [[DE_ICON_059]] Progreso del Imperio Tecnológico
-                </h4>
-                <p style="font-size: 12px; color: #94a3b8; margin: 2px 0 0 0;">
-                    Especialización del estudio. Rama destacada: <strong style="color: #38bdf8;">${leadingBranch || 'Equilibrado'}</strong>.
-                </p>
-            </div>
-            <div style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3);">
-                Próxima Gran Era: ${nextEraInfo}
-            </div>
-        </div>
-
-        <div class="rd-branches-progress-grid">
-            ${branchCardsHtml}
-        </div>
-
-        <div class="rd-map-cta-banner">
-            <div class="rd-map-cta-text">
-                ¿Quieres explorar todo el mapa de dependencias y planificar tu estrategia a largo plazo?
-            </div>
-            <button type="button" class="rd-btn-map-cta" onclick="window.switchLabTab('map')">
-                [[DE_ICON_020]] Explorar Mapa Tecnológico Completo →
-            </button>
-        </div>
-    `;
+function safeTechHtml(str) {
+    return String(str ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
 }
 
-function renderTechTree() {
-    setupResearchSections();
-    setupTechBranchFilterTabs();
+const TECH_CATEGORY_META = {
+    all: { label: 'Todas', icon: '[[DE_ICON_006]]', color: '#38bdf8' },
+    graphics: { label: 'Gráfico', icon: '[[DE_ICON_054]]', color: '#0284c7' },
+    engine: { label: 'Motor', icon: '[[DE_ICON_049]]', color: '#f97316' },
+    gameplay: { label: 'Jugabilidad', icon: '[[DE_ICON_070]]', color: '#10b981' },
+    story: { label: 'Historia', icon: '[[DE_ICON_057]]', color: '#8b5cf6' },
+    dialogues: { label: 'Diálogos', icon: '[[DE_ICON_024]]', color: '#ec4899' },
+    level_design: { label: 'Nivel', icon: '[[DE_ICON_055]]', color: '#06b6d4' },
+    ai: { label: 'IA', icon: '[[DE_ICON_056]]', color: '#6366f1' },
+    world_design: { label: 'Mundo', icon: '[[DE_ICON_066]]', color: '#14b8a6' },
+    sound: { label: 'Sonido', icon: '[[DE_ICON_045]]', color: '#3b82f6' }
+};
 
+function normalizeTechCategory(rawCategory) {
+    if (!rawCategory) return 'engine';
+    const c = String(rawCategory).toLowerCase();
+    if (['graphics', 'render'].includes(c)) return 'graphics';
+    if (['story', 'content'].includes(c)) return 'story';
+    if (['engine', 'systems', 'netcode', 'net', 'network'].includes(c)) return 'engine';
+    if (['gameplay', 'physics'].includes(c)) return 'gameplay';
+    if (['dialogues', 'dialogue'].includes(c)) return 'dialogues';
+    if (['level_design', 'level'].includes(c)) return 'level_design';
+    if (['ai'].includes(c)) return 'ai';
+    if (['world_design', 'world'].includes(c)) return 'world_design';
+    if (['sound', 'audio'].includes(c)) return 'sound';
+    return c;
+}
+
+const TECH_DESCRIPTIONS = {
+    // 1. Gráficos
+    graphics_2d_v1: 'Gráficos básicos en 2D basados en mapas de tiles y paleta de color reducida.',
+    graphics_2d_v2: 'Motor de sprites avanzado con múltiples planos de profundidad y animación fluida.',
+    graphics_2d_v3: 'Rasterizado 2D de alta resolución con efectos de sombreado y transparencias.',
+    graphics_2d_v4: 'Capas ilimitadas de scroll, iluminación dinámica 2D y aceleración por hardware.',
+    graphics_2d_v5: 'Efectos de posprocesado, partículas dinámicas y soporte para pantallas de alta densidad.',
+    graphics_3d_v1: 'Primeros modelos tridimensionales poligonales con sombreado plano (Flat Shading).',
+    graphics_3d_v2: 'Mapeado de texturas sobre polígonos, filtrado bilineal y corrección de perspectiva.',
+    graphics_3d_v3: 'Iluminación especular, texturas de alta resolución y modelos de mayor densidad poligonal.',
+    graphics_3d_v4: 'Shaders programables por píxel y vértice, sombras suaves y normal mapping.',
+    graphics_3d_v5: 'Iluminación global en tiempo real, oclusión ambiental (SSAO) y física de partículas 3D.',
+    graphics_3d_v6: 'Renderizado físicamente correcto (PBR), mallas hiperdetalladas y reflejos en espacio de pantalla.',
+    graphics_3d_v7: 'Fotorrealismo cinematográfico, geometría de micro-polígonos virtualizada e iluminación global difusa.',
+    graphics_3d_stereoscopic: 'Soporte estereoscópico para renderizado dual con efecto de profundidad real.',
+    graphics_ray_tracing: 'Trazado de rayos físico en tiempo real para iluminación, sombras y reflejos hiperrealistas.',
+    graphics_ai_upscaling: 'Reconstrucción de resolución mediante redes neuronales aceleradas por silicio.',
+    graphics_vr: 'Renderizado de baja latencia con alta tasa de refresco optimizado para cascos de Realidad Virtual.',
+
+    // 2. Historia / Misiones
+    story_linear: 'Estructura narrativa fija guiada por eventos secuenciales predefinidos.',
+    story_branching: 'Ramas narrativas divergentes con múltiples finales según las decisiones del jugador.',
+    story_cutscenes_simple: 'Secuencias cinematográficas con diálogos estáticos para enfatizar momentos clave.',
+    story_cutscenes_advanced: 'Cinemáticas dinámicas animadas con planos cinematográficos y música sincronizada.',
+    story_fmv: 'Vídeo pregrabado con actores reales comprimido e integrado en la aventura interactiva.',
+    story_interactive: 'Trama reactiva donde las acciones del jugador alteran activamente el desarrollo del guión.',
+    story_moral_choices: 'Sistema de dilemas morales y alineamiento ético que transforma las relaciones.',
+    story_immersive_narrative: 'Narrativa integrada en el propio escenario y jugabilidad sin interrumpir la inmersión.',
+    story_reactive_quests: 'Misiones secundarias que evolucionan según el estado del mundo y decisiones pasadas.',
+    story_nemesis_system: 'Rivales y antagonistas que recuerdan sus enfrentamientos previos y desarrollan venganzas.',
+    story_procedural_quests: 'Generación algorítmica de historias y contratos emergentes adaptados al jugador.',
+
+    // 3. Motor
+    engine_save_game: 'Sistema de almacenamiento del progreso del jugador en memoria persistente o disco.',
+    engine_local_multiplayer: 'Soporte para múltiples mandos y pantalla dividida en la misma consola u ordenador.',
+    engine_physics_basic: 'Cálculo cinemático simple de colisiones de cajas y aceleración por gravedad.',
+    engine_video_playback: 'Descompresor de vídeo por software integrado para intros y cinemáticas del motor.',
+    engine_physics_advanced: 'Cálculo de cuerpos rígidos, fricción, masa y cinemática inversa en tiempo real.',
+    engine_mod_support: 'Arquitectura modular abierta con soporte de scripts comunitarios y carga de complementos.',
+    engine_online_play: 'Protocolo de red UDP cliente-servidor para partidas a través de Internet.',
+    engine_fast_loading: 'Compresión en streaming de datos y precarga inteligente para minimizar tiempos de espera.',
+    engine_dedicated_servers: 'Infraestructura de servidores dedicados para partidas masivas de baja latencia.',
+    engine_rollback_netcode: 'Predicción determinista de frames en red para eliminar el retardo de input en partidas online.',
+    engine_crossplay: 'Capa de abstracción de red universal para juego cooperativo y competitivo entre plataformas.',
+
+    // 4. Jugabilidad
+    gameplay_tutorials: 'Guías interactivas para enseñar al jugador las mecánicas básicas de forma intuitiva.',
+    gameplay_better_ux: 'Diseño de interfaz optimizado, respuesta háptica al puntero y tiempos de reacción pulidos.',
+    gameplay_character_progression: 'Acumulación de experiencia, niveles y estadísticas que potencian al protagonista.',
+    gameplay_skill_tree: 'Matriz visual de bifurcaciones de habilidades para personalizar el estilo de juego.',
+    gameplay_coop: 'Mecánicas cooperativas donde varios jugadores colaboran resolviendo puzles o combatiendo.',
+    gameplay_physics_combat: 'Golpes, inercias e impactos calculados dinámicamente por la simulación física.',
+    gameplay_photo_mode: 'Herramienta de cámara libre con filtros, profundidad de campo y captura panorámica.',
+    gameplay_haptic_feedback: 'Vibración de alta definición que transmite texturas, disparos e impactos al mando.',
+
+    // 5. Diálogos
+    dialogues_improved: 'Subtítulos legibles, tiempos de respuesta ajustados y cajas de diálogo con personalidad.',
+    dialogues_tree: 'Grafos interactivos de conversación que desbloquean opciones según la afinidad o carisma.',
+    dialogues_voice_acting: 'Grabaciones de voz profesional que dan vida y personalidad a los personajes.',
+    dialogues_body_lang_simple: 'Animaciones faciales básicas y poses corporales sincronizadas con las frases.',
+    dialogues_celebrity_voices: 'Reparto con actores consagrados del cine y la televisión para impulsar la repercusión.',
+    dialogues_body_lang_adv: 'Gesticulación natural con transiciones suaves según el estado anímico del interlocutor.',
+    dialogues_lip_sync: 'Sincronización labial fonética automática calculada a partir de las ondas de audio.',
+    dialogues_body_lang_real: 'Microexpresiones corporales, posturas de tensión y miradas creíbles en cada escena.',
+    dialogues_facial_capture: 'Captura de movimiento de músculos faciales en 3D para una expresividad hiperrealista.',
+
+    // 6. Diseño de Nivel
+    level_editor: 'Herramienta interna para diseñar y probar escenarios de forma ágil y visual.',
+    level_easter_eggs: 'Secretos ocultos, pasajes secretos y guiños nostálgicos para recompensar al explorador.',
+    level_minigames: 'Breves desafíos alternativos integrados en el mundo que aportan variedad al ritmo jugable.',
+    level_dynamic_environment: 'Elementos del nivel reactivos a la acción: coberturas destructibles, fuego y trampas.',
+    level_seamless_loading: 'Carga en segundo plano de zonas contiguas que elimina las pantallas de transición.',
+    level_parkour: 'Sistema de movimiento fluido que permite escalar cornisas, deslizarse y correr por paredes.',
+    level_procedural: 'Algoritmos generativos para crear mazmorras y mapas infinitos únicos en cada partida.',
+
+    // 7. Inteligencia Artificial
+    ai_improved: 'Patrones de movimiento más inteligentes y respuestas reactivas a la posición del jugador.',
+    ai_companions: 'Aliados controlados por la máquina que asisten eficazmente al jugador durante la aventura.',
+    ai_squad_tactics: 'Enemigos que se comunican, flanquean y se coordinan como una unidad táctica.',
+    ai_dynamic_crowds: 'Simulación de multitudes con navegación autónoma, pánico y rutinas creíbles.',
+    ai_self_learning: 'Adversarios que analizan las estrategias del jugador y adaptan sus contraataques.',
+    ai_living_npcs: 'Habitantes del mundo con vidas virtuales, horarios, relaciones familiares y memorias.',
+
+    // 8. Diseño de Mundo
+    world_open_world: 'Mapa gigantesco explorable con total libertad sin barreras artificiales.',
+    world_day_night: 'Ciclo temporal continuo con cambio de iluminación ambiental y rutinas de criaturas.',
+    world_virtual_economy: 'Precios dinámicos basados en la oferta y la demanda de recursos entre regiones del juego.',
+    world_realistic_weather: 'Tormentas, niebla, lluvia y nieve que afectan la visibilidad y el control del personaje.',
+    world_dynamic_world: 'Poblaciones que crecen, guerras territoriales y eventos mundiales que alteran el mapa.',
+    world_destruction: 'Física de demolición integral de estructuras y deformación del terreno en tiempo real.',
+    world_living_ecosystems: 'Fauna y flora interactiva con cadenas tróficas y migraciones autónomas.',
+
+    // 9. Sonido
+    sound_mono: 'Salida de audio mono básica para efectos y pitidos chiptune iniciales.',
+    sound_stereo: 'Canales estéreo izquierdo y derecho para una sensación de espacio acústico elemental.',
+    sound_soundtrack_basic: 'Melodías temáticas pegadizas diseñadas para acompañar cada fase del juego.',
+    sound_surround: 'Canales envolventes 5.1 con posicionamiento direccional de disparos y pasos.',
+    sound_soundtrack_orchestral: 'Grabación de banda sonora sinfónica real con orquesta filarmónica.',
+    sound_spatial_3d: 'Audio binaural posicional calculado por oclusión, difracción y acústica geométrica.',
+    sound_adaptive_music: 'Pistas musicales multinivel que cambian de intensidad según el combate o la calma.'
+};
+
+function renderTechTree() {
     const mgr = game?.techTreeManager || techTreeManager;
     if (!game || !mgr) return;
 
@@ -4738,55 +4497,205 @@ function renderTechTree() {
 
     const historicalYear = game.getHistoricalYear ? game.getHistoricalYear() : (1981 + game.year);
 
-    // 1. Render Summary View (Always kept fresh)
-    renderResearchSummary(mgr, historicalYear);
+    // 1. Header Badges
+    const rpHeader = document.getElementById('rd-header-rp');
+    if (rpHeader) {
+        rpHeader.textContent = `${(game.researchPoints || 0).toLocaleString('es-ES')} RP`;
+    }
 
-    // 2. Render Secondary DAG Map
-    renderResearchMap(mgr, historicalYear);
+    const yearHeader = document.getElementById('rd-header-year');
+    if (yearHeader) {
+        yearHeader.textContent = `Año ${historicalYear}`;
+    }
 
-    // 3. Render In-house Engine Management & Launcher
-    const enginePanel = document.getElementById('engine-management-container');
-    if (enginePanel) {
-        const rd = game.activeEngineRD;
-        const engineCards = (game.inHouseEngines || []).map(engine => {
-            const efficiency = engine.getEfficiency ? Math.round(engine.getEfficiency(game.year, game.week) * 100) : 100;
-            const featCount = (engine.features || engine.bakedNodes || []).length;
-            return `<div class="active-research-card" style="margin-bottom:8px"><strong>${engine.name}</strong><span style="margin-left:10px;color:${efficiency < 80 ? 'var(--accent-gold)' : 'var(--accent-green)'}">Modernidad ${efficiency}%</span><div style="font-size:11px;color:var(--text-secondary);margin:4px 0">Características: ${featCount} módulos integrados · Licencias activas: ${(engine.licensees || []).length}</div><button type="button" class="dock-btn" onclick="licenseStudioEngine('${engine.id}')">Licenciar a estudio</button></div>`;
-        }).join('');
-
-        const launcherCardHtml = `
-            <div class="engine-create-launcher-card" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 20px;">[[DE_ICON_015]]</span>
-                    <div>
-                        <strong style="color: #fff; font-size: 13px;">Creación de Motor Modular</strong>
-                        <p style="color: var(--text-secondary); font-size: 11px; margin: 2px 0 0 0;">
-                            Crea un motor nuevo con gráficos, sonido, físicas, historia y más.
-                        </p>
+    // 2. Active Research Banner (visible únicamente si hay investigación en curso)
+    const activeBanner = document.getElementById('rd-active-banner');
+    if (activeBanner) {
+        const activeRes = game.activeResearch;
+        if (activeRes) {
+            const weeksText = activeRes.weeksRemaining === 1 ? '1 semana restante' : `${activeRes.weeksRemaining} semanas restantes`;
+            activeBanner.style.display = 'block';
+            activeBanner.innerHTML = `
+                <div class="rd-active-inner">
+                    <div class="rd-active-left">
+                        <div class="rd-active-spinner">[[DE_ICON_075]]</div>
+                        <div>
+                            <div class="rd-active-title">Investigando: <strong>${safeTechHtml(activeRes.nodeName)}</strong></div>
+                            <div class="rd-active-meta">${weeksText} · Progreso: ${activeRes.progress || 0}%</div>
+                        </div>
+                    </div>
+                    <div class="rd-active-progress-wrap">
+                        <div class="rd-active-progress-bar" style="width: ${activeRes.progress || 0}%;"></div>
                     </div>
                 </div>
-                <button type="button" class="dock-btn btn-primary-action" id="btn-open-engine-modal-tab" style="font-weight: 700; padding: 8px 16px; font-size: 13px;">
-                    [[DE_ICON_015]] Crear Nuevo Motor
+            `;
+        } else {
+            activeBanner.style.display = 'none';
+            activeBanner.innerHTML = '';
+        }
+    }
+
+    // 3. Tecnologías Disponibles AHORA (Mecánica Game Dev Tycoon)
+    // Solo aparecen las tecnologías que se pueden investigar inmediatamente:
+    // - No desbloqueadas aún
+    // - Año histórico actual alcanzado (minYear <= historicalYear)
+    // - Todos los prerrequisitos cumplidos
+    const availableNodes = mgr.catalog
+        .filter(node => {
+            if (mgr.isUnlocked(node.id)) return false;
+            const st = mgr.getNodeState(node.id, historicalYear);
+            return st.canResearch;
+        })
+        .sort((a, b) => {
+            const costDiff = (a.costRP || 0) - (b.costRP || 0);
+            if (costDiff !== 0) return costDiff;
+            return (a.minYear || 1982) - (b.minYear || 1982);
+        });
+
+    // 4. Barra de Filtros por Categoría
+    const filterBar = document.getElementById('rd-category-filters');
+    if (filterBar) {
+        const categories = Object.keys(TECH_CATEGORY_META);
+        filterBar.innerHTML = categories.map(catKey => {
+            const meta = TECH_CATEGORY_META[catKey];
+            const count = catKey === 'all'
+                ? availableNodes.length
+                : availableNodes.filter(n => normalizeTechCategory(n.category) === catKey).length;
+            const isActive = activeTechCategoryFilter === catKey;
+            return `
+                <button type="button" class="rd-filter-pill ${isActive ? 'active' : ''}" data-category="${catKey}">
+                    <span>${meta.icon}</span>
+                    <span>${meta.label}</span>
+                    <span class="rd-filter-count">${count}</span>
                 </button>
-            </div>
-        `;
+            `;
+        }).join('');
 
-        enginePanel.innerHTML = `
-            ${launcherCardHtml}
-            ${rd ? `<div class="active-research-card" style="margin-bottom:10px"><strong>[[DE_ICON_015]] I+D de motor: ${rd.name}</strong><div style="font-size:12px;color:var(--accent-cyan)">Quedan ${rd.weeksRemaining} semanas · ${rd.progress}%</div><div class="research-progress-bar"><div class="research-progress-fill" style="width:${rd.progress}%"></div></div></div>` : ''}
-            ${engineCards ? `<h3 style="font-size:14px;color:var(--accent-gold);margin:10px 0">Motores de la empresa</h3>${engineCards}` : '<div style="font-size:12px;color:var(--text-secondary);padding:10px 0;">No tienes motores propios desarrollados. Pulsa en "Crear Nuevo Motor" para iniciar uno.</div>'}
-        `;
-
-        const btnTabOpen = document.getElementById('btn-open-engine-modal-tab');
-        if (btnTabOpen) {
-            btnTabOpen.addEventListener('click', () => {
-                EngineCreationModal.open();
+        if (filterBar.dataset.bound !== 'true') {
+            filterBar.dataset.bound = 'true';
+            filterBar.addEventListener('click', (e) => {
+                const btn = e.target.closest('.rd-filter-pill');
+                if (!btn || !btn.dataset.category) return;
+                activeTechCategoryFilter = btn.dataset.category;
+                renderTechTree();
             });
         }
     }
 
-    // 4. Banco de Análisis de Hardware Rival (Ingeniería Inversa)
-    renderHardwareWorkbench(mgr, historicalYear);
+    // 5. Lista de Tarjetas de Tecnologías Disponibles
+    const availableContainer = document.getElementById('rd-available-container');
+    if (availableContainer) {
+        const displayedNodes = activeTechCategoryFilter === 'all'
+            ? availableNodes
+            : availableNodes.filter(n => normalizeTechCategory(n.category) === activeTechCategoryFilter);
+
+        if (displayedNodes.length === 0) {
+            const isAll = activeTechCategoryFilter === 'all';
+            const catMeta = TECH_CATEGORY_META[activeTechCategoryFilter] || { label: 'Categoría' };
+            availableContainer.innerHTML = `
+                <div class="rd-empty-state">
+                    <div class="rd-empty-icon">[[DE_ICON_006]]</div>
+                    <h3 class="rd-empty-title">${isAll ? 'Sin investigaciones disponibles' : `${catMeta.label} al día`}</h3>
+                    <p class="rd-empty-desc">
+                        ${isAll
+                            ? `Has investigado todas las tecnologías desbloqueadas hasta el Año ${historicalYear}. Avanza en el calendario para desbloquear nuevas innovaciones de la siguiente época.`
+                            : `No hay tecnologías listas para investigar en ${catMeta.label} en este momento histórico. Elige otra categoría o avanza de año.`}
+                    </p>
+                </div>
+            `;
+        } else {
+            const isBusy = !!game.activeResearch;
+            const currentRP = game.researchPoints || 0;
+
+            availableContainer.innerHTML = `<div class="rd-cards-list">` + displayedNodes.map(node => {
+                const catNorm = normalizeTechCategory(node.category);
+                const meta = TECH_CATEGORY_META[catNorm] || { label: node.category, color: '#38bdf8', icon: '[[DE_ICON_006]]' };
+                const desc = TECH_DESCRIPTIONS[node.id] || node.desc || 'Módulo arquitectónico para motores y videojuegos.';
+                const costRP = node.costRP || 0;
+                const canAfford = currentRP >= costRP;
+
+                let actionBtnText = 'Investigar';
+                let actionDisabled = false;
+
+                if (isBusy) {
+                    actionBtnText = 'Ocupado';
+                    actionDisabled = true;
+                } else if (!canAfford) {
+                    actionBtnText = `Faltan RP (${currentRP}/${costRP})`;
+                    actionDisabled = true;
+                }
+
+                return `
+                    <div class="rd-item-card" style="--cat-accent: ${meta.color};">
+                        <div class="rd-item-left">
+                            <span class="rd-item-cat-badge" style="background: ${meta.color}22; color: ${meta.color}; border: 1px solid ${meta.color}44;">
+                                ${meta.icon} ${meta.label}
+                            </span>
+                            <div class="rd-item-info">
+                                <h3 class="rd-item-name">${safeTechHtml(node.name)}</h3>
+                                <div class="rd-item-desc">${safeTechHtml(desc)}</div>
+                                <div class="rd-item-meta-line">
+                                    <span>Coste en motor: <strong>${node.costK || 10}K Cr.</strong></span>
+                                    <span>Aparición: <strong>Año ${node.minYear || node.eraYear || 1982}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="rd-item-right">
+                            <div class="rd-item-rp-pill" title="Coste en Puntos de Investigación">
+                                <span>[[DE_ICON_006]]</span>
+                                <strong>${costRP} RP</strong>
+                            </div>
+                            <button type="button" class="rd-card-action-btn" ${actionDisabled ? 'disabled' : ''} onclick="window.startTechResearch('${node.id}')">
+                                ${actionBtnText}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('') + `</div>`;
+        }
+    }
+
+    // 6. Tecnologías ya investigadas (Cajón inferior desplegable)
+    const unlockedCountEl = document.getElementById('rd-unlocked-count');
+    const unlockedCount = mgr.getUnlockedCount();
+    if (unlockedCountEl) {
+        unlockedCountEl.textContent = unlockedCount;
+    }
+
+    const unlockedContainer = document.getElementById('rd-unlocked-container');
+    if (unlockedContainer) {
+        const unlockedList = mgr.catalog
+            .filter(n => mgr.isUnlocked(n.id))
+            .sort((a, b) => (a.minYear || 1982) - (b.minYear || 1982));
+
+        if (unlockedList.length === 0) {
+            unlockedContainer.innerHTML = '<div style="font-size: 11px; color: #64748b; padding: 8px;">Aún no has investigado tecnologías adicionales.</div>';
+        } else {
+            unlockedContainer.innerHTML = unlockedList.map(node => {
+                const catNorm = normalizeTechCategory(node.category);
+                const meta = TECH_CATEGORY_META[catNorm] || { label: node.category };
+                return `
+                    <div class="rd-unlocked-chip">
+                        <span class="rd-unlocked-chip-icon">[[DE_ICON_149]]</span>
+                        <span class="rd-unlocked-chip-name" title="${safeTechHtml(node.name)}">${safeTechHtml(node.name)}</span>
+                        <span class="rd-unlocked-chip-cat">${meta.label}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+    }
+
+    // Vinculación del toggle del cajón de investigadas
+    const toggleUnlockedBtn = document.getElementById('btn-toggle-unlocked-tech');
+    const unlockedDrawer = document.getElementById('rd-unlocked-drawer');
+    if (toggleUnlockedBtn && unlockedDrawer && toggleUnlockedBtn.dataset.bound !== 'true') {
+        toggleUnlockedBtn.dataset.bound = 'true';
+        toggleUnlockedBtn.addEventListener('click', () => {
+            const isHidden = unlockedDrawer.style.display === 'none' || unlockedDrawer.style.display === '';
+            unlockedDrawer.style.display = isHidden ? 'block' : 'none';
+            toggleUnlockedBtn.classList.toggle('active', isHidden);
+        });
+    }
 }
 
 /* =========================================================================
@@ -6219,6 +6128,42 @@ function updateLiveSalesWidget() {
 
     document.getElementById('hud-sales-title').innerText = target.name || 'Videojuego';
     document.getElementById('hud-sales-genre-topic').innerText = `${target.genre || ''} • ${target.topic || ''} (${target.platform || 'PC'})`;
+    const campaign = target.discountCampaign;
+    const basePrice = Number(target.basePrice) || 0;
+    const currentPrice = target.businessModel === 'early_access' && !target.officialReleased
+        ? (Number(target.referencePrice) || basePrice) * 0.65
+        : campaign ? basePrice * (1 - campaign.percent / 100) : basePrice;
+    document.getElementById('hud-sales-price').textContent = basePrice > 0
+        ? `Precio: $${currentPrice.toFixed(2)}${campaign ? ` (antes $${basePrice.toFixed(2)})` : ''}` : 'Juego gratuito';
+    const saleBadge = document.getElementById('hud-sales-sale-badge');
+    saleBadge.hidden = !campaign;
+    saleBadge.textContent = campaign ? `OFERTA -${campaign.percent}% · ${campaign.weeksRemaining} sem.` : '';
+    const discountPanel = document.getElementById('hud-sales-discount-panel');
+    const discountBtn = document.getElementById('hud-sales-discount-btn');
+    if (discountPanel.dataset.gameId !== String(target.id)) {
+        discountPanel.dataset.gameId = target.id;
+        discountPanel.hidden = true;
+        discountBtn.setAttribute('aria-expanded', 'false');
+    }
+    if (!discountPanel.hidden) {
+        const status = game.getDiscountStatus(target.id);
+        document.getElementById('hud-discount-status').textContent = status.eligible
+            ? 'Elige la duración y el descuento para este juego.' : campaign
+                ? `Oferta activa: quedan ${campaign.weeksRemaining} ${campaign.weeksRemaining === 1 ? 'semana' : 'semanas'}.`
+                : (status.reason || 'La oferta no está disponible todavía.');
+        document.getElementById('hud-discount-duration').disabled = !status.eligible;
+        document.getElementById('hud-discount-end').hidden = !campaign;
+        const options = document.getElementById('hud-discount-options');
+        options.replaceChildren();
+        for (const percent of [15, 25, 50, 75]) {
+            const button = document.createElement('button');
+            button.type = 'button'; button.dataset.discount = String(percent); button.disabled = !status.eligible;
+            const amount = Math.max(0, basePrice * (1 - percent / 100) * (status.netPriceFactor ?? 1));
+            button.textContent = `−${percent}%`;
+            const estimate = document.createElement('span'); estimate.textContent = `$${amount.toFixed(2)} / copia`;
+            button.append(estimate); options.append(button);
+        }
+    }
 
     // Metrics
     const totalUnits = target.unitsSoldTotal || target.installationsTotal || 0;
@@ -6333,7 +6278,10 @@ function renderLiveSalesCanvas(target) {
 
         // Gradient & styling per bar type
         const grad = ctx.createLinearGradient(0, y, 0, y + barH);
-        if (d.viralMultiplier > 1.25) {
+        if (d.discountPercent > 0) {
+            grad.addColorStop(0, '#f9d36a');
+            grad.addColorStop(1, '#bd761b');
+        } else if (d.viralMultiplier > 1.25) {
             // Viral hit / Streamer boost (Gold)
             grad.addColorStop(0, '#fbbf24');
             grad.addColorStop(1, '#b45309');

@@ -192,36 +192,6 @@ export const APP_ICONS = {
 
 // 3. COMPLETE APPLICATIONS DIRECTORY
 export const UWUNTU_APPS = [
-    // PRODUCCIÓN
-    {
-        id: 'app-architecture',
-        title: 'Arquitectura & Deuda Técnica',
-        shortTitle: 'Arquitectura',
-        category: 'Producción',
-        modalId: 'modal-scope-dag',
-        icon: APP_ICONS.architecture,
-        badgeColor: '#6366f1',
-        defaultWidth: 960,
-        defaultHeight: 680,
-        onOpen: () => {
-            window.refreshArchitecturePanel?.();
-        }
-    },
-    {
-        id: 'app-graph-3d',
-        title: 'Visualizador Grafo 3D',
-        shortTitle: 'Grafo 3D',
-        category: 'Producción',
-        isDirectAction: true,
-        icon: APP_ICONS.graph3d,
-        badgeColor: '#06b6d4',
-        action: () => {
-            window.uwuntuOS?.close();
-            const btn = document.getElementById('btn-toggle-hologram');
-            if (btn) btn.click();
-        }
-    },
-
     // MERCADO
     {
         id: 'app-marketing',
@@ -577,7 +547,7 @@ export class UwuntuOS {
 
         // Store installed apps catalog (Vread starts NOT installed until downloaded from Store)
         const defaultInstalled = [
-            'app-store', 'app-architecture', 'app-graph-3d', 'app-marketing',
+            'app-store', 'app-marketing',
             'app-liveops', 'app-rivals', 'app-studio', 'app-offices',
             'app-ip', 'app-workshop', 'app-guide', 'app-admin', 'app-os-update'
         ];
@@ -4045,7 +4015,6 @@ function renderGuideAppContent(container) {
                     <ul class="guide-shortcuts">
                         <li><kbd>O</kbd> <span>Abrir / Cerrar Uwuntu XD</span></li>
                         <li><kbd>N</kbd> <span>Nuevo Videojuego</span></li>
-                        <li><kbd>G</kbd> <span>Arquitectura DAG</span></li>
                         <li><kbd>R</kbd> <span>Investigación (I+D)</span></li>
                         <li><kbd>H</kbd> <span>Personal y Equipo</span></li>
                         <li><kbd>C</kbd> <span>Ventas y Top 10</span></li>
