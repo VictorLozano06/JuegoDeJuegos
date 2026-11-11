@@ -24,18 +24,16 @@ export function buildModernOffice(world, THREE) {
     const plants = [];
 
     const matte = (color, roughness = 0.82) => new THREE.MeshStandardMaterial({ color, roughness });
-    const floor = matte(0x777b76);
+    const floor = matte(0xffffff);
     const walls = matte(0xe3ddd0);
     const timber = matte(0xb48759);
     const walnut = matte(0x76573d);
     const aluminum = matte(0x343c41, 0.58);
-    const teal = matte(0x3b7068);
-    const felt = matte(0x465e5a);
+    const felt = matte(0xbaa89a);
     const ceramic = matte(0xd6c0a2);
     const warmWhite = matte(0xf2efe7);
     const graphite = matte(0x242d33);
     const screen = new THREE.MeshBasicMaterial({ map: world.createAnimatedMonitorCanvas('code') });
-    const wallBoard = new THREE.MeshStandardMaterial({ map: world.createWhiteboardTexture(), roughness: 0.8 });
     const frosted = new THREE.MeshStandardMaterial({
         color: 0xa9cbc4, transparent: true, opacity: 0.29, roughness: 0.43, depthWrite: false
     });
@@ -51,14 +49,14 @@ export function buildModernOffice(world, THREE) {
     }
 
     box(room, 'Base del estudio', graphite, WIDTH, 0.18, DEPTH, 0, -0.13, 0);
-    box(room, 'Suelo de hormigón', floor, WIDTH - 0.12, 0.04, DEPTH - 0.12, 0, -0.02, 0);
-    box(room, 'Pared del fondo', walls, WIDTH, 3.5, 0.20, 0, 1.75, BACK);
+    box(room, 'Suelo de madera', floor, WIDTH - 0.12, 0.04, DEPTH - 0.12, 0, -0.02, 0);
+    box(room, 'Pared del fondo izquierda', walls, 4.7, 3.5, 0.20, -4.15, 1.75, BACK);
+    box(room, 'Pared del fondo derecha', walls, 4.7, 3.5, 0.20, 4.15, 1.75, BACK);
+    box(room, 'Pared bajo la ventana', walls, 3.6, .85, .20, 0, .425, BACK);
+    box(room, 'Pared sobre la ventana', walls, 3.6, .45, .20, 0, 3.275, BACK);
     box(room, 'Pared lateral', walls, 0.20, 3.5, 4.6, LEFT, 1.75, BACK + 2.3);
     box(room, 'Rodapié', aluminum, WIDTH, 0.13, 0.06, 0, 0.065, BACK + 0.12);
-    box(room, 'Panel acústico del fundador', teal, 3.4, 1.62, 0.10, 0, 2.22, BACK + 0.14);
-    for (let i = -3; i <= 3; i++) {
-        box(room, 'Listón acústico', walnut, 0.055, 1.58, 0.055, i * 0.44, 2.22, BACK + 0.22);
-    }
+    box(room, 'Antepecho de ventana', warmWhite, 3.7, .08, .24, 0, .88, BACK + .04);
 
     // Two open ends keep the route to the desks clear.
     for (const z of [0.55, 2.15]) {
@@ -73,10 +71,6 @@ export function buildModernOffice(world, THREE) {
         box(room, 'Zona de trabajo del equipo', felt, 3.05, 0.016, 5.35, x, 0.008, 1.58);
     }
 
-    const boardFallback = new THREE.Group();
-    room.add(boardFallback);
-    box(boardFallback, 'Marco de pizarra', aluminum, 2.53, 1.33, 0.10, -3.8, 2.25, BACK + 0.14);
-    box(boardFallback, 'Pizarra de producción', wallBoard, 2.40, 1.2, 0.025, -3.8, 2.25, BACK + 0.20);
     const storageFallback = new THREE.Group();
     room.add(storageFallback);
     box(storageFallback, 'Archivador del equipo', walnut, 2.38, 1.18, 0.64, -3.8, 0.59, BACK + 0.56, true);
@@ -164,22 +158,36 @@ export function buildModernOffice(world, THREE) {
     const loader = new THREE.GLTFLoader(world.officeAssetManager);
     const textureLoader = new THREE.TextureLoader(world.officeAssetManager);
     for (const [material, base, repeat] of [
-        [floor, '/models/garage-shell/materials/floor_tiles_04', 2],
+        [floor, '/models/studio-three/wood_floor', 5],
         [walls, '/models/studio-three/white_plaster_02', 3],
         [felt, '/models/studio-three/rug', 4]
     ]) {
         const maps = base.endsWith('/rug') ? [['diff', 'map'], ['normal', 'normalMap']]
-            : base.endsWith('/floor_tiles_04') ? [['Diffuse', 'map'], ['nor_gl', 'normalMap']]
-                : [['nor_gl', 'normalMap']];
+            : [['diff', 'map'], ['nor_gl', 'normalMap']];
         for (const [suffix, property] of maps) {
             textureLoader.load(`${base}-${suffix}.jpg`, texture => {
                 if (!room.parent) { texture.dispose(); return; }
                 texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
                 texture.repeat.set(repeat, repeat);
                 if (property === 'map') texture.encoding = THREE.sRGBEncoding;
-                material[property] = texture;
+                if (material === walls && property === 'map' && typeof document !== 'undefined') {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = texture.image.width;
+                    canvas.height = texture.image.height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#eeeae2';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.globalAlpha = .16;
+                    ctx.drawImage(texture.image, 0, 0);
+                    const subtle = new THREE.CanvasTexture(canvas);
+                    subtle.encoding = THREE.sRGBEncoding;
+                    subtle.wrapS = subtle.wrapT = THREE.RepeatWrapping;
+                    subtle.repeat.set(repeat, repeat);
+                    texture.dispose();
+                    material[property] = subtle;
+                } else material[property] = texture;
                 if (material === floor) material.color.setHex(0xffffff);
-                if (material === walls) material.normalScale.set(.25, .25);
+                if (material === walls) { material.color.setHex(0xffffff); material.normalScale.set(.15, .15); }
                 material.needsUpdate = true;
             });
         }
@@ -219,17 +227,36 @@ export function buildModernOffice(world, THREE) {
         }
         world.nextShadowRefresh = 0;
     });
-    loader.load('/models/garage-wall-decor/whiteboard.glb', gltf => {
+    loader.load('/models/garage-window/window.glb', gltf => {
         if (!room.parent) return;
-        const model = fitModel(gltf.scene, 2.53, 1.33, .10);
-        model.name = 'Pizarra de producción';
-        model.position.add(new THREE.Vector3(-3.8, 1.585, BACK + .14));
-        room.add(model);
-        const content = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.1), wallBoard);
-        content.name = 'Contenido de pizarra';
-        content.position.set(-3.8, 2.25, BACK + .20);
-        room.add(content);
-        boardFallback.visible = false;
+        for (const x of [-.9, .9]) {
+            const window = fitModel(gltf.scene, 1.8, 2.2, .18);
+            window.name = 'Ventana de oficina';
+            window.position.add(new THREE.Vector3(x, .85, BACK));
+            room.add(window);
+        }
+        world.nextShadowRefresh = 0;
+    });
+    const sky = new THREE.Mesh(new THREE.PlaneGeometry(3.58, 2.18),
+        new THREE.MeshBasicMaterial({ color: 0x9dbfc2, side: THREE.DoubleSide }));
+    sky.name = 'Vista exterior';
+    sky.position.set(0, 1.95, BACK - .12);
+    room.add(sky);
+    loader.load('/models/garage-wall-decor/frame/frame.gltf', gltf => {
+        if (!room.parent) return;
+        const frame = gltf.scene.clone(true);
+        frame.traverse(child => {
+            if (child.isMesh && /artwork|glass/i.test(child.material?.name || '')) child.visible = false;
+        });
+        frame.name = 'Marco de videojuego';
+        frame.scale.set(1.73, 1.65, 1);
+        frame.position.set(-3.8, 2.25, BACK + .11);
+        room.add(frame);
+        const artwork = new THREE.Mesh(new THREE.PlaneGeometry(.89, 1.25),
+            new THREE.MeshStandardMaterial({ map: world.createArcadePosterTexture(), roughness: .89 }));
+        artwork.name = 'Póster de videojuegos';
+        artwork.position.set(-3.8, 2.25, BACK + .13);
+        room.add(artwork);
         world.nextShadowRefresh = 0;
     });
     loader.load('/models/modern-office/planta.glb', gltf => {
