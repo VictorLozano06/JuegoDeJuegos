@@ -857,12 +857,14 @@
                 <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--text-secondary); margin-bottom: 6px;">
                     Puntuación Media Crítica
                 </div>
-                <div id="overall-score-num" class="overall-number">9.2</div>
+                <div id="overall-score-num" class="overall-number" aria-label="Puntuación pendiente">—</div>
             </div>
 
             <div id="reviews-container" class="reviews-grid"></div>
+            <p id="review-reveal-status" class="review-reveal-status" role="status" aria-live="polite"></p>
 
             <div style="display: flex; gap: 12px; justify-content: center; margin-top: 20px; flex-wrap: wrap;">
+                <button type="button" id="review-reveal-skip" class="dock-btn btn-secondary-action">Mostrar todas las notas</button>
                 <button class="dock-btn btn-primary-action" onclick="closeAllModals()" style="padding: 12px 28px;">
                     ¡A las Tiendas!
                 </button>
