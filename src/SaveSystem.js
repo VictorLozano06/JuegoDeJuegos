@@ -301,6 +301,20 @@ export class SaveSystem {
         return this.list()[0] ?? null;
     }
 
+    // Network transfers use the same reference-preserving format as local saves.
+    exportSnapshot(game) {
+        const state = persistentFields(game);
+        validateState(state);
+        Object.assign(state, migrateOfficeState(state));
+        return { version: VERSION, state: encodeState(state) };
+    }
+
+    importSnapshot(snapshot, game) {
+        if (snapshot?.version !== VERSION || !snapshot.state) throw new Error('La versión de la partida no es compatible.');
+        const state = decodeState(snapshot.state, game.techTreeManager);
+        replaceGame(game, state);
+    }
+
     save(game, { id = globalThis.crypto?.randomUUID?.() ?? `slot_${Date.now()}_${Math.random().toString(36).slice(2)}`, saveName } = {}) {
         const state = persistentFields(game);
         validateState(state);

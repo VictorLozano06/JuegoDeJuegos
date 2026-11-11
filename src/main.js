@@ -45,6 +45,12 @@ window.addEventListener('studio-radio-open', openStudioRadio);
  */
 
 let gameDevFlow = null;
+let onlineGame = null;
+try {
+    if (window.parent !== window) onlineGame = window.parent.onlineGameBridge ?? null;
+} catch { /* The game can also be embedded by another origin. */ }
+let onlineSuspended = false;
+const competitiveSaveId = onlineGame?.mode === 'competitive' ? `online_${onlineGame.seat}` : null;
 
 let world = null;
 let annualCeremonyOpen = false;
@@ -279,9 +285,29 @@ async function bootGameApp() {
 
             await preloader.loadAll(world);
             loadingScreenInstance.setComplete('¡Llegada al almacén de videojuegos! Texturas y modelos 3D preparados.');
-            await loadingScreenInstance.waitForCompletion();
+            if (!onlineGame) await loadingScreenInstance.waitForCompletion();
             world.loadingScreenActive = false;
             loadingScreenInstance.hide();
+        }
+
+        if (onlineGame) {
+            onlineGame.read = () => {
+                if (appState !== STATE_PLAYING) return null;
+                if (onlineGame.mode === 'coop') return { snapshot: saveSystem.exportSnapshot(game) };
+                return { score: { studio: game.companyName, funds: game.funds, releases: game.gamesHistory.length } };
+            };
+            onlineGame.suspend = suspended => {
+                if (onlineSuspended === suspended) return;
+                onlineSuspended = suspended;
+                if (appState === STATE_PLAYING) startSimulationLoops();
+            };
+            if (onlineGame.snapshot) {
+                saveSystem.importSnapshot(onlineGame.snapshot, game);
+                await enterGameplay();
+            } else if (competitiveSaveId && saveSystem.list().some(slot => slot.id === competitiveSaveId)) {
+                saveSystem.load(competitiveSaveId, game);
+                await enterGameplay();
+            }
         }
 
         if (urlParams.get('autostart') === '1') {
@@ -326,7 +352,7 @@ function initializeMainMenu() {
     mainMenu = createMainMenu({
         version,
         initialSettings: settings,
-        getSlots: () => saveSystem.list(),
+        getSlots: () => saveSystem.list().filter(slot => !slot.id.startsWith('online_') && !competitiveSaveId),
         onContinue: loadSavedGame,
         onLoad: loadSavedGame,
         onDelete: id => saveSystem.remove(id),
@@ -484,7 +510,7 @@ async function enterGameplay({ checkpoint = false } = {}) {
             officeLoadingScreen.setProgress(0.12);
             world.loadingScreenActive = true;
             // Give the cover a frame before building and compiling the destination.
-            await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+            if (!onlineGame) await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
             if (changedOffice) world.buildOffice(office.tier);
             else if (world.officeAssetStatus === 'failed') world.buildOffice(office.tier, world.parkLocation);
             world.syncEmployees(game.employees);
@@ -493,10 +519,10 @@ async function enterGameplay({ checkpoint = false } = {}) {
             officeLoadingScreen.setProgress(0.85);
             await world.prepareOfficeFrame();
             officeLoadingScreen.setComplete();
-            await officeLoadingScreen.waitForCompletion();
+            if (!onlineGame) await officeLoadingScreen.waitForCompletion();
         } else {
             world.syncEmployees(game.employees);
-            await world.transitionToGameplay();
+            await world.transitionToGameplay({ immediate: Boolean(onlineGame) });
         }
         populateProjectWizard();
         updateSpeedButtonsUI(game.gameSpeed);
@@ -535,7 +561,10 @@ async function enterGameplay({ checkpoint = false } = {}) {
 function returnToMainMenu() {
     closeStudioRadio();
     if (appState !== STATE_PLAYING) return;
-    if (saveSystem.getSettings().autosave !== 'off') saveSystem.autosave(game);
+    if (saveSystem.getSettings().autosave !== 'off') {
+        if (competitiveSaveId) autosaveCurrentGame();
+        else saveSystem.autosave(game);
+    }
     appState = STATE_MAIN_MENU;
     document.getElementById('ui-overlay')?.setAttribute('inert', '');
     syncParkNavigation();
@@ -557,7 +586,8 @@ function returnToMainMenu() {
 let autosaveFailed = false;
 function autosaveCurrentGame() {
     try {
-        saveSystem.autosave(game);
+        if (competitiveSaveId) saveSystem.save(game, { id: competitiveSaveId, saveName: game.companyName });
+        else saveSystem.autosave(game);
         autosaveFailed = false;
     } catch (error) {
         if (!autosaveFailed) showToast(error.message, 'warn');
@@ -570,7 +600,7 @@ function autosaveCurrentGame() {
 function startSimulationLoops() {
     clearInterval(devInterval);
     clearInterval(calendarInterval);
-    if (game.isPaused) return;
+    if (game.isPaused || onlineSuspended) return;
 
     // Calendar tick loop (advances weeks and processes economic simulation)
     calendarInterval = setInterval(() => {

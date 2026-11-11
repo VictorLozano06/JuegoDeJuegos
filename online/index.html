@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Dev Empire 3D · Sala online</title>
+    <link rel="stylesheet" href="/lobby.css">
+    <script type="module" src="/lobby.js"></script>
+</head>
+<body>
+    <main class="lobby">
+        <header class="lobby-header">
+            <p class="eyebrow">DEV EMPIRE 3D <span>/</span> MULTIJUGADOR</p>
+            <h1>La industria <span>te espera.</span></h1>
+            <p>Crea tu estudio y compite con hasta tres jugadores.</p>
+        </header>
+        <section id="join-panel" class="panel" aria-labelledby="join-title">
+            <p class="section-label">PARTIDA COMPETITIVA</p>
+            <h2 id="join-title">Entrar en la sala</h2>
+            <p id="role-description">Introduce tu nombre para participar.</p>
+            <form id="code-form" hidden>
+                <label for="room-code">Código de sala</label>
+                <div class="join-row"><input id="room-code" autocomplete="off" spellcheck="false" required><button type="submit">Buscar sala</button></div>
+                <p id="code-error" class="error" role="alert"></p>
+            </form>
+            <form id="join-form">
+                <label for="player-name">Nombre del jugador</label>
+                <div class="join-row"><input id="player-name" name="name" maxlength="24" autocomplete="nickname" required><button type="submit">Entrar en la sala</button></div>
+                <p id="join-error" class="error" role="alert"></p>
+            </form>
+            <button type="button" id="return-to-menu" class="text-button">Volver al menú principal</button>
+        </section>
+        <section id="room-panel" class="panel" aria-labelledby="room-title" hidden>
+            <div class="room-heading"><div><p class="section-label">SALA PRIVADA</p><h2 id="room-title">Estudios participantes</h2></div><span id="connection-status" class="connection" role="status">Conectando</span></div>
+            <ul id="players" class="players" aria-label="Jugadores conectados"></ul>
+            <section class="calendar" aria-label="Partida">
+                <div><strong id="match-title">Competición de estudios</strong><p id="match-status" role="status">Hasta cuatro jugadores.</p></div>
+                <div id="host-controls" class="controls" hidden><button type="button" id="start-competitive">Iniciar partida</button></div>
+                <button id="back-to-game" type="button" hidden>Volver al estudio</button>
+            </section>
+            <section id="invite-panel" class="invite" hidden>
+                <h3>Invitar jugadores</h3>
+                <div id="manual-address"><label for="public-address">Dirección del anfitrión</label>
+                <input id="public-address" placeholder="IP pública o dirección de red virtual" autocomplete="off">
+                <p>El servicio de encuentro no está disponible. Introduce una dirección accesible para generar un código directo.</p></div>
+                <label for="invite-link">Código de sala</label>
+                <div class="join-row"><input id="invite-link" readonly><button type="button" id="copy-invite" class="secondary">Copiar</button></div>
+            </section>
+            <p id="room-message" class="error" role="status"></p>
+            <button type="button" id="leave-room" class="text-button">Volver a la entrada</button>
+        </section>
+    </main>
+    <section id="game-shell" aria-label="Partida online" hidden>
+        <header class="game-bar">
+            <span id="game-mode"></span>
+            <span id="game-status" role="status"></span>
+            <details id="ranking" hidden><summary>Clasificación</summary><ol id="scores"></ol></details>
+            <button id="back-to-room" type="button" class="secondary">Sala</button>
+        </header>
+        <div id="game-frame"></div>
+    </section>
+    <dialog id="leave-dialog" aria-labelledby="leave-title">
+        <h2 id="leave-title">Salir de la partida</h2>
+        <p>Se cerrará tu estudio online y saldrás de la sala.</p>
+        <div class="controls"><button id="cancel-leave" type="button" class="secondary">Cancelar</button><button id="confirm-leave" type="button">Salir de la sala</button></div>
+    </dialog>
+</body>
+</html>

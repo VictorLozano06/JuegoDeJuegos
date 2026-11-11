@@ -99,7 +99,8 @@ body.menu-active #ui-overlay {
 }
 
 .main-menu button,
-.main-menu-dialog button {
+.main-menu-dialog button,
+.main-menu-actions .menu-online {
     min-height: 2.55rem;
     padding: .55rem .8rem;
     border: 1px solid var(--menu-line);
@@ -113,7 +114,8 @@ body.menu-active #ui-overlay {
     transition: border-color .18s, background-color .18s;
 }
 
-.main-menu-actions button {
+.main-menu-actions button,
+.main-menu-actions .menu-online {
     text-align: left;
     min-height: 3.4rem;
     padding: .8rem 1.1rem;
@@ -122,13 +124,23 @@ body.menu-active #ui-overlay {
     backdrop-filter: blur(8px);
 }
 
+.main-menu-actions .menu-online {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.main-menu-actions .menu-online[hidden] { display: none; }
+
 .main-menu button:hover:not(:disabled),
-.main-menu-dialog button:hover:not(:disabled) {
+.main-menu-dialog button:hover:not(:disabled),
+.main-menu-actions .menu-online:hover {
     border-color: var(--menu-accent);
     background: #dbf2de22;
 }
 
 .main-menu button:focus-visible,
+.main-menu-actions .menu-online:focus-visible,
 .main-menu-dialog :is(button, select, input):focus-visible {
     outline: 2px solid var(--menu-accent);
     outline-offset: 2px;

@@ -140,6 +140,17 @@ export function createMainMenu({
     let panelFocus = null;
 
     document.getElementById('main-menu-version').textContent = version;
+    const onlineLink = document.getElementById('main-menu-online');
+    if (import.meta.env.DEV && window.parent === window) {
+        fetch('/__dev_empire_online').then(response => response.ok ? response.json() : null).then(result => {
+            if (!result?.available) return;
+            onlineLink.href = result.url;
+            onlineLink.hidden = false;
+            const joinLink = document.getElementById('main-menu-join-online');
+            joinLink.href = new URL('/', result.url).href;
+            joinLink.hidden = false;
+        }).catch(() => {});
+    }
 
     function t(key) {
         return (messages[settings.language] || messages.es)[key];

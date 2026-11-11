@@ -2,9 +2,11 @@
   "name": "juego-de-juegos",
   "version": "1.0.0",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run build && vite",
     "build": "vite build",
     "preview": "vite preview",
+    "online:host": "node online/server.mjs",
+    "online:rendezvous": "node online/rendezvous.mjs",
     "dist:win": "npm run build && electron-builder --win portable --x64"
   },
   "repository": {
