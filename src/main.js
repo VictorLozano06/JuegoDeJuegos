@@ -46,6 +46,7 @@ let gameDevFlow = null;
 let world = null;
 let currentLiveSalesWidgetGameId = null;
 let isLiveSalesWidgetMinimized = false;
+let cancelReviewReveal = null;
 const STATE_MAIN_MENU = 'main-menu';
 const STATE_TRANSITION = 'transition';
 const STATE_PLAYING = 'playing';
@@ -3426,7 +3427,7 @@ function changeOffice(id, action) {
     overlay.querySelector('[data-office-name]').textContent = office.name;
     document.body.appendChild(overlay);
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    setTimeout(() => {
+    setTimeout(async () => {
         try {
             const result = action === 'activate' ? game.activateOffice(id) : game.purchaseOffice(id);
             refreshOfficeManager(result);
@@ -3435,7 +3436,12 @@ function changeOffice(id, action) {
             window.studioPhoneNav?.close(false);
             window.uwuntuOS?.close();
             closeAllModals();
-            setTimeout(() => { overlay.remove(); officeMoveInProgress = false; }, reducedMotion ? 80 : 1200);
+            await Promise.all([
+                world.prepareOfficeFrame(),
+                new Promise(resolve => setTimeout(resolve, reducedMotion ? 80 : 1200))
+            ]);
+            overlay.remove();
+            officeMoveInProgress = false;
         } catch (error) {
             overlay.remove();
             officeMoveInProgress = false;
@@ -3448,7 +3454,6 @@ function changeOffice(id, action) {
 // --- REVIEWS MODAL ---
 
 let lastReleasedGameId = null;
-let cancelReviewReveal = null;
 
 function showReviewModal(gameData) {
     lastReleasedGameId = gameData.id;

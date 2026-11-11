@@ -73,16 +73,22 @@ export function buildModernOffice(world, THREE) {
         box(room, 'Zona de trabajo del equipo', felt, 3.05, 0.016, 5.35, x, 0.008, 1.58);
     }
 
-    box(room, 'Marco de pizarra', aluminum, 2.53, 1.33, 0.10, -3.8, 2.25, BACK + 0.14);
-    box(room, 'Pizarra de producción', wallBoard, 2.40, 1.2, 0.025, -3.8, 2.25, BACK + 0.20);
-    box(room, 'Archivador del equipo', walnut, 2.38, 1.18, 0.64, -3.8, 0.59, BACK + 0.56, true);
-    box(room, 'Encimera del archivador', timber, 2.47, 0.08, 0.69, -3.8, 1.20, BACK + 0.56);
+    const boardFallback = new THREE.Group();
+    room.add(boardFallback);
+    box(boardFallback, 'Marco de pizarra', aluminum, 2.53, 1.33, 0.10, -3.8, 2.25, BACK + 0.14);
+    box(boardFallback, 'Pizarra de producción', wallBoard, 2.40, 1.2, 0.025, -3.8, 2.25, BACK + 0.20);
+    const storageFallback = new THREE.Group();
+    room.add(storageFallback);
+    box(storageFallback, 'Archivador del equipo', walnut, 2.38, 1.18, 0.64, -3.8, 0.59, BACK + 0.56, true);
+    box(storageFallback, 'Encimera del archivador', timber, 2.47, 0.08, 0.69, -3.8, 1.20, BACK + 0.56);
     for (const x of [-4.56, -3.8, -3.04]) {
-        box(room, 'Puerta de almacenamiento', warmWhite, 0.73, 0.97, 0.035, x, 0.59, BACK + 0.9);
-        box(room, 'Tirador de archivador', aluminum, 0.14, 0.04, 0.035, x, 0.97, BACK + 0.927);
+        box(storageFallback, 'Puerta de almacenamiento', warmWhite, 0.73, 0.97, 0.035, x, 0.59, BACK + 0.9);
+        box(storageFallback, 'Tirador de archivador', aluminum, 0.14, 0.04, 0.035, x, 0.97, BACK + 0.927);
     }
-    box(room, 'Aparador de café', walnut, 2.35, 1.12, 0.72, 3.9, 0.56, BACK + 0.62, true);
-    box(room, 'Encimera de café', timber, 2.43, 0.09, 0.76, 3.9, 1.16, BACK + 0.62);
+    const coffeeFallback = new THREE.Group();
+    room.add(coffeeFallback);
+    box(coffeeFallback, 'Aparador de café', walnut, 2.35, 1.12, 0.72, 3.9, 0.56, BACK + 0.62, true);
+    box(coffeeFallback, 'Encimera de café', timber, 2.43, 0.09, 0.76, 3.9, 1.16, BACK + 0.62);
     world.addRadio(room, 3.04, 1.205, BACK + 0.61, true);
     const applianceBody = box(room, 'Cuerpo de cafetera', aluminum, 0.49, 0.43, 0.39, 4.18, 1.42, BACK + 0.61);
     const applianceFront = box(room, 'Frente de cafetera', graphite, 0.42, 0.24, 0.04, 4.18, 1.43, BACK + 0.83);
@@ -119,11 +125,13 @@ export function buildModernOffice(world, THREE) {
         desk.name = boss ? 'Puesto del fundador' : 'Puesto de equipo ' + index;
         desk.position.set(slot.x, 0, slot.z);
         const width = boss ? 2.9 : 2.25;
-        box(desk, 'Tablero', boss ? walnut : timber, width, 0.095, 1.19, 0, 1.35, 0, true);
+        const deskFallback = new THREE.Group();
+        desk.add(deskFallback);
+        box(deskFallback, 'Tablero', boss ? walnut : timber, width, 0.095, 1.19, 0, 1.35, 0, true);
         for (const x of [-width / 2 + 0.15, width / 2 - 0.15]) {
-            box(desk, 'Pata delantera', aluminum, 0.07, 1.30, 0.07, x, 0.65, 0.43, true);
-            box(desk, 'Pata trasera', aluminum, 0.07, 1.30, 0.07, x, 0.65, -0.43, true);
-            box(desk, 'Travesaño', aluminum, 0.07, 0.07, 0.92, x, 0.035, 0);
+            box(deskFallback, 'Pata delantera', aluminum, 0.07, 1.30, 0.07, x, 0.65, 0.43, true);
+            box(deskFallback, 'Pata trasera', aluminum, 0.07, 1.30, 0.07, x, 0.65, -0.43, true);
+            box(deskFallback, 'Travesaño', aluminum, 0.07, 0.07, 0.92, x, 0.035, 0);
         }
         const monitorWidth = boss ? 1.31 : 0.99;
         const monitorZ = -0.34;
@@ -136,7 +144,7 @@ export function buildModernOffice(world, THREE) {
         desk.add(display);
         const peripherals = createModernPeripherals(THREE, { tabletop: 1.3975 });
         desk.add(peripherals);
-        workstations.push({ desk, display, frame, stand, base, peripherals, monitorWidth });
+        workstations.push({ desk, deskFallback, width, display, frame, stand, base, peripherals, monitorWidth });
         if (boss) {
             box(desk, 'Organizador del fundador', graphite, 0.62, 0.08, 0.32, -0.96, 1.44, -0.20);
             box(desk, 'Cuaderno del fundador', warmWhite, 0.39, 0.032, 0.29, -0.83, 1.418, 0.30);
@@ -154,6 +162,76 @@ export function buildModernOffice(world, THREE) {
     // a fallback while the files load or if an asset cannot be retrieved.
     if (!THREE.GLTFLoader) return;
     const loader = new THREE.GLTFLoader(world.officeAssetManager);
+    const textureLoader = new THREE.TextureLoader(world.officeAssetManager);
+    for (const [material, base, repeat] of [
+        [floor, '/models/garage-shell/materials/floor_tiles_04', 2],
+        [walls, '/models/studio-three/white_plaster_02', 3],
+        [felt, '/models/studio-three/rug', 4]
+    ]) {
+        const maps = base.endsWith('/rug') ? [['diff', 'map'], ['normal', 'normalMap']]
+            : base.endsWith('/floor_tiles_04') ? [['Diffuse', 'map'], ['nor_gl', 'normalMap']]
+                : [['nor_gl', 'normalMap']];
+        for (const [suffix, property] of maps) {
+            textureLoader.load(`${base}-${suffix}.jpg`, texture => {
+                if (!room.parent) { texture.dispose(); return; }
+                texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(repeat, repeat);
+                if (property === 'map') texture.encoding = THREE.sRGBEncoding;
+                material[property] = texture;
+                if (material === floor) material.color.setHex(0xffffff);
+                if (material === walls) material.normalScale.set(.25, .25);
+                material.needsUpdate = true;
+            });
+        }
+    }
+    const fitModel = (source, width, height, depth) => {
+        const model = source.clone(true);
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (!size.x || !size.y || !size.z) throw new Error('Modelo de oficina sin dimensiones válidas');
+        model.scale.set(width / size.x, height / size.y, depth / size.z);
+        model.position.set(-center.x * model.scale.x, -bounds.min.y * model.scale.y, -center.z * model.scale.z);
+        model.traverse(child => { if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; } });
+        return model;
+    };
+    loader.load('/models/studio-three/desk.glb', gltf => {
+        if (!room.parent) return;
+        for (const station of workstations) {
+            const model = fitModel(gltf.scene, station.width, 1.3975, 1.19);
+            model.name = 'Escritorio de oficina';
+            station.desk.add(model);
+            station.deskFallback.visible = false;
+        }
+        world.nextShadowRefresh = 0;
+    });
+    loader.load('/models/garage-station/dresser.glb', gltf => {
+        if (!room.parent) return;
+        for (const spec of [
+            { x: -3.8, z: BACK + .56, width: 2.38, height: 1.24, depth: .69, fallback: storageFallback },
+            { x: 3.9, z: BACK + .62, width: 2.35, height: 1.205, depth: .76, fallback: coffeeFallback }
+        ]) {
+            const model = fitModel(gltf.scene, spec.width, spec.height, spec.depth);
+            model.name = 'Armario de oficina';
+            model.position.add(new THREE.Vector3(spec.x, 0, spec.z));
+            room.add(model);
+            spec.fallback.visible = false;
+        }
+        world.nextShadowRefresh = 0;
+    });
+    loader.load('/models/garage-wall-decor/whiteboard.glb', gltf => {
+        if (!room.parent) return;
+        const model = fitModel(gltf.scene, 2.53, 1.33, .10);
+        model.name = 'Pizarra de producción';
+        model.position.add(new THREE.Vector3(-3.8, 1.585, BACK + .14));
+        room.add(model);
+        const content = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 1.1), wallBoard);
+        content.name = 'Contenido de pizarra';
+        content.position.set(-3.8, 2.25, BACK + .20);
+        room.add(content);
+        boardFallback.visible = false;
+        world.nextShadowRefresh = 0;
+    });
     loader.load('/models/modern-office/planta.glb', gltf => {
         if (!room.parent) return;
         const bounds = new THREE.Box3().setFromObject(gltf.scene);
