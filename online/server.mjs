@@ -11,9 +11,11 @@ import { fileURLToPath } from 'node:url';
 const port = Number(process.env.DEV_EMPIRE_ONLINE_PORT || 3210);
 const tlsKey = process.env.DEV_EMPIRE_ONLINE_TLS_KEY;
 const tlsCert = process.env.DEV_EMPIRE_ONLINE_TLS_CERT;
-const rendezvousUrl = process.env.DEV_EMPIRE_RENDEZVOUS_URL;
+const rendezvousUrl = process.env.DEV_EMPIRE_RENDEZVOUS_URL || 'https://palegoldenrod-cod-367689.hostingersite.com';
 let roomLease = null;
 let leaseTimer = null;
+let relayTimer = null;
+const relayResults = new Map();
 async function rendezvous(action, data) {
     if (!rendezvousUrl) throw new Error('El servicio de encuentro no está configurado.');
     const base = new URL(rendezvousUrl);
@@ -113,6 +115,14 @@ async function handleRequest(req, res) {
             try { return send(res, 200, await rendezvous('lookup', { code: input.code })); }
             catch (error) { return send(res, 503, { error: error.message }); }
         }
+        if (url.pathname === '/api/relay') {
+            if (!['join', 'state', 'score', 'leave'].includes(input.action) || !input.data || typeof input.data !== 'object' || Array.isArray(input.data)) return send(res, 400, { error: 'Solicitud no válida.' });
+            if (input.action === 'join' && input.data.hostKey) return send(res, 403, { error: 'Acción no permitida.' });
+            try {
+                const result = await rendezvous('relay', { code: input.code, action: input.action, data: input.data });
+                return send(res, result.status, result.data);
+            } catch (error) { return send(res, 503, { error: error.message }); }
+        }
         if (url.pathname === '/api/join') {
             const host = equal(input.hostKey, hostKey);
             if (!host && !equal(input.inviteKey, inviteKey)) return send(res, 403, { error: 'Invitación no válida.' });
@@ -134,9 +144,29 @@ async function handleRequest(req, res) {
             try {
                 if (!roomLease) {
                     roomLease = await rendezvous('register', { port, protocol: tlsKey ? 'https' : 'http', inviteKey });
+                    const lease = roomLease;
+                    const poll = async () => {
+                        if (roomLease !== lease) return;
+                        try {
+                            const batch = await rendezvous('poll', lease);
+                            for (const item of batch.requests) {
+                                if (!['join', 'state', 'score', 'leave'].includes(item.action)) continue;
+                                let result = relayResults.get(item.id);
+                                if (!result) {
+                                    const response = await fetch(`http://127.0.0.1:${port}/api/${item.action}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item.data), signal: AbortSignal.timeout(5000) });
+                                    result = { status: response.status, data: await response.json() };
+                                    relayResults.set(item.id, result);
+                                    if (relayResults.size > 200) relayResults.delete(relayResults.keys().next().value);
+                                }
+                                try { await rendezvous('reply', { ...lease, requestId: item.id, ...result }); } catch { /* The guest may have disconnected. */ }
+                            }
+                        } catch { /* Reintentar mientras la sala siga abierta. */ }
+                        if (roomLease === lease) relayTimer = setTimeout(poll, 500);
+                    };
+                    void poll();
                     leaseTimer = setInterval(async () => {
                         try { await rendezvous('refresh', roomLease); }
-                        catch { clearInterval(leaseTimer); leaseTimer = null; roomLease = null; }
+                        catch { clearInterval(leaseTimer); clearTimeout(relayTimer); leaseTimer = null; roomLease = null; }
                     }, 30000);
                 }
                 return send(res, 200, { code: roomLease.code });
@@ -156,6 +186,7 @@ async function handleRequest(req, res) {
             players.delete(input.id);
             if (player.host && roomLease) {
                 clearInterval(leaseTimer);
+                clearTimeout(relayTimer);
                 void rendezvous('close', roomLease).catch(() => {});
                 roomLease = null;
                 leaseTimer = null;
@@ -243,7 +274,7 @@ const server = tlsKey
 export const onlineServer = server;
 export const hostUrl = `${process.env.DEV_EMPIRE_ONLINE_ORIGIN || `${tlsKey ? 'https' : 'http'}://localhost:${port}`}/#host=${hostKey}`;
 const timer = setInterval(() => { prune(); if (state.running) state.week++; }, 5000);
-server.on('close', () => { clearInterval(timer); clearInterval(leaseTimer); if (roomLease) void rendezvous('close', roomLease).catch(() => {}); });
+server.on('close', () => { clearInterval(timer); clearInterval(leaseTimer); clearTimeout(relayTimer); if (roomLease) void rendezvous('close', roomLease).catch(() => {}); });
 server.listen(port, '0.0.0.0', () => {
     const addresses = Object.values(networkInterfaces()).flat().filter(item => item && item.family === 'IPv4' && !item.internal);
     const origin = process.env.DEV_EMPIRE_ONLINE_ORIGIN || `${tlsKey ? 'https' : 'http'}://localhost:${port}`;

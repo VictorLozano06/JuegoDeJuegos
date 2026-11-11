@@ -61,7 +61,11 @@ test('dos servidores de juego encuentran la misma sala por código', async () =>
         const { code } = await post(ports[1], 'room-code', { id: host.id });
         const room = await post(ports[2], 'find-room', { code });
         assert.equal(new URL(room.address).port, String(ports[1]));
-        const guest = await post(ports[1], 'join', { name: 'Invitado', inviteKey: room.inviteKey });
+        const guest = await post(ports[2], 'relay', { code, action: 'join', data: { name: 'Invitado', inviteKey: room.inviteKey } });
         assert.ok(guest.id);
+        await post(ports[1], 'start', { id: host.id, mode: 'competitive' });
+        await post(ports[2], 'relay', { code, action: 'score', data: { id: guest.id, studio: 'Estudio invitado', funds: 500, releases: 1 } });
+        const state = await post(ports[2], 'relay', { code, action: 'state', data: { id: guest.id } });
+        assert.equal(state.match.ranking[0].studio, 'Estudio invitado');
     } finally { for (const child of children) child.kill(); }
 });

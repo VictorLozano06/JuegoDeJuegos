@@ -11,6 +11,8 @@ let frame = null;
 let revision = -1;
 let busy = false;
 let inRoom = false;
+let relayCode = null;
+let relayInvite = null;
 const frameHost = $('#game-frame');
 const savedSessionKey = 'dev-empire-online-session';
 
@@ -82,9 +84,13 @@ $('#code-form').addEventListener('submit', async event => {
         let destination;
         if (/^[A-HJ-NP-Z2-9]{8}$/i.test(code)) {
             const room = await request('find-room', { code });
-            const encoded = new TextEncoder().encode(JSON.stringify({ address: room.address, key: room.inviteKey }));
-            const legacyCode = 'DE1-' + btoa(String.fromCharCode(...encoded)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-            destination = decodeRoomCode(legacyCode);
+            relayCode = code.toUpperCase();
+            relayInvite = room.inviteKey;
+            $('#code-form').hidden = true;
+            $('#join-form').hidden = false;
+            $('#role-description').textContent = 'Sala encontrada. Introduce tu nombre para entrar.';
+            $('#player-name').focus();
+            return;
         } else destination = decodeRoomCode(code);
         $('#code-error').textContent = '';
         const target = new URL(destination);
@@ -102,11 +108,12 @@ $('#return-to-menu').addEventListener('click', () => {
 });
 
 async function request(path, data) {
-    const response = await fetch(`/api/${path}`, {
+    const throughRelay = relayCode && ['join', 'state', 'score', 'leave'].includes(path);
+    const response = await fetch(throughRelay ? '/api/relay' : `/api/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        signal: AbortSignal.timeout(8000)
+        body: JSON.stringify(throughRelay ? { code: relayCode, action: path, data } : data),
+        signal: AbortSignal.timeout(12000)
     });
     const result = await response.json();
     if (!response.ok) {
@@ -148,6 +155,11 @@ function showJoin(message = '') {
     closeGame();
     $('#room-panel').hidden = true;
     $('#join-panel').hidden = false;
+    if (codeEntry) {
+        $('#code-form').hidden = false;
+        $('#join-form').hidden = true;
+        $('#role-description').textContent = 'Pega el código que te ha pasado el anfitrión.';
+    }
     $('#join-error').textContent = message;
     (codeEntry ? $('#room-code') : $('#player-name')).focus();
 }
@@ -205,7 +217,8 @@ $('#join-form').addEventListener('submit', async event => {
     button.disabled = true;
     $('#join-error').textContent = '';
     try {
-        session = await request('join', { name: $('#player-name').value, hostKey, inviteKey: invitation });
+        session = await request('join', { name: $('#player-name').value, hostKey, inviteKey: relayInvite || invitation });
+        if (relayCode) session.relayCode = relayCode;
         sessionStorage.setItem(savedSessionKey, JSON.stringify(session));
         await enterRoom();
     } catch (error) { $('#join-error').textContent = error.message || 'No se ha podido conectar.'; }
@@ -266,6 +279,8 @@ async function leaveRoom() {
     }
     showJoin();
     if (current) try { await request('leave', { id: current.id }); } catch { /* La sesión caducará automáticamente. */ }
+    relayCode = null;
+    relayInvite = null;
     busy = false;
 }
 
@@ -299,5 +314,5 @@ $('#copy-invite').addEventListener('click', async () => {
 
 if (!hostKey && !invitation) {
     try { session = JSON.parse(sessionStorage.getItem(savedSessionKey)); } catch { /* Invalid session data. */ }
-    if (session) void enterRoom();
+    if (session) { relayCode = session.relayCode || null; void enterRoom(); }
 }
