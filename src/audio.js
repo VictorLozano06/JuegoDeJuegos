@@ -290,14 +290,20 @@ class SoundEngine {
         });
     }
 
-    // --- PROCEDURAL AMBIENT SOUNDTRACK ---
-    // A lush, cozy, lo-fi tech groove (chords + subtle bass + warm tone)
+    // --- AMBIENT SOUNDTRACK ---
     startAmbientMusic() {
         if (this.musicPlaying) return;
         if (!this.musicElement) {
-            this.musicElement = new Audio(`${import.meta.env.BASE_URL}audio/musica-principal.mp3`);
-            this.musicElement.loop = true;
+            const tracks = ['cancion1.mp3', 'cancion2.mp3'];
+            let currentTrack = Math.floor(Math.random() * tracks.length);
+            this.musicElement = new Audio(`${import.meta.env.BASE_URL}audio/${tracks[currentTrack]}`);
             this.musicElement.preload = 'auto';
+            this.musicElement.addEventListener('ended', () => {
+                if (!this.musicPlaying) return;
+                currentTrack = (currentTrack + 1) % tracks.length;
+                this.musicElement.src = `${import.meta.env.BASE_URL}audio/${tracks[currentTrack]}`;
+                this.musicElement.play().catch(() => {});
+            });
             this.musicSource = this.ctx.createMediaElementSource(this.musicElement);
             this.musicSource.connect(this.musicGain);
         }

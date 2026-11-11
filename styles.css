@@ -1167,6 +1167,33 @@ select option:checked,
     gap: 10px;
 }
 
+.review-card.is-pending {
+    opacity: .65;
+    border-style: dashed;
+}
+.review-card.is-revealing {
+    animation: review-arrival .35s ease-out;
+}
+.review-card.is-pending .score-badge {
+    background: #435365;
+    box-shadow: none;
+}
+.review-reveal-status {
+    color: #cbd5e1;
+    text-align: center;
+    font-size: 13px;
+    min-height: 1.3em;
+    margin: 0;
+}
+#review-reveal-skip[hidden] { display: none; }
+@keyframes review-arrival {
+    from { opacity: .55; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .review-card.is-revealing { animation: none; }
+}
+
 .critic-row {
     display: flex;
     justify-content: space-between;

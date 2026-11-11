@@ -3448,6 +3448,7 @@ function changeOffice(id, action) {
 // --- REVIEWS MODAL ---
 
 let lastReleasedGameId = null;
+let cancelReviewReveal = null;
 
 function showReviewModal(gameData) {
     lastReleasedGameId = gameData.id;
@@ -3457,32 +3458,101 @@ function showReviewModal(gameData) {
     container.innerHTML = '';
 
     document.getElementById('review-game-title').innerText = `Lanzamiento: "${gameData.name}"`;
-    document.getElementById('overall-score-num').innerText = gameData.score.toFixed(1);
-
+    const overall = document.getElementById('overall-score-num');
+    const status = document.getElementById('review-reveal-status');
+    const skip = document.getElementById('review-reveal-skip');
     const banner = document.getElementById('overall-score-banner');
-    if (gameData.score >= 9.0) {
-        banner.style.background = 'linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(0, 210, 255, 0.35))';
-    } else if (gameData.score >= 7.0) {
-        banner.style.background = 'linear-gradient(135deg, rgba(0, 210, 255, 0.25), rgba(168, 85, 247, 0.25))';
-    } else {
-        banner.style.background = 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(168, 85, 247, 0.2))';
-    }
-
-    gameData.reviews.forEach(r => {
+    const reviews = Array.isArray(gameData.reviews) ? gameData.reviews : [];
+    overall.textContent = '—';
+    overall.setAttribute('aria-label', 'Puntuación pendiente');
+    banner.style.background = '';
+    const cards = reviews.map(r => {
         const card = document.createElement('div');
-        card.className = 'review-card';
+        card.className = 'review-card is-pending';
         const scoreClass = r.score >= 8.0 ? 'high' : (r.score >= 6.0 ? 'med' : 'low');
-        card.innerHTML = `
-            <div class="critic-row">
-                <span class="critic-name">${r.avatar} ${r.critic}</span>
-                <span class="score-badge ${scoreClass}">${r.score.toFixed(1)}/10</span>
-            </div>
-            <p class="review-comment">"${r.comment}"</p>
-        `;
+        const row = document.createElement('div');
+        row.className = 'critic-row';
+        const name = document.createElement('span');
+        name.className = 'critic-name';
+        const icon = /^\[\[DE_ICON_\d{3}\]\]$/.test(r.avatar || '') ? `${r.avatar} ` : '';
+        name.textContent = `${icon}${r.critic}`;
+        const badge = document.createElement('span');
+        badge.className = 'score-badge';
+        badge.textContent = '— /10';
+        badge.setAttribute('aria-label', 'Nota pendiente');
+        const comment = document.createElement('p');
+        comment.className = 'review-comment';
+        comment.textContent = `“${r.comment}”`;
+        comment.hidden = true;
+        row.append(name, badge);
+        card.append(row, comment);
         container.appendChild(card);
+        return { card, badge, comment, score: Number(r.score), scoreClass, critic: r.critic };
     });
 
     openModal('modal-reviews');
+    let timer = null;
+    let frame = null;
+    let stopped = false;
+    const cancel = () => {
+        stopped = true;
+        clearTimeout(timer);
+        if (frame !== null) cancelAnimationFrame(frame);
+        skip.onclick = null;
+    };
+    cancelReviewReveal = cancel;
+    const revealCard = ({ card, badge, comment, score, scoreClass }) => {
+        card.classList.remove('is-pending');
+        card.classList.add('is-revealing');
+        badge.classList.add(scoreClass);
+        badge.textContent = `${score.toFixed(1)}/10`;
+        badge.setAttribute('aria-label', `Nota ${score.toFixed(1)} de 10`);
+        comment.hidden = false;
+    };
+    const finish = () => {
+        cancel();
+        cards.forEach(revealCard);
+        overall.textContent = gameData.score.toFixed(1);
+        overall.setAttribute('aria-label', `Puntuación media ${gameData.score.toFixed(1)} de 10`);
+        banner.style.background = gameData.score >= 9
+            ? 'linear-gradient(135deg, rgba(16, 185, 129, 0.35), rgba(0, 210, 255, 0.35))'
+            : gameData.score >= 7
+                ? 'linear-gradient(135deg, rgba(0, 210, 255, 0.25), rgba(168, 85, 247, 0.25))'
+                : 'linear-gradient(135deg, rgba(239, 68, 68, 0.3), rgba(168, 85, 247, 0.2))';
+        status.textContent = `Puntuación media: ${gameData.score.toFixed(1)} sobre 10.`;
+        skip.hidden = true;
+        cancelReviewReveal = null;
+    };
+    skip.hidden = false;
+    skip.onclick = finish;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || !cards.length) {
+        finish();
+        return;
+    }
+    status.textContent = 'Llegando las primeras críticas…';
+    const showNext = index => {
+        if (stopped) return;
+        if (index === cards.length) { timer = setTimeout(finish, 500); return; }
+        const item = cards[index];
+        item.card.classList.remove('is-pending');
+        item.card.classList.add('is-revealing');
+        status.textContent = `Valoración de ${item.critic}…`;
+        const start = performance.now();
+        const tick = now => {
+            if (stopped) return;
+            const progress = Math.min(1, (now - start) / 650);
+            item.badge.textContent = `${(item.score * progress).toFixed(1)}/10`;
+            if (progress < 1) frame = requestAnimationFrame(tick);
+            else {
+                frame = null;
+                revealCard(item);
+                status.textContent = `${item.critic}: ${item.score.toFixed(1)} sobre 10.`;
+                timer = setTimeout(() => showNext(index + 1), 500);
+            }
+        };
+        frame = requestAnimationFrame(tick);
+    };
+    timer = setTimeout(() => showNext(0), 450);
 }
 
 window.openCurrentReleasedGameChart = function() {
@@ -7104,6 +7174,10 @@ function openModal(id) {
 }
 
 function closeAllModals() {
+    if (cancelReviewReveal) {
+        cancelReviewReveal();
+        cancelReviewReveal = null;
+    }
     const closedExpo = document.getElementById('modal-expo')?.classList.contains('active');
     if (document.getElementById('modal-expo-scene')?.classList.contains('active') && expoSession) {
         clearInterval(expoPedestrianInterval);
